@@ -161,7 +161,9 @@ data class HarmonographSettings(
     val periodicShapeFreqIsMultiply: Boolean = true,
     
     // Camera Setup
-    val cameraPerspective: Int = 1, // 1 = Distant, 2 = Roller coaster/Pen ride
+    val cameraPerspective: Int = 1, // 1 = Full View, 2 = Roller coaster
+    val cameraDistance: FloatParameter = FloatParameter(220f, rangeMin = 80f, rangeMax = 600f),
+    val dynamicCameraZoomEnabled: Boolean = false,
     val cameraAngleLock: Boolean = false,
     val cameraAngleLockValue: Float = 0f,
     val cameraAutoRotationEnabled: Boolean = true,
@@ -172,7 +174,11 @@ data class HarmonographSettings(
     
     // Resets
     val postCompletionAutoReset: Boolean = false,
-    val postCompletionResetTimeFactor: Float = 0.25f // 25% of draw completion time or instant
+    val postCompletionResetTimeFactor: Float = 0.25f, // 25% of draw completion time or instant
+
+    // Additional options
+    val decayEnabled: Boolean = true,
+    val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f)
 ) {
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         return copy(
@@ -204,7 +210,9 @@ data class HarmonographSettings(
             penRotationMultiplier = penRotationMultiplier.randomize(random),
             penOffset = penOffset.randomize(random),
             periodicShapeSize = periodicShapeSize.randomize(random),
-            periodicShapeFreqFactor = periodicShapeFreqFactor.randomize(random)
+            periodicShapeFreqFactor = periodicShapeFreqFactor.randomize(random),
+            lineThickness = lineThickness.randomize(random),
+            cameraDistance = cameraDistance.randomize(random)
         )
     }
 }

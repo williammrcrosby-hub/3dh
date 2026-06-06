@@ -1,12 +1,17 @@
 name: Build Android APK
+
 on:
   push:
     branches: [ "main", "master", "*" ]
+  pull_request:
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
   build:
+    name: Build and Package APK
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -16,13 +21,24 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '17'
-          cache: 'gradle'
+
+      - name: Make Gradle Wrapper Executable and Repair Line Endings
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
+      - name: Setup Gradle Build Environment
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          cache-read-only: false
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload Debug APK
+      - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
+          name: Harmonograph-3D-Debug-APK
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14

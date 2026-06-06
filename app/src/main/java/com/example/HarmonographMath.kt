@@ -55,9 +55,9 @@ object HarmonographMath {
         val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
         val pz = Math.toRadians(settings.phaseZ.current.toDouble()).toFloat()
         
-        val decayFactorX = exp(-settings.decayX.current * t)
-        val decayFactorY = exp(-settings.decayY.current * t)
-        val decayFactorZ = exp(-settings.decayZ.current * t)
+        val decayFactorX = if (settings.decayEnabled) exp(-settings.decayX.current * t) else 1f
+        val decayFactorY = if (settings.decayEnabled) exp(-settings.decayY.current * t) else 1f
+        val decayFactorZ = if (settings.decayEnabled) exp(-settings.decayZ.current * t) else 1f
         
         var xRaw = settings.ampX.current * decayFactorX * sin(settings.freqX.current * t + px)
         var yRaw = settings.ampY.current * decayFactorY * sin(settings.freqY.current * t + py)
@@ -228,7 +228,11 @@ object HarmonographMath {
         screenWidth: Float,
         screenHeight: Float,
         angularLock: Boolean,
-        angularLockAxis: String = "Z"
+        angularLockAxis: String = "Z",
+        referencePoints: List<Point3D>? = null,
+        cameraTargetIndex: Int = -1,
+        cameraDistance: Float = 220f,
+        dynamicCameraZoomEnabled: Boolean = false
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -240,22 +244,62 @@ object HarmonographMath {
         
         // Dynamic Lock View Perpendicular to Plane (directly projections bypass rotation triggers)
         if (angularLock && perspective == 1) {
-            return activePoints.mapIndexed { idx, pt ->
-                val (projX, projY, depth) = when (angularLockAxis) {
-                    "X" -> Triple(pt.y, pt.z, pt.x)
-                    "Y" -> Triple(pt.x, pt.z, pt.y)
-                    else -> Triple(pt.x, pt.y, pt.z) // "Z"
+            val dFocalScale = 300f / cameraDistance
+            if (dynamicCameraZoomEnabled) {
+                var maxAbsX = 0.01f
+                var maxAbsY = 0.01f
+                
+                val rawProj = activePoints.map { pt ->
+                    val (projX, projY, depth) = when (angularLockAxis) {
+                        "X" -> Triple(pt.y, pt.z, pt.x)
+                        "Y" -> Triple(pt.x, pt.z, pt.y)
+                        else -> Triple(pt.x, pt.y, pt.z) // "Z"
+                    }
+                    val scale = dFocal / (dFocal + depth)
+                    val rx = projX * scale * dFocalScale
+                    val ry = -projY * scale * dFocalScale
+                    
+                    val absX = abs(rx)
+                    val absY = abs(ry)
+                    if (absX > maxAbsX) maxAbsX = absX
+                    if (absY > maxAbsY) maxAbsY = absY
+                    
+                    Triple(rx, ry, depth)
                 }
-                val scale = dFocal / (dFocal + depth)
-                val u = screenWidth / 2f + projX * scale
-                val v = screenHeight / 2f - projY * scale
-                ProjectedPoint(
-                    x = u,
-                    y = v,
-                    depth = depth,
-                    originalIndex = idx,
-                    isTip = (idx == maxIndex)
-                )
+                
+                val allowedWidth = (screenWidth * 0.9f) / 2f
+                val allowedHeight = (screenHeight * 0.9f) / 2f
+                val fitMultiplier = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                
+                return rawProj.mapIndexed { idx, (rx, ry, depth) ->
+                    val u = screenWidth / 2f + rx * fitMultiplier
+                    val v = screenHeight / 2f + ry * fitMultiplier
+                    ProjectedPoint(
+                        x = u,
+                        y = v,
+                        depth = depth,
+                        originalIndex = idx,
+                        isTip = (idx == maxIndex)
+                    )
+                }
+            } else {
+                return activePoints.mapIndexed { idx, pt ->
+                    val (projX, projY, depth) = when (angularLockAxis) {
+                        "X" -> Triple(pt.y, pt.z, pt.x)
+                        "Y" -> Triple(pt.x, pt.z, pt.y)
+                        else -> Triple(pt.x, pt.y, pt.z) // "Z"
+                    }
+                    val scale = (dFocal / (dFocal + depth)) * dFocalScale
+                    val u = screenWidth / 2f + projX * scale
+                    val v = screenHeight / 2f - projY * scale
+                    ProjectedPoint(
+                        x = u,
+                        y = v,
+                        depth = depth,
+                        originalIndex = idx,
+                        isTip = (idx == maxIndex)
+                    )
+                }
             }
         }
         
@@ -263,44 +307,92 @@ object HarmonographMath {
         val pitchRad = Math.toRadians(pitch.toDouble()).toFloat()
         
         return if (perspective == 1) {
-            // Perspective 1: Distant viewing, looking at center (0,0,0)
-            activePoints.mapIndexed { idx, pt ->
-                // Apply yaw/pitch rot
-                val cxX = cos(yawRad)
-                val sxX = sin(yawRad)
-                val cyY = cos(pitchRad)
-                val syY = sin(pitchRad)
+            val dFocalScale = 300f / cameraDistance
+            if (dynamicCameraZoomEnabled) {
+                var maxAbsX = 0.01f
+                var maxAbsY = 0.01f
                 
-                // YAW around Z-Axis
-                val xRot1 = pt.x * cxX - pt.y * sxX
-                val yRot1 = pt.x * sxX + pt.y * cxX
-                val zRot1 = pt.z
+                val rawProj = activePoints.map { pt ->
+                    val cxX = cos(yawRad)
+                    val sxX = sin(yawRad)
+                    val cyY = cos(pitchRad)
+                    val syY = sin(pitchRad)
+                    
+                    val xRot1 = pt.x * cxX - pt.y * sxX
+                    val yRot1 = pt.x * sxX + pt.y * cxX
+                    val zRot1 = pt.z
+                    
+                    val xRot2 = xRot1
+                    val yRot2 = yRot1 * cyY - zRot1 * syY
+                    val zRot2 = yRot1 * syY + zRot1 * cyY
+                    
+                    val scale = dFocal / (dFocal + zRot2)
+                    val rx = xRot2 * scale * dFocalScale
+                    val ry = -yRot2 * scale * dFocalScale
+                    
+                    val absX = abs(rx)
+                    val absY = abs(ry)
+                    if (absX > maxAbsX) maxAbsX = absX
+                    if (absY > maxAbsY) maxAbsY = absY
+                    
+                    Triple(rx, ry, zRot2)
+                }
                 
-                // PITCH around X-axis
-                val xRot2 = xRot1
-                val yRot2 = yRot1 * cyY - zRot1 * syY
-                val zRot2 = yRot1 * syY + zRot1 * cyY
+                val allowedWidth = (screenWidth * 0.9f) / 2f
+                val allowedHeight = (screenHeight * 0.9f) / 2f
+                val fitMultiplier = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
                 
-                // Perspective division
-                val scale = dFocal / (dFocal + zRot2)
-                val u = screenWidth / 2f + xRot2 * scale
-                val v = screenHeight / 2f - yRot2 * scale
-                ProjectedPoint(
-                    x = u,
-                    y = v,
-                    depth = zRot2,
-                    originalIndex = idx,
-                    isTip = (idx == maxIndex)
-                )
+                rawProj.mapIndexed { idx, (rx, ry, depth) ->
+                    val u = screenWidth / 2f + rx * fitMultiplier
+                    val v = screenHeight / 2f + ry * fitMultiplier
+                    ProjectedPoint(
+                        x = u,
+                        y = v,
+                        depth = depth,
+                        originalIndex = idx,
+                        isTip = (idx == maxIndex)
+                    )
+                }
+            } else {
+                activePoints.mapIndexed { idx, pt ->
+                    val cxX = cos(yawRad)
+                    val sxX = sin(yawRad)
+                    val cyY = cos(pitchRad)
+                    val syY = sin(pitchRad)
+                    
+                    val xRot1 = pt.x * cxX - pt.y * sxX
+                    val yRot1 = pt.x * sxX + pt.y * cxX
+                    val zRot1 = pt.z
+                    
+                    val xRot2 = xRot1
+                    val yRot2 = yRot1 * cyY - zRot1 * syY
+                    val zRot2 = yRot1 * syY + zRot1 * cyY
+                    
+                    val scale = (dFocal / (dFocal + zRot2)) * dFocalScale
+                    val u = screenWidth / 2f + xRot2 * scale
+                    val v = screenHeight / 2f - yRot2 * scale
+                    ProjectedPoint(
+                        x = u,
+                        y = v,
+                        depth = zRot2,
+                        originalIndex = idx,
+                        isTip = (idx == maxIndex)
+                    )
+                }
             }
         } else {
             // Perspective 2: Roller coaster pen-riding!
             // Follow lookAtTarget with continuous stable camera based on yaw and pitch
-            val tipIndex = maxIndex
-            val lookAtTarget = points[tipIndex]
+            val refPts = referencePoints ?: points
+            val activeCameraTargetIndex = if (cameraTargetIndex >= 0) {
+                cameraTargetIndex.coerceIn(0, refPts.size - 1)
+            } else {
+                minOf(currentDrawIndex, refPts.size - 1)
+            }
+            val lookAtTarget = refPts[activeCameraTargetIndex]
             
             // Stable camera following lookAtTarget using spherical coordinates derived from drag
-            val dist = 220f
+            val dist = cameraDistance
             val radYaw = Math.toRadians(yaw.toDouble()).toFloat()
             val radPitch = Math.toRadians(pitch.toDouble()).toFloat()
             
@@ -344,7 +436,7 @@ object HarmonographMath {
                     y = v,
                     depth = depth,
                     originalIndex = idx,
-                    isTip = (idx == tipIndex)
+                    isTip = (idx == activeCameraTargetIndex && referencePoints == null)
                 )
             }
         }

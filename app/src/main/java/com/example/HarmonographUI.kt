@@ -74,9 +74,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
 
     // Dynamic rotation angle calculation driven by the animation timer state
     val animatedYaw = if (settings.cameraAutoRotationEnabled) {
-        yaw + (sin(animTime * 0.001f * settings.cameraAutoRotationSpeed) * settings.cameraAutoRotationRange)
+        (yaw + animTime * 0.001f * settings.cameraAutoRotationSpeed * 25f) % 360f
     } else {
         yaw
+    }
+
+    val animatedPitch = if (settings.cameraAutoRotationEnabled) {
+        pitch + (sin(animTime * 0.001f * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
+    } else {
+        pitch
     }
 
     Box(
@@ -185,19 +191,31 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 val width = size.width
                 val height = size.height
 
+                val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawLimit >= stepsCount.coerceAtLeast(1) - 1) {
+                    val cycleDurationMs = 15000L // 15 seconds to trace entire drawing
+                    val progressFrac = (animTime % cycleDurationMs).toFloat() / cycleDurationMs
+                    val stepsInPath = paths.firstOrNull()?.size ?: stepsCount
+                    (progressFrac * (stepsInPath - 1)).toInt().coerceIn(0, stepsInPath - 1)
+                } else {
+                    drawLimit
+                }
+
                 // Draw lines path
                 for (pIdx in paths.indices) {
                     val path3D = paths[pIdx]
                     val projPoints = HarmonographMath.project3DTo2D(
                         points = path3D,
                         yaw = animatedYaw,
-                        pitch = pitch,
+                        pitch = animatedPitch,
                         perspective = settings.cameraPerspective,
                         currentDrawIndex = drawLimit,
                         screenWidth = width,
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
-                        angularLockAxis = settings.angularLockAxis
+                        angularLockAxis = settings.angularLockAxis,
+                        cameraTargetIndex = cameraTargetIndex,
+                        cameraDistance = settings.cameraDistance.current,
+                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                     )
                     
                     if (projPoints.size < 2) continue
@@ -217,7 +235,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             hueOffset = timeHueOffset
                         )
                         
-                        val strokeWidth = 2.5f + (1.2f * (p1.depth / 500f).coerceIn(-1f, 1f))
+                        val baseThickness = settings.lineThickness.current
+                        val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
                         drawLine(
                             color = segmentColor,
                             start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
@@ -248,7 +267,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     drawComposeOrthogonalShape(
                         shape = shape,
                         yawVal = animatedYaw,
-                        pitchVal = pitch,
+                        pitchVal = animatedPitch,
                         perspective = settings.cameraPerspective,
                         width = width,
                         height = height,
@@ -257,7 +276,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         timeHueOffset = timeHueOffset,
                         totalSteps = stepsCount,
                         settings = settings,
-                        scaleFactor = scaleFactor
+                        scaleFactor = scaleFactor,
+                        mainPathPoints = paths.firstOrNull() ?: emptyList(),
+                        cameraTargetIndex = cameraTargetIndex
                     )
                 }
             }
@@ -473,26 +494,35 @@ fun OscillatorConfigTab(
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Text("PRIMARY XYZ OSCILLATORS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("PRIMARY XYZ OSCILLATORS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
+                Spacer(modifier = Modifier.weight(1f))
+                Text("Decay Rates", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
+                Switch(
+                    checked = settings.decayEnabled,
+                    onCheckedChange = { onUpdate(settings.copy(decayEnabled = it)) },
+                    modifier = Modifier.scale(0.7f).testTag("decay_enabled_switch")
+                )
+            }
         }
         
         // Axis configuration blocks
         item {
-            AxisConfigCard("X-Axis Control", settings.ampX, settings.freqX, settings.decayX, settings.phaseX, 
+            AxisConfigCard("X-Axis Control", settings.ampX, settings.freqX, settings.decayX, settings.phaseX, settings.decayEnabled,
                 onAmpChange = { onUpdate(settings.copy(ampX = it)) },
                 onFreqChange = { onUpdate(settings.copy(freqX = it)) },
                 onDecayChange = { onUpdate(settings.copy(decayX = it)) },
                 onPhaseChange = { onUpdate(settings.copy(phaseX = it)) })
         }
         item {
-            AxisConfigCard("Y-Axis Control", settings.ampY, settings.freqY, settings.decayY, settings.phaseY, 
+            AxisConfigCard("Y-Axis Control", settings.ampY, settings.freqY, settings.decayY, settings.phaseY, settings.decayEnabled,
                 onAmpChange = { onUpdate(settings.copy(ampY = it)) },
                 onFreqChange = { onUpdate(settings.copy(freqY = it)) },
                 onDecayChange = { onUpdate(settings.copy(decayY = it)) },
                 onPhaseChange = { onUpdate(settings.copy(phaseY = it)) })
         }
         item {
-            AxisConfigCard("Z-Axis Control (3D Depth)", settings.ampZ, settings.freqZ, settings.decayZ, settings.phaseZ, 
+            AxisConfigCard("Z-Axis Control (3D Depth)", settings.ampZ, settings.freqZ, settings.decayZ, settings.phaseZ, settings.decayEnabled,
                 onAmpChange = { onUpdate(settings.copy(ampZ = it)) },
                 onFreqChange = { onUpdate(settings.copy(freqZ = it)) },
                 onDecayChange = { onUpdate(settings.copy(decayZ = it)) },
@@ -533,6 +563,7 @@ fun AxisConfigCard(
     freq: FloatParameter,
     decay: FloatParameter,
     phase: FloatParameter,
+    decayEnabled: Boolean,
     onAmpChange: (FloatParameter) -> Unit,
     onFreqChange: (FloatParameter) -> Unit,
     onDecayChange: (FloatParameter) -> Unit,
@@ -587,13 +618,21 @@ fun AxisConfigCard(
                     )
 
                     // Decay
-                    ParameterSliderRow("Decay Rate", decay.current, decay.rangeMin, decay.rangeMax, 0.0001f, "%.4f",
-                        isLocked = decay.locked, onLockToggle = { onDecayChange(decay.copy(locked = it)) },
-                        isRangeLocked = decay.rangeLocked, onRangeLockToggle = { onDecayChange(decay.withRangeLocked(it)) },
-                        selectedMin = decay.actualSelectedMin, selectedMax = decay.actualSelectedMax,
-                        onRangeChange = { min, max -> onDecayChange(decay.withRanges(min, max)) },
-                        onValueChange = { onDecayChange(decay.withValue(it)) },
-                        onRandomize = { onDecayChange(decay.randomize(java.util.Random())) })
+                    if (decayEnabled) {
+                        ParameterSliderRow("Decay Rate", decay.current, decay.rangeMin, decay.rangeMax, 0.0001f, "%.4f",
+                            isLocked = decay.locked, onLockToggle = { onDecayChange(decay.copy(locked = it)) },
+                            isRangeLocked = decay.rangeLocked, onRangeLockToggle = { onDecayChange(decay.withRangeLocked(it)) },
+                            selectedMin = decay.actualSelectedMin, selectedMax = decay.actualSelectedMax,
+                            onRangeChange = { min, max -> onDecayChange(decay.withRanges(min, max)) },
+                            onValueChange = { onDecayChange(decay.withValue(it)) },
+                            onRandomize = { onDecayChange(decay.randomize(java.util.Random())) })
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+                            Text("Decay Rate", color = Color(0xFF64748B), fontSize = 11.sp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text("Disabled Globally", color = Color(0xFF64748B), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
 
                     // Phase Angle degrees
                     ParameterSliderRow("Phase Offset", phase.current, phase.rangeMin, phase.rangeMax, 5f, "%.0f°",
@@ -1139,6 +1178,32 @@ fun StyleAndPenConfigTab(
             }
         }
 
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Line Parameter Controls", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    
+                    ParameterSliderRow(
+                        label = "Line Thickness",
+                        value = settings.lineThickness.current,
+                        minVal = settings.lineThickness.rangeMin,
+                        maxVal = settings.lineThickness.rangeMax,
+                        stepValue = 0.1f,
+                        formatString = "%.1f px",
+                        isLocked = settings.lineThickness.locked,
+                        onLockToggle = { onUpdate(settings.copy(lineThickness = settings.lineThickness.copy(locked = it))) },
+                        isRangeLocked = settings.lineThickness.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(lineThickness = settings.lineThickness.withRangeLocked(it))) },
+                        selectedMin = settings.lineThickness.actualSelectedMin,
+                        selectedMax = settings.lineThickness.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(lineThickness = settings.lineThickness.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(lineThickness = settings.lineThickness.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(lineThickness = settings.lineThickness.randomize(java.util.Random()))) }
+                    )
+                }
+            }
+        }
+
         // Orthogonal periodic shapes triggers
         item {
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
@@ -1231,6 +1296,38 @@ fun StyleAndPenConfigTab(
                                 }
                             }
                         }
+
+                        if (settings.periodicShapeConcentric > 1) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Layer Deployment Mode", color = Color.White, fontSize = 12.sp)
+                                Spacer(modifier = Modifier.weight(1f))
+                                Row {
+                                    val isProgressive = settings.periodicShapeDeployment == "progressive"
+                                    Button(
+                                        onClick = { onUpdate(settings.copy(periodicShapeDeployment = "stacked")) },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (!isProgressive) Color(0xFFFF4081) else Color(0xFF1E293B),
+                                            contentColor = Color.White
+                                        ),
+                                        modifier = Modifier.height(28.dp).padding(horizontal = 2.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) {
+                                        Text("Stacked", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    Button(
+                                        onClick = { onUpdate(settings.copy(periodicShapeDeployment = "progressive")) },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (isProgressive) Color(0xFFFF4081) else Color(0xFF1E293B),
+                                            contentColor = Color.White
+                                        ),
+                                        modifier = Modifier.height(28.dp).padding(horizontal = 2.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) {
+                                        Text("Progressive", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1259,8 +1356,8 @@ fun CameraAndSetupTab(
                     contentPadding = PaddingValues(2.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Perspective 1", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text("Deep Distance Overview", fontSize = 8.sp, color = if (act1) Color.DarkGray else Color.LightGray)
+                        Text("Full View", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Optimal overview viewport", fontSize = 8.sp, color = if (act1) Color.DarkGray else Color.LightGray)
                     }
                 }
 
@@ -1272,8 +1369,50 @@ fun CameraAndSetupTab(
                     contentPadding = PaddingValues(2.dp)
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Perspective 2", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        Text("Roller Coaster ride pen-tip", fontSize = 8.sp, color = if (act2) Color.DarkGray else Color.LightGray)
+                        Text("Roller Coaster", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Dynamic pen-tip flight", fontSize = 8.sp, color = if (act2) Color.DarkGray else Color.LightGray)
+                    }
+                }
+            }
+        }
+
+        // Camera Distance Parameters
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Distance & View Settings", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    
+                    ParameterSliderRow(
+                        label = "Camera Distance",
+                        value = settings.cameraDistance.current,
+                        minVal = settings.cameraDistance.rangeMin,
+                        maxVal = settings.cameraDistance.rangeMax,
+                        stepValue = 2f,
+                        formatString = "%.0f px",
+                        isLocked = settings.cameraDistance.locked,
+                        onLockToggle = { onUpdate(settings.copy(cameraDistance = settings.cameraDistance.copy(locked = it))) },
+                        isRangeLocked = settings.cameraDistance.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(cameraDistance = settings.cameraDistance.withRangeLocked(it))) },
+                        selectedMin = settings.cameraDistance.actualSelectedMin,
+                        selectedMax = settings.cameraDistance.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(cameraDistance = settings.cameraDistance.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(cameraDistance = settings.cameraDistance.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(cameraDistance = settings.cameraDistance.randomize(java.util.Random()))) }
+                    )
+
+                    if (settings.cameraPerspective == 1) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Dynamic Auto-Zoom", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Maximizes screen usage of the drawing dynamically", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                            }
+                            Switch(
+                                checked = settings.dynamicCameraZoomEnabled,
+                                onCheckedChange = { onUpdate(settings.copy(dynamicCameraZoomEnabled = it)) },
+                                modifier = Modifier.scale(0.75f).testTag("dynamic_camera_zoom_switch")
+                            )
+                        }
                     }
                 }
             }
@@ -1283,19 +1422,13 @@ fun CameraAndSetupTab(
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Auto Camera Rotation Sway", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Auto 3D Camera Rotation", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.weight(1f))
                         Switch(checked = settings.cameraAutoRotationEnabled, onCheckedChange = { onUpdate(settings.copy(cameraAutoRotationEnabled = it)) }, modifier = Modifier.scale(0.7f))
                     }
 
                     if (settings.cameraAutoRotationEnabled) {
-                        Text("Sway rotation boundary degrees", color = Color(0xFF94A3B8), fontSize = 11.sp)
-                        Slider(
-                            value = settings.cameraAutoRotationRange,
-                            onValueChange = { onUpdate(settings.copy(cameraAutoRotationRange = it)) },
-                            valueRange = 10f..120f
-                        )
-                        Text("Sway Speed: ${"%.1f".format(settings.cameraAutoRotationSpeed)}", color = Color(0xFF94A3B8), fontSize = 11.sp)
+                        Text("Rotation Speed: ${"%.1f".format(settings.cameraAutoRotationSpeed)}", color = Color(0xFF94A3B8), fontSize = 11.sp)
                         Slider(
                             value = settings.cameraAutoRotationSpeed,
                             onValueChange = { onUpdate(settings.copy(cameraAutoRotationSpeed = it)) },
@@ -1495,12 +1628,12 @@ private fun computeComposeColor(
     val sat = settings.saturation.current
     return when (settings.styleMode) {
         "solid" -> {
-            adjustComposeSaturation(Color(settings.solidColor), sat)
+            adjustComposeColor(Color(settings.solidColor), sat, hueOffset)
         }
         "length" -> {
             val ratio = idx.toFloat() / total.coerceAtLeast(1)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeSaturation(colorVal, sat)
+            adjustComposeColor(colorVal, sat, hueOffset)
         }
         "center" -> {
             val dx = pt.x - width / 2f
@@ -1509,7 +1642,7 @@ private fun computeComposeColor(
             val maxDist = minOf(width, height) / 2.2f
             val ratio = (dist / maxDist).coerceIn(0f, 1f)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeSaturation(colorVal, sat)
+            adjustComposeColor(colorVal, sat, hueOffset)
         }
         else -> {
             val baseHue = (idx.toFloat() / total.coerceAtLeast(1)) * 360f
@@ -1519,7 +1652,7 @@ private fun computeComposeColor(
     }
 }
 
-private fun adjustComposeSaturation(color: Color, sat: Float): Color {
+private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(
         (color.alpha * 255).roundToInt(),
@@ -1528,7 +1661,11 @@ private fun adjustComposeSaturation(color: Color, sat: Float): Color {
         (color.blue * 255).roundToInt()
     ), hsv)
     hsv[1] = sat
-    val rawInt = android.graphics.Color.HSVToColor(hsv)
+    if (hueOffset != 0L) {
+        hsv[0] = (hsv[0] + hueOffset) % 360f
+    }
+    val alphaInt = (color.alpha * 255).roundToInt()
+    val rawInt = android.graphics.Color.HSVToColor(alphaInt, hsv)
     return Color(rawInt)
 }
 
@@ -1552,7 +1689,9 @@ private fun drawComposeOrthogonalShape(
     timeHueOffset: Long,
     totalSteps: Int,
     settings: HarmonographSettings,
-    scaleFactor: Float
+    scaleFactor: Float,
+    mainPathPoints: List<Point3D> = emptyList(),
+    cameraTargetIndex: Int = -1
 ) {
     // Standard DrawScope cannot be accessed outside draw extension function.
 }
@@ -1569,7 +1708,9 @@ private fun DrawScope.drawComposeOrthogonalShape(
     timeHueOffset: Long,
     totalSteps: Int,
     settings: HarmonographSettings,
-    scaleFactor: Float
+    scaleFactor: Float,
+    mainPathPoints: List<Point3D> = emptyList(),
+    cameraTargetIndex: Int = -1
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -1615,7 +1756,11 @@ private fun DrawScope.drawComposeOrthogonalShape(
             screenWidth = width,
             screenHeight = height,
             angularLock = angularLock,
-            angularLockAxis = angularLockAxis
+            angularLockAxis = angularLockAxis,
+            referencePoints = mainPathPoints.ifEmpty { null },
+            cameraTargetIndex = cameraTargetIndex,
+            cameraDistance = settings.cameraDistance.current,
+            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
         )
 
         if (projPts.size < 2) continue
@@ -1629,7 +1774,11 @@ private fun DrawScope.drawComposeOrthogonalShape(
             screenWidth = width,
             screenHeight = height,
             angularLock = angularLock,
-            angularLockAxis = angularLockAxis
+            angularLockAxis = angularLockAxis,
+            referencePoints = mainPathPoints.ifEmpty { null },
+            cameraTargetIndex = cameraTargetIndex,
+            cameraDistance = settings.cameraDistance.current,
+            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
         )
 
         val centerPtScreen = centerProj.firstOrNull() ?: continue

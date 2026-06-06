@@ -240,7 +240,9 @@ class HarmonographWallpaperService : WallpaperService() {
                         screenWidth = width,
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
-                        angularLockAxis = settings.angularLockAxis
+                        angularLockAxis = settings.angularLockAxis,
+                        cameraDistance = settings.cameraDistance.current,
+                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                     )
                     
                     if (projPoints.size < 2) continue
@@ -303,13 +305,13 @@ class HarmonographWallpaperService : WallpaperService() {
             return when (settings.styleMode) {
                 "solid" -> {
                     // Solid Color with slight opacity
-                    adjustSaturation(settings.solidColor, sat)
+                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset)
                 }
                 "length" -> {
                     // Length Gradient along path
                     val ratio = idx.toFloat() / total.coerceAtLeast(1)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturation(color, sat)
+                    adjustSaturationAndHue(color, sat, hueOffset)
                 }
                 "center" -> {
                     // Gradient based on distance from center of screen
@@ -319,7 +321,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     val maxDist = minOf(width, height) / 2.2f
                     val ratio = (dist / maxDist).coerceIn(0f, 1f)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturation(color, sat)
+                    adjustSaturationAndHue(color, sat, hueOffset)
                 }
                 else -> {
                     // Rainbow Gradient Mode + optional Live hue rotation
@@ -393,7 +395,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     screenWidth = width,
                     screenHeight = height,
                     angularLock = angularLock,
-                    angularLockAxis = angularLockAxis
+                    angularLockAxis = angularLockAxis,
+                    cameraDistance = settings.cameraDistance.current,
+                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                 )
                 
                 if (projPts.size < 2) continue
@@ -408,7 +412,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     screenWidth = width,
                     screenHeight = height,
                     angularLock = angularLock,
-                    angularLockAxis = angularLockAxis
+                    angularLockAxis = angularLockAxis,
+                    cameraDistance = settings.cameraDistance.current,
+                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
@@ -446,11 +452,16 @@ class HarmonographWallpaperService : WallpaperService() {
             return Color.argb(a, r, g, b)
         }
 
-        private fun adjustSaturation(color: Int, sat: Float): Int {
+        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(color, hsv)
             hsv[1] = sat
-            return Color.HSVToColor(hsv)
+            if (hueOffset != 0L) {
+                hsv[0] = (hsv[0] + hueOffset) % 360f
+            }
+            // Preserve the original alpha channel if any
+            val alpha = Color.alpha(color)
+            return Color.HSVToColor(alpha, hsv)
         }
     }
 }

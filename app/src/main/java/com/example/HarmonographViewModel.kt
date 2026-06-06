@@ -53,6 +53,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private fun startDrawingLoop() {
         drawingJob?.cancel()
         drawingJob = viewModelScope.launch(Dispatchers.Default) {
+            var completionTimeMs = 0L
             while (true) {
                 delay(16) // ~60fps ticker loop
                 
@@ -64,7 +65,21 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 if (isPlay) {
                     if (settings.drawSpeedInstant) {
                         _currentDrawProgress.value = maxSteps
+                        if (settings.postCompletionAutoReset) {
+                            if (completionTimeMs == 0L) {
+                                completionTimeMs = System.currentTimeMillis()
+                            } else {
+                                val elapsed = System.currentTimeMillis() - completionTimeMs
+                                if (elapsed >= 150_000L) { // 2.5 minutes (150 seconds)
+                                    resetAndRandomize()
+                                    completionTimeMs = 0L
+                                }
+                            }
+                        } else {
+                            completionTimeMs = 0L
+                        }
                     } else {
+                        completionTimeMs = 0L
                         // Compute step increment per frame (~16ms)
                         val totalDurationSec = settings.drawSpeedMinutes * 60f
                         val stepsPerSec = maxSteps / totalDurationSec
@@ -81,6 +96,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                             resetAndRandomize()
                         }
                     }
+                } else {
+                    completionTimeMs = 0L
                 }
             }
         }
