@@ -27,7 +27,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -89,26 +89,81 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(settings) {
-                    detectDragGestures { change, dragAmount ->
-                        change.consume()
-                        yaw += dragAmount.x * 0.25f
-                        pitch -= dragAmount.y * 0.25f
-                    }
-                }
-                .pointerInput(settings) {
-                    detectTapGestures(
-                        onDoubleTap = {
-                            // Two-finger equivalent double tap reset
-                            viewModel.resetAndRandomize()
-                            Toast.makeText(context, "Randomized variables!", Toast.LENGTH_SHORT).show()
-                        },
-                        onLongPress = {
-                            // Long press to toggle camera views
-                            val p = if (settings.cameraPerspective == 1) 2 else 1
-                            viewModel.updateSettings(settings.copy(cameraPerspective = p))
-                            Toast.makeText(context, "Perspective Swapped!", Toast.LENGTH_SHORT).show()
+                    awaitPointerEventScope {
+                        var twoFingerDownTime = 0L
+                        var twoFingerHoldTriggered = false
+                        var lastTwoFingerTapTime = 0L
+                        var isTwoFingerTapPossible = false
+
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            val pressedChanges = event.changes.filter { it.pressed }
+                            val numPressed = pressedChanges.size
+
+                            if (numPressed == 1) {
+                                // Single-finger dragging: update view angles
+                                val change = pressedChanges.first()
+                                if (change.previousPressed) {
+                                    val dragAmount = change.position - change.previousPosition
+                                    yaw += dragAmount.x * 0.25f
+                                    pitch -= dragAmount.y * 0.25f
+                                    change.consume()
+                                }
+
+                                // If transitioned from 2 fingers down to 1 finger down
+                                if (twoFingerDownTime > 0L) {
+                                    val duration = System.currentTimeMillis() - twoFingerDownTime
+                                    if (!twoFingerHoldTriggered && isTwoFingerTapPossible && duration in 40L..500L) {
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastTwoFingerTapTime < 500L) {
+                                            viewModel.resetAndRandomize()
+                                            Toast.makeText(context, "Variables Reset & Randomized!", Toast.LENGTH_SHORT).show()
+                                            lastTwoFingerTapTime = 0L
+                                        } else {
+                                            lastTwoFingerTapTime = now
+                                        }
+                                    }
+                                    twoFingerDownTime = 0L
+                                    isTwoFingerTapPossible = false
+                                }
+                            } else if (numPressed == 2) {
+                                // Exactly two fingers down
+                                if (twoFingerDownTime == 0L) {
+                                    twoFingerDownTime = System.currentTimeMillis()
+                                    twoFingerHoldTriggered = false
+                                    isTwoFingerTapPossible = true
+                                } else {
+                                    val duration = System.currentTimeMillis() - twoFingerDownTime
+                                    if (!twoFingerHoldTriggered && duration >= 650L) {
+                                        twoFingerHoldTriggered = true
+                                        isTwoFingerTapPossible = false
+                                        val p = if (settings.cameraPerspective == 1) 2 else 1
+                                        viewModel.updateSettings(settings.copy(cameraPerspective = p))
+                                        Toast.makeText(context, "Perspective Swapped via 2-finger hold!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                // Consume all changes when multiple pointers are active
+                                event.changes.forEach { it.consume() }
+                            } else {
+                                // 0 or 3+ fingers down
+                                if (twoFingerDownTime > 0L) {
+                                    val duration = System.currentTimeMillis() - twoFingerDownTime
+                                    if (!twoFingerHoldTriggered && isTwoFingerTapPossible && duration in 40L..500L) {
+                                        val now = System.currentTimeMillis()
+                                        if (now - lastTwoFingerTapTime < 500L) {
+                                            viewModel.resetAndRandomize()
+                                            Toast.makeText(context, "Variables Reset & Randomized!", Toast.LENGTH_SHORT).show()
+                                            lastTwoFingerTapTime = 0L
+                                        } else {
+                                            lastTwoFingerTapTime = now
+                                        }
+                                    }
+                                    twoFingerDownTime = 0L
+                                    isTwoFingerTapPossible = false
+                                }
+                            }
                         }
-                    )
+                    }
                 }
         ) {
             val stepsCount = settings.drawLengthSteps

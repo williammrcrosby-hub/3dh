@@ -11,14 +11,14 @@ data class FloatParameter(
     val rangeLocked: Boolean = false,
     val rangeMin: Float,
     val rangeMax: Float,
-    val selectedMin: Float = Float.NEGATIVE_INFINITY,
-    val selectedMax: Float = Float.POSITIVE_INFINITY,
+    val selectedMin: Float = -1e9f,
+    val selectedMax: Float = 1e9f,
     val enabled: Boolean = true
 ) {
     val actualSelectedMin: Float
-        get() = if (selectedMin == Float.NEGATIVE_INFINITY) rangeMin else selectedMin
+        get() = if (selectedMin == -1e9f) rangeMin else selectedMin
     val actualSelectedMax: Float
-        get() = if (selectedMax == Float.POSITIVE_INFINITY) rangeMax else selectedMax
+        get() = if (selectedMax == 1e9f) rangeMax else selectedMax
 
     fun withValue(v: Float): FloatParameter {
         val valMin = if (rangeLocked) actualSelectedMin else rangeMin
