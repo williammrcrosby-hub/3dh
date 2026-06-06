@@ -88,6 +88,7 @@ class HarmonographWallpaperService : WallpaperService() {
 
         override fun onCreate(surfaceHolder: android.view.SurfaceHolder?) {
             super.onCreate(surfaceHolder)
+            setTouchEventsEnabled(true)
             sharedPrefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
             sharedPrefs?.registerOnSharedPreferenceChangeListener(this)
             loadActiveSettings()
@@ -209,11 +210,13 @@ class HarmonographWallpaperService : WallpaperService() {
                 val width = canvas.width.toFloat()
                 val height = canvas.height.toFloat()
 
-                // Yaw auto-rotation logic
+                // Yaw and Pitch auto-rotation logic (continuous rotation to match the main app)
                 var activeYaw = yaw
+                var activePitch = pitch
                 if (settings.cameraAutoRotationEnabled) {
-                    val swing = sin(System.currentTimeMillis() * 0.001f * settings.cameraAutoRotationSpeed) * settings.cameraAutoRotationRange
-                    activeYaw += swing
+                    val timeSec = System.currentTimeMillis() * 0.001f
+                    activeYaw = (yaw + timeSec * settings.cameraAutoRotationSpeed * 25f) % 360f
+                    activePitch = pitch + (sin(timeSec * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
                 }
                 
                 // Base drawing paths evaluation
@@ -234,7 +237,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     val projPoints = HarmonographMath.project3DTo2D(
                         points = path3D,
                         yaw = activeYaw,
-                        pitch = pitch,
+                        pitch = activePitch,
                         perspective = settings.cameraPerspective,
                         currentDrawIndex = drawProgress.roundToInt(),
                         screenWidth = width,
@@ -281,7 +284,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     
                     // Draw outer shapes
                     drawOrthogonalShapeOnCanvas(
-                        canvas, shape, activeYaw, pitch, settings.cameraPerspective,
+                        canvas, shape, activeYaw, activePitch, settings.cameraPerspective,
                         drawProgress.roundToInt(), width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
                         timeHueOffset, stepsCount
                     )

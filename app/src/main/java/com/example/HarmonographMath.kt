@@ -73,21 +73,21 @@ object HarmonographMath {
         // Sublayer X'
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
-            val freqSubX = if (settings.subXFreqIsMultiply) fastestBase * factor else fastestBase / factor
+            val freqSubX = if (settings.subXFreqIsMultiply.current) fastestBase * factor else fastestBase / factor
             xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + PI.toFloat() / 4f)
         }
         
         // Sublayer Y'
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
             val factor = settings.subYFreqFactor.current.toFloat()
-            val freqSubY = if (settings.subYFreqIsMultiply) fastestBase * factor else fastestBase / factor
+            val freqSubY = if (settings.subYFreqIsMultiply.current) fastestBase * factor else fastestBase / factor
             yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + PI.toFloat() / 4f)
         }
         
         // Sublayer Z'
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
             val factor = settings.subZFreqFactor.current.toFloat()
-            val freqSubZ = if (settings.subZFreqIsMultiply) fastestBase * factor else fastestBase / factor
+            val freqSubZ = if (settings.subZFreqIsMultiply.current) fastestBase * factor else fastestBase / factor
             // Let sublayer Z' influence the depth
             xRaw += settings.ampSubZ.current * decayFactorZ * sin(freqSubZ * t + pz + PI.toFloat() / 4f)
         }

@@ -174,9 +174,12 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         try {
             val settings = adapter.fromJson(preset.settingsJson)
             if (settings != null) {
-                _uiState.value = settings
+                // Randomize unlocked parameter values to generate a new variation
+                // based on the preset's structural settings and lock constraints
+                val randomizedSettings = settings.randomizeAll(random)
+                _uiState.value = randomizedSettings
                 _currentDrawProgress.value = 0f
-                saveSettingsToPrefs(settings)
+                saveSettingsToPrefs(randomizedSettings)
             }
         } catch (e: Exception) {
             e.printStackTrace()

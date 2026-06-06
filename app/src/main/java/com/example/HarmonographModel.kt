@@ -101,6 +101,17 @@ data class IntParameter(
 }
 
 @JsonClass(generateAdapter = true)
+data class BooleanParameter(
+    val current: Boolean,
+    val locked: Boolean = false
+) {
+    fun randomize(random: java.util.Random): BooleanParameter {
+        if (locked) return this
+        return copy(current = random.nextBoolean())
+    }
+}
+
+@JsonClass(generateAdapter = true)
 data class HarmonographSettings(
     val ampX: FloatParameter = FloatParameter(120f, rangeMin = 10f, rangeMax = 250f),
     val ampY: FloatParameter = FloatParameter(120f, rangeMin = 10f, rangeMax = 250f),
@@ -124,11 +135,11 @@ data class HarmonographSettings(
     val ampSubZ: FloatParameter = FloatParameter(0f, rangeMin = 0f, rangeMax = 80f),
     
     val subXFreqFactor: IntParameter = IntParameter(2, rangeMin = 1, rangeMax = 8),
-    val subXFreqIsMultiply: Boolean = true,
+    val subXFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     val subYFreqFactor: IntParameter = IntParameter(3, rangeMin = 1, rangeMax = 8),
-    val subYFreqIsMultiply: Boolean = true,
+    val subYFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     val subZFreqFactor: IntParameter = IntParameter(4, rangeMin = 1, rangeMax = 8),
-    val subZFreqIsMultiply: Boolean = true,
+    val subZFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     
     val drawSpeedMinutes: Float = 2.0f, // 1 to 15 minutes, or instant
     val drawSpeedInstant: Boolean = false,
@@ -203,8 +214,11 @@ data class HarmonographSettings(
             ampSubZ = ampSubZ.randomize(random),
             
             subXFreqFactor = subXFreqFactor.randomize(random),
+            subXFreqIsMultiply = subXFreqIsMultiply.randomize(random),
             subYFreqFactor = subYFreqFactor.randomize(random),
+            subYFreqIsMultiply = subYFreqIsMultiply.randomize(random),
             subZFreqFactor = subZFreqFactor.randomize(random),
+            subZFreqIsMultiply = subZFreqIsMultiply.randomize(random),
             
             saturation = saturation.randomize(random),
             penRotationMultiplier = penRotationMultiplier.randomize(random),

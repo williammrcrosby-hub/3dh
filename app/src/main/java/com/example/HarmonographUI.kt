@@ -653,10 +653,10 @@ fun SublayerCard(
     title: String,
     amp: FloatParameter,
     factor: IntParameter,
-    isMultiply: Boolean,
+    isMultiply: BooleanParameter,
     onAmpChange: (FloatParameter) -> Unit,
     onFactorChange: (IntParameter) -> Unit,
-    onIsMultiplyChange: (Boolean) -> Unit
+    onIsMultiplyChange: (BooleanParameter) -> Unit
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
@@ -690,12 +690,37 @@ fun SublayerCard(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Base factor: ${factor.current}x", color = Color(0xFF94A3B8), fontSize = 12.sp)
                         Spacer(modifier = Modifier.weight(1f))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Divide", color = if (!isMultiply) Color(0xFF00E5FF) else Color.White, fontSize = 12.sp, modifier = Modifier.clickable { onIsMultiplyChange(false) })
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Switch(checked = isMultiply, onCheckedChange = { onIsMultiplyChange(it) }, modifier = Modifier.scale(0.6f))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Multiply", color = if (isMultiply) Color(0xFF00E5FF) else Color.White, fontSize = 12.sp, modifier = Modifier.clickable { onIsMultiplyChange(true) })
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = "Divide",
+                                color = if (!isMultiply.current) Color(0xFF00E5FF) else Color.White,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable(enabled = !isMultiply.locked) { onIsMultiplyChange(isMultiply.copy(current = false)) }
+                            )
+                            Switch(
+                                checked = isMultiply.current,
+                                onCheckedChange = { onIsMultiplyChange(isMultiply.copy(current = it)) },
+                                modifier = Modifier.scale(0.6f),
+                                enabled = !isMultiply.locked
+                            )
+                            Text(
+                                text = "Multiply",
+                                color = if (isMultiply.current) Color(0xFF00E5FF) else Color.White,
+                                fontSize = 12.sp,
+                                modifier = Modifier.clickable(enabled = !isMultiply.locked) { onIsMultiplyChange(isMultiply.copy(current = true)) }
+                            )
+                            
+                            IconButton(
+                                onClick = { onIsMultiplyChange(isMultiply.copy(locked = !isMultiply.locked)) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isMultiply.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "Lock multiplication/division",
+                                    tint = if (isMultiply.locked) Color(0xFFFF4081) else Color(0xFF64748B),
+                                    modifier = Modifier.size(14.dp)
+                                )
+                            }
                         }
                     }
                     
