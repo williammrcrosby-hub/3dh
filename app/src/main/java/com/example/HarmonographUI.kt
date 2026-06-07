@@ -224,9 +224,12 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
+                        referencePoints = paths.firstOrNull(),
                         cameraTargetIndex = cameraTargetIndex,
                         cameraDistance = settings.cameraDistance.current,
-                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
+                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                        coasterDirectionFacing = settings.coasterDirectionFacing,
+                        animTime = animTime
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -367,7 +370,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         settings = settings,
                         scaleFactor = scaleFactor,
                         mainPathPoints = paths.firstOrNull() ?: emptyList(),
-                        cameraTargetIndex = cameraTargetIndex
+                        cameraTargetIndex = cameraTargetIndex,
+                        animTime = animTime
                     )
                 }
             }
@@ -625,20 +629,23 @@ fun OscillatorConfigTab(
 
         // Sublayer Controls
         item {
-            SublayerCard("Sublayer X' (adds to primary X)", settings.ampSubX, settings.subXFreqFactor, settings.subXFreqIsMultiply,
+            SublayerCard("Sublayer X' (adds to primary X)", settings.ampSubX, settings.phaseSubX, settings.subXFreqFactor, settings.subXFreqIsMultiply,
                 onAmpChange = { onUpdate(settings.copy(ampSubX = it)) },
+                onPhaseChange = { onUpdate(settings.copy(phaseSubX = it)) },
                 onFactorChange = { onUpdate(settings.copy(subXFreqFactor = it)) },
                 onIsMultiplyChange = { onUpdate(settings.copy(subXFreqIsMultiply = it)) })
         }
         item {
-            SublayerCard("Sublayer Y' (adds to primary Y)", settings.ampSubY, settings.subYFreqFactor, settings.subYFreqIsMultiply,
+            SublayerCard("Sublayer Y' (adds to primary Y)", settings.ampSubY, settings.phaseSubY, settings.subYFreqFactor, settings.subYFreqIsMultiply,
                 onAmpChange = { onUpdate(settings.copy(ampSubY = it)) },
+                onPhaseChange = { onUpdate(settings.copy(phaseSubY = it)) },
                 onFactorChange = { onUpdate(settings.copy(subYFreqFactor = it)) },
                 onIsMultiplyChange = { onUpdate(settings.copy(subYFreqIsMultiply = it)) })
         }
         item {
-            SublayerCard("Sublayer Z' (adds to Z dynamics)", settings.ampSubZ, settings.subZFreqFactor, settings.subZFreqIsMultiply,
+            SublayerCard("Sublayer Z' (adds to Z dynamics)", settings.ampSubZ, settings.phaseSubZ, settings.subZFreqFactor, settings.subZFreqIsMultiply,
                 onAmpChange = { onUpdate(settings.copy(ampSubZ = it)) },
+                onPhaseChange = { onUpdate(settings.copy(phaseSubZ = it)) },
                 onFactorChange = { onUpdate(settings.copy(subZFreqFactor = it)) },
                 onIsMultiplyChange = { onUpdate(settings.copy(subZFreqIsMultiply = it)) })
         }
@@ -749,9 +756,11 @@ fun AxisConfigCard(
 fun SublayerCard(
     title: String,
     amp: FloatParameter,
+    phase: FloatParameter,
     factor: IntParameter,
     isMultiply: BooleanParameter,
     onAmpChange: (FloatParameter) -> Unit,
+    onPhaseChange: (FloatParameter) -> Unit,
     onFactorChange: (IntParameter) -> Unit,
     onIsMultiplyChange: (BooleanParameter) -> Unit
 ) {
@@ -798,6 +807,13 @@ fun SublayerCard(
                     onRandomize = { onAmpChange(amp.randomize(java.util.Random())) })
                 
                 if (amp.current > 0f) {
+                    ParameterSliderRow("Phase shift", phase.current, phase.rangeMin, phase.rangeMax, 1f, "%.0f°",
+                        isLocked = phase.locked, onLockToggle = { onPhaseChange(phase.copy(locked = it)) },
+                        isRangeLocked = phase.rangeLocked, onRangeLockToggle = { onPhaseChange(phase.withRangeLocked(it)) },
+                        selectedMin = phase.actualSelectedMin, selectedMax = phase.actualSelectedMax,
+                        onRangeChange = { min, max -> onPhaseChange(phase.withRanges(min, max)) },
+                        onValueChange = { onPhaseChange(phase.withValue(it)) },
+                        onRandomize = { onPhaseChange(phase.randomize(java.util.Random())) })
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Base factor: ${factor.current}x", color = Color(0xFF94A3B8), fontSize = 12.sp)
                         Spacer(modifier = Modifier.weight(1f))
@@ -1901,7 +1917,8 @@ private fun drawComposeOrthogonalShape(
     settings: HarmonographSettings,
     scaleFactor: Float,
     mainPathPoints: List<Point3D> = emptyList(),
-    cameraTargetIndex: Float = -1f
+    cameraTargetIndex: Float = -1f,
+    animTime: Long = 0L
 ) {
     // Standard DrawScope cannot be accessed outside draw extension function.
 }
@@ -1920,7 +1937,8 @@ private fun DrawScope.drawComposeOrthogonalShape(
     settings: HarmonographSettings,
     scaleFactor: Float,
     mainPathPoints: List<Point3D> = emptyList(),
-    cameraTargetIndex: Float = -1f
+    cameraTargetIndex: Float = -1f,
+    animTime: Long = 0L
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -1970,7 +1988,9 @@ private fun DrawScope.drawComposeOrthogonalShape(
             referencePoints = mainPathPoints.ifEmpty { null },
             cameraTargetIndex = cameraTargetIndex,
             cameraDistance = settings.cameraDistance.current,
-            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
+            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+            coasterDirectionFacing = settings.coasterDirectionFacing,
+            animTime = animTime
         )
 
         if (projPts.size < 2) continue
@@ -1988,7 +2008,9 @@ private fun DrawScope.drawComposeOrthogonalShape(
             referencePoints = mainPathPoints.ifEmpty { null },
             cameraTargetIndex = cameraTargetIndex,
             cameraDistance = settings.cameraDistance.current,
-            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
+            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+            coasterDirectionFacing = settings.coasterDirectionFacing,
+            animTime = animTime
         )
 
         val centerPtScreen = centerProj.firstOrNull() ?: continue

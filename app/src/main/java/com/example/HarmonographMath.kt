@@ -74,22 +74,25 @@ object HarmonographMath {
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
             val freqSubX = if (settings.subXFreqIsMultiply.current) settings.freqX.current * factor else settings.freqX.current / factor
-            xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + PI.toFloat() / 4f)
+            val pSubX = Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat()
+            xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + pSubX)
         }
         
         // Sublayer Y'
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
             val factor = settings.subYFreqFactor.current.toFloat()
             val freqSubY = if (settings.subYFreqIsMultiply.current) settings.freqY.current * factor else settings.freqY.current / factor
-            yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + PI.toFloat() / 4f)
+            val pSubY = Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat()
+            yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + pSubY)
         }
         
         // Sublayer Z'
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
             val factor = settings.subZFreqFactor.current.toFloat()
             val freqSubZ = if (settings.subZFreqIsMultiply.current) settings.freqZ.current * factor else settings.freqZ.current / factor
+            val pSubZ = Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat()
             // Let sublayer Z' influence the depth
-            xRaw += settings.ampSubZ.current * decayFactorZ * sin(freqSubZ * t + pz + PI.toFloat() / 4f)
+            xRaw += settings.ampSubZ.current * decayFactorZ * sin(freqSubZ * t + pz + pSubZ)
         }
         
         return Point3D(xRaw, yRaw, zRaw)
@@ -131,6 +134,9 @@ object HarmonographMath {
         
         val fastestBase = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
         
+        // Stable parallel transport frame tracking to ensure zero jumpy or jagged flips!
+        var prevUVec: Point3D? = null
+        
         for (k in 0 until totalSteps) {
             val basePt = calculatePointAtStep(k, settings, dt)
             val t = k * dt
@@ -142,10 +148,22 @@ object HarmonographMath {
                 val nextPt = calculatePointAtStep(k + 1, settings, dt)
                 val dir = (nextPt - basePt).normalized()
                 
-                // Find a perpendicular vector
-                val helper = if (abs(dir.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
-                val uVec = dir.cross(helper).normalized()
-                val wVec = dir.cross(uVec).normalized()
+                // Construct stable orthogonal vectors using parallel transport frame projection
+                val uVec: Point3D
+                val wVec: Point3D
+                if (prevUVec == null) {
+                    val helper = if (abs(dir.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
+                    val u = dir.cross(helper).normalized()
+                    uVec = u
+                    wVec = dir.cross(u).normalized()
+                } else {
+                    val dot = prevUVec.x * dir.x + prevUVec.y * dir.y + prevUVec.z * dir.z
+                    val uProj = prevUVec - dir * dot
+                    val u = uProj.normalized()
+                    uVec = u
+                    wVec = dir.cross(u).normalized()
+                }
+                prevUVec = uVec
                 
                 val rotationAngle = if (settings.penRotationEnabled) {
                     val factor = settings.penRotationMultiplier.current.toFloat()
@@ -224,6 +242,9 @@ object HarmonographMath {
         val threshold = 0.08f
         var prevVal = 0f
         
+        // Stable parallel transport tracking for shape orientations
+        var prevUVec: Point3D? = null
+        
         for (k in 1 until totalSteps step 2) {
             val t = k * dt
             val currentVal = sin(freqShape * t)
@@ -235,9 +256,22 @@ object HarmonographMath {
                 val nextPt = calculatePointAtStep(k + 1, settings, dt)
                 val dir = (nextPt - basePt).normalized()
                 
-                val helper = if (abs(dir.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
-                val uVec = dir.cross(helper).normalized()
-                val wVec = dir.cross(uVec).normalized()
+                // Stable parallel transport uVec calculation
+                val uVec: Point3D
+                val wVec: Point3D
+                if (prevUVec == null) {
+                    val helper = if (abs(dir.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
+                    val u = dir.cross(helper).normalized()
+                    uVec = u
+                    wVec = dir.cross(u).normalized()
+                } else {
+                    val dot = prevUVec.x * dir.x + prevUVec.y * dir.y + prevUVec.z * dir.z
+                    val uProj = prevUVec - dir * dot
+                    val u = uProj.normalized()
+                    uVec = u
+                    wVec = dir.cross(u).normalized()
+                }
+                prevUVec = uVec
                 
                 shapesList.add(
                     CustomShapeData(
@@ -274,7 +308,9 @@ object HarmonographMath {
         referencePoints: List<Point3D>? = null,
         cameraTargetIndex: Float = -1f,
         cameraDistance: Float = 220f,
-        dynamicCameraZoomEnabled: Boolean = false
+        dynamicCameraZoomEnabled: Boolean = false,
+        coasterDirectionFacing: Boolean = false,
+        animTime: Long = 0L
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -468,23 +504,67 @@ object HarmonographMath {
                 refPts[idxInt]
             }
             
-            // Stable camera following lookAtTarget using analytical polar orientation vectors
-            // Scaled closer for immersive, high-speed ride feeling under roller coaster perspective!
             val dist = cameraDistance * 0.45f
-            val radYaw = Math.toRadians(yaw.toDouble()).toFloat()
-            val radPitch = Math.toRadians(pitch.toDouble()).toFloat()
             
-            // Spherical camera position relative to moving pen tip
-            val offsetX = dist * cos(radPitch) * sin(radYaw)
-            val offsetY = -dist * cos(radPitch) * cos(radYaw)
-            val offsetZ = dist * sin(radPitch)
+            val camPos: Point3D
+            val sideDir: Point3D
+            val upDir: Point3D
+            val viewDir: Point3D
             
-            val camPos = lookAtTarget + Point3D(offsetX, offsetY, offsetZ)
-            
-            // Orthonormal spherical coordinates framing to prevent sudden 180 flips & jumps!
-            val sideDir = Point3D(cos(radYaw), sin(radYaw), 0f)
-            val upDir = Point3D(-sin(radPitch) * sin(radYaw), sin(radPitch) * cos(radYaw), cos(radPitch))
-            val viewDir = Point3D(-cos(radPitch) * sin(radYaw), cos(radPitch) * cos(radYaw), -sin(radPitch))
+            if (coasterDirectionFacing) {
+                // Direction facing follow: Aligns camera looking forward along tangent
+                val aheadIdx = (targetIdx + 1.25f).coerceAtMost((refPts.size - 1).toFloat())
+                val aheadIdxInt = floor(aheadIdx).toInt().coerceIn(0, refPts.size - 1)
+                val aheadIdxFrac = (aheadIdx - aheadIdxInt).coerceIn(0f, 1f)
+                val aheadTarget = if (aheadIdxFrac > 0.001f && aheadIdxInt < refPts.size - 1) {
+                    val p1 = refPts[aheadIdxInt]
+                    val p2 = refPts[aheadIdxInt + 1]
+                    Point3D(
+                        p1.x + (p2.x - p1.x) * aheadIdxFrac,
+                        p1.y + (p2.y - p1.y) * aheadIdxFrac,
+                        p1.z + (p2.z - p1.z) * aheadIdxFrac
+                    )
+                } else {
+                    refPts[aheadIdxInt]
+                }
+                
+                val rawDiff = aheadTarget - lookAtTarget
+                val T = if (rawDiff.length() > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
+                
+                // Stable orthogonal helper frame on the tangent line
+                val helper = if (abs(T.z) < 0.9f) Point3D(0f, 0f, 1f) else Point3D(0f, 1f, 0f)
+                val uVec = T.cross(helper).normalized()
+                val wVec = T.cross(uVec).normalized()
+                
+                // Slow continuous orbital orbit sways around tangent axis
+                val swayAngle = (animTime * 0.0003f) * 2f * PI.toFloat() + sin(animTime * 0.001f).toFloat() * 0.15f
+                
+                val angleRad = Math.toRadians(25.0).toDouble().toFloat() // 25 degree look deviation
+                val cosAng = cos(angleRad)
+                val sinAng = sin(angleRad)
+                
+                // Position camera in a beautiful offset cone behind the pen tip
+                val offsetDir = T * (-cosAng) + (uVec * cos(swayAngle) + wVec * sin(swayAngle)) * sinAng
+                camPos = lookAtTarget + offsetDir * dist
+                
+                viewDir = (lookAtTarget - camPos).normalized()
+                sideDir = (uVec * (-sin(swayAngle)) + wVec * cos(swayAngle)).normalized()
+                upDir = sideDir.cross(viewDir).normalized()
+            } else {
+                // Sphere-relative user controlled camera yaw & pitch
+                val radYaw = Math.toRadians(yaw.toDouble()).toFloat()
+                val radPitch = Math.toRadians(pitch.toDouble()).toFloat()
+                
+                val offsetX = dist * cos(radPitch) * sin(radYaw)
+                val offsetY = -dist * cos(radPitch) * cos(radYaw)
+                val offsetZ = dist * sin(radPitch)
+                
+                camPos = lookAtTarget + Point3D(offsetX, offsetY, offsetZ)
+                
+                sideDir = Point3D(cos(radYaw), sin(radYaw), 0f)
+                upDir = Point3D(-sin(radPitch) * sin(radYaw), sin(radPitch) * cos(radYaw), cos(radPitch))
+                viewDir = Point3D(-cos(radPitch) * sin(radYaw), cos(radPitch) * cos(radYaw), -sin(radPitch))
+            }
             
             activePoints.mapIndexed { idx, pt ->
                 val rel = pt - camPos

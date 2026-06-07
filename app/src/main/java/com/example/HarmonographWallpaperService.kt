@@ -289,9 +289,12 @@ class HarmonographWallpaperService : WallpaperService() {
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
+                        referencePoints = rawPaths.firstOrNull(),
                         cameraTargetIndex = cameraTargetIndex,
                         cameraDistance = settings.cameraDistance.current,
-                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
+                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                        coasterDirectionFacing = settings.coasterDirectionFacing,
+                        animTime = elapsedMs
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -401,7 +404,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     drawOrthogonalShapeOnCanvas(
                         canvas, shape, activeYaw, activePitch, settings.cameraPerspective,
                         width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
-                        timeHueOffset, stepsCount, rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex
+                        timeHueOffset, stepsCount, rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex,
+                        elapsedMs
                     )
                 }
 
@@ -464,7 +468,8 @@ class HarmonographWallpaperService : WallpaperService() {
             hueOffset: Long,
             totalSteps: Int,
             mainPathPoints: List<Point3D> = emptyList(),
-            cameraTargetIndex: Float = -1f
+            cameraTargetIndex: Float = -1f,
+            animTime: Long = 0L
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -519,7 +524,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     referencePoints = mainPathPoints.ifEmpty { null },
                     cameraTargetIndex = cameraTargetIndex,
                     cameraDistance = settings.cameraDistance.current,
-                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
+                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                    coasterDirectionFacing = settings.coasterDirectionFacing,
+                    animTime = animTime
                 )
                 
                 if (projPts.size < 2) continue
@@ -538,7 +545,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     referencePoints = mainPathPoints.ifEmpty { null },
                     cameraTargetIndex = cameraTargetIndex,
                     cameraDistance = settings.cameraDistance.current,
-                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
+                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                    coasterDirectionFacing = settings.coasterDirectionFacing,
+                    animTime = animTime
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue

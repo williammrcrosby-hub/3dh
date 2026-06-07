@@ -135,6 +135,10 @@ data class HarmonographSettings(
     val ampSubY: FloatParameter = FloatParameter(0f, rangeMin = 0f, rangeMax = 80f),
     val ampSubZ: FloatParameter = FloatParameter(0f, rangeMin = 0f, rangeMax = 80f),
     
+    val phaseSubX: FloatParameter = FloatParameter(45f, rangeMin = 0f, rangeMax = 360f),
+    val phaseSubY: FloatParameter = FloatParameter(45f, rangeMin = 0f, rangeMax = 360f),
+    val phaseSubZ: FloatParameter = FloatParameter(45f, rangeMin = 0f, rangeMax = 360f),
+    
     val subXFreqFactor: IntParameter = IntParameter(2, rangeMin = 1, rangeMax = 8),
     val subXFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     val subYFreqFactor: IntParameter = IntParameter(3, rangeMin = 1, rangeMax = 8),
@@ -197,7 +201,8 @@ data class HarmonographSettings(
 
     // Additional options
     val decayEnabled: Boolean = true,
-    val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f)
+    val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f),
+    val coasterDirectionFacing: Boolean = false
 ) {
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
@@ -250,6 +255,10 @@ data class HarmonographSettings(
             phaseX = phaseX.randomize(random),
             phaseY = phaseY.randomize(random),
             phaseZ = phaseZ.randomize(random),
+            
+            phaseSubX = phaseSubX.randomize(random),
+            phaseSubY = phaseSubY.randomize(random),
+            phaseSubZ = phaseSubZ.randomize(random),
             
             ampSubX = randAmpSubX,
             ampSubY = randAmpSubY,
