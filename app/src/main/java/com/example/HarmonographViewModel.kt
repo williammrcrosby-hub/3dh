@@ -39,6 +39,20 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private val random = Random()
 
     init {
+        // Load active settings from prefs on VM creation to ensure all settings persist and translate.
+        val prefs = application.getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+        val savedJson = prefs.getString("active_settings", null)
+        if (savedJson != null) {
+            try {
+                val loaded = adapter.fromJson(savedJson)
+                if (loaded != null) {
+                    _uiState.value = loaded
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
         // Pre-populate some gorgeous default presets if DB is empty
         viewModelScope.launch(Dispatchers.IO) {
             dao.getAllPresets().first().let { currentList ->

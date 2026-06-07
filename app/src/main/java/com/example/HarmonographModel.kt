@@ -13,7 +13,8 @@ data class FloatParameter(
     val rangeMax: Float,
     val selectedMin: Float = -1e9f,
     val selectedMax: Float = 1e9f,
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    val enabledLocked: Boolean = false
 ) {
     val actualSelectedMin: Float
         get() = if (selectedMin == -1e9f) rangeMin else selectedMin
@@ -200,33 +201,36 @@ data class HarmonographSettings(
 ) {
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
-            if (random.nextBoolean()) {
+            val nextEnabled = if (ampSubX.enabledLocked) ampSubX.enabled else random.nextBoolean()
+            if (nextEnabled) {
                 val minVal = (if (ampSubX.rangeLocked) ampSubX.actualSelectedMin else ampSubX.rangeMin).coerceAtLeast(15f)
                 val maxVal = if (ampSubX.rangeLocked) ampSubX.actualSelectedMax else ampSubX.rangeMax
                 val v = minVal + random.nextFloat() * (maxVal - minVal)
-                ampSubX.copy(current = v)
+                ampSubX.copy(current = v, enabled = true)
             } else {
-                ampSubX.copy(current = 0f)
+                ampSubX.copy(current = 0f, enabled = false)
             }
         }
         val randAmpSubY = if (ampSubY.locked) ampSubY else {
-            if (random.nextBoolean()) {
+            val nextEnabled = if (ampSubY.enabledLocked) ampSubY.enabled else random.nextBoolean()
+            if (nextEnabled) {
                 val minVal = (if (ampSubY.rangeLocked) ampSubY.actualSelectedMin else ampSubY.rangeMin).coerceAtLeast(15f)
                 val maxVal = if (ampSubY.rangeLocked) ampSubY.actualSelectedMax else ampSubY.rangeMax
                 val v = minVal + random.nextFloat() * (maxVal - minVal)
-                ampSubY.copy(current = v)
+                ampSubY.copy(current = v, enabled = true)
             } else {
-                ampSubY.copy(current = 0f)
+                ampSubY.copy(current = 0f, enabled = false)
             }
         }
         val randAmpSubZ = if (ampSubZ.locked) ampSubZ else {
-            if (random.nextBoolean()) {
+            val nextEnabled = if (ampSubZ.enabledLocked) ampSubZ.enabled else random.nextBoolean()
+            if (nextEnabled) {
                 val minVal = (if (ampSubZ.rangeLocked) ampSubZ.actualSelectedMin else ampSubZ.rangeMin).coerceAtLeast(15f)
                 val maxVal = if (ampSubZ.rangeLocked) ampSubZ.actualSelectedMax else ampSubZ.rangeMax
                 val v = minVal + random.nextFloat() * (maxVal - minVal)
-                ampSubZ.copy(current = v)
+                ampSubZ.copy(current = v, enabled = true)
             } else {
-                ampSubZ.copy(current = 0f)
+                ampSubZ.copy(current = 0f, enabled = false)
             }
         }
 

@@ -305,7 +305,8 @@ object HarmonographMath {
         // Dynamic Lock View Perpendicular to Plane (directly projections bypass rotation triggers)
         if (angularLock && perspective == 1) {
             val dFocalScale = 300f / cameraDistance
-            if (dynamicCameraZoomEnabled) {
+            val useDynamicZoom = true // always on dynamic camera mode for full view
+            if (useDynamicZoom) {
                 var maxAbsX = 0.01f
                 var maxAbsY = 0.01f
                 
@@ -371,7 +372,8 @@ object HarmonographMath {
         
         return if (perspective == 1) {
             val dFocalScale = 300f / cameraDistance
-            if (dynamicCameraZoomEnabled) {
+            val useDynamicZoom = true // always on dynamic camera mode for full view
+            if (useDynamicZoom) {
                 var maxAbsX = 0.01f
                 var maxAbsY = 0.01f
                 
@@ -467,7 +469,8 @@ object HarmonographMath {
             }
             
             // Stable camera following lookAtTarget using analytical polar orientation vectors
-            val dist = cameraDistance
+            // Scaled closer for immersive, high-speed ride feeling under roller coaster perspective!
+            val dist = cameraDistance * 0.45f
             val radYaw = Math.toRadians(yaw.toDouble()).toFloat()
             val radPitch = Math.toRadians(pitch.toDouble()).toFloat()
             

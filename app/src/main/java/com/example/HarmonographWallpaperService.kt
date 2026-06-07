@@ -263,7 +263,8 @@ class HarmonographWallpaperService : WallpaperService() {
 
                 val stepsCount = settings.drawLengthSteps
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
-                    val cycleDurationMs = 15000L // 15 seconds to tour the finished curves
+                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes
+                    val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
                     val progressFrac = (elapsedMs % cycleDurationMs).toFloat() / cycleDurationMs
                     (progressFrac * (stepsCount - 1)).coerceIn(0f, (stepsCount - 1).toFloat())
                 } else {

@@ -199,7 +199,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 val height = size.height
 
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
-                    val cycleDurationMs = 15000L // 15 seconds to trace entire drawing
+                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes
+                    val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
                     val progressFrac = (animTime % cycleDurationMs).toFloat() / cycleDurationMs
                     val stepsInPath = paths.firstOrNull()?.size ?: stepsCount
                     (progressFrac * (stepsInPath - 1)).coerceIn(0f, (stepsInPath - 1).toFloat())
@@ -686,17 +687,25 @@ fun AxisConfigCard(
                         onValueChange = { onAmpChange(amp.withValue(it)) },
                         onRandomize = { onAmpChange(amp.randomize(java.util.Random())) })
 
-                    // Usable List Frequencies Range Picker
-                    val freqIndex = usableFrequencies.indexOf(freq.current).coerceAtLeast(0)
-                    val selectedMinIndex = usableFrequencies.indexOfFirst { it >= freq.actualSelectedMin }.coerceIn(0, usableFrequencies.size - 1)
-                    val selectedMaxIndex = usableFrequencies.indexOfLast { it <= freq.actualSelectedMax }.coerceIn(0, usableFrequencies.size - 1)
+                    // Usable List Frequencies Range Picker - Find nearest elements to represent randomized/imprecise floating-point frequencies correctly!
+                    val freqIndex = usableFrequencies.mapIndexed { idx, f -> idx to kotlin.math.abs(f - freq.current) }
+                        .minByOrNull { it.second }?.first ?: 0
+                    val selectedMinIndex = usableFrequencies.mapIndexed { idx, f -> idx to kotlin.math.abs(f - freq.actualSelectedMin) }
+                        .minByOrNull { it.second }?.first ?: 0
+                    val selectedMaxIndex = usableFrequencies.mapIndexed { idx, f -> idx to kotlin.math.abs(f - freq.actualSelectedMax) }
+                        .minByOrNull { it.second }?.first ?: (usableFrequencies.size - 1)
+                    val formattedValueStr = if (kotlin.math.abs(usableFrequencies[freqIndex] - freq.current) > 0.005f) {
+                        "${usableFrequenciesLabels[freqIndex]} (${"%.3f".format(freq.current)}x)"
+                    } else {
+                        usableFrequenciesLabels[freqIndex]
+                    }
                     ParameterSliderRow(
                         label = "Frequency",
                         value = freqIndex.toFloat(),
                         minVal = 0f,
                         maxVal = (usableFrequencies.size - 1).toFloat(),
                         stepValue = 1f,
-                        valueLabelFallback = usableFrequenciesLabels[freqIndex],
+                        valueLabelFallback = formattedValueStr,
                         isLocked = freq.locked, onLockToggle = { onFreqChange(freq.copy(locked = it)) },
                         isRangeLocked = freq.rangeLocked, onRangeLockToggle = { onFreqChange(freq.withRangeLocked(it)) },
                         selectedMin = selectedMinIndex.toFloat(), selectedMax = selectedMaxIndex.toFloat(),
@@ -754,6 +763,20 @@ fun SublayerCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
                 Spacer(modifier = Modifier.weight(1f))
+                
+                // Lock active/enabled state toggle
+                IconButton(
+                    onClick = { onAmpChange(amp.copy(enabledLocked = !amp.enabledLocked)) },
+                    modifier = Modifier.size(24.dp).testTag("lock_" + title.substringBefore(" ").lowercase() + "_enabled")
+                ) {
+                    Icon(
+                        imageVector = if (amp.enabledLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                        contentDescription = "Lock sublayer active state",
+                        tint = if (amp.enabledLocked) Color(0xFFFF4081) else Color(0xFF64748B),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(4.dp))
                 
                 // On/Off Switch for sub oscillator
                 Switch(
@@ -1599,20 +1622,7 @@ fun CameraAndSetupTab(
                         onRandomize = { onUpdate(settings.copy(cameraDistance = settings.cameraDistance.randomize(java.util.Random()))) }
                     )
 
-                    if (settings.cameraPerspective == 1) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("Dynamic Auto-Zoom", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                Text("Maximizes screen usage of the drawing dynamically", color = Color(0xFF94A3B8), fontSize = 9.sp)
-                            }
-                            Switch(
-                                checked = settings.dynamicCameraZoomEnabled,
-                                onCheckedChange = { onUpdate(settings.copy(dynamicCameraZoomEnabled = it)) },
-                                modifier = Modifier.scale(0.75f).testTag("dynamic_camera_zoom_switch")
-                            )
-                        }
-                    }
+
                 }
             }
         }
