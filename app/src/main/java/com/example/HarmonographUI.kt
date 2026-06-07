@@ -42,6 +42,13 @@ import kotlin.math.*
 val usableFrequencies = listOf(1f/12f, 1f/8f, 1f/6f, 1f/4f, 1f/3f, 1f/2f, 2f/3f, 3f/4f, 1f, 1.5f, 2f, 3f, 4f, 5f, 6f, 8f, 10f, 12f)
 val usableFrequenciesLabels = listOf("1/12x", "1/8x", "1/6x", "1/4x", "1/3x", "1/2x", "2/3x", "3/4x", "1x", "1.5x", "2x", "3x", "4x", "5x", "6x", "8x", "10x", "12x")
 
+private data class ComposeSegment(
+    val p1: ProjectedPoint,
+    val p2: ProjectedPoint,
+    val color: Color,
+    val strokeWidth: Float
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
@@ -191,16 +198,19 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 val width = size.width
                 val height = size.height
 
-                val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawLimit >= stepsCount.coerceAtLeast(1) - 1) {
+                val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
                     val cycleDurationMs = 15000L // 15 seconds to trace entire drawing
                     val progressFrac = (animTime % cycleDurationMs).toFloat() / cycleDurationMs
                     val stepsInPath = paths.firstOrNull()?.size ?: stepsCount
-                    (progressFrac * (stepsInPath - 1)).toInt().coerceIn(0, stepsInPath - 1)
+                    (progressFrac * (stepsInPath - 1)).coerceIn(0f, (stepsInPath - 1).toFloat())
                 } else {
-                    drawLimit
+                    drawProgress
                 }
 
-                // Draw lines path
+                // Project and gather line segments across all paths for unified depth sorting
+                val segmentsList = mutableListOf<ComposeSegment>()
+                val tipsList = mutableListOf<Pair<ProjectedPoint, Color>>()
+
                 for (pIdx in paths.indices) {
                     val path3D = paths[pIdx]
                     val projPoints = HarmonographMath.project3DTo2D(
@@ -208,7 +218,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         yaw = animatedYaw,
                         pitch = animatedPitch,
                         perspective = settings.cameraPerspective,
-                        currentDrawIndex = drawLimit,
+                        currentDrawProgress = drawProgress,
                         screenWidth = width,
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
@@ -218,9 +228,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                     )
                     
-                    if (projPoints.size < 2) continue
+                    if (projPoints.isEmpty()) continue
 
-                    // Segment lines drawing
+                    // Gather line segments
                     for (i in 0 until projPoints.size - 1) {
                         val p1 = projPoints[i]
                         val p2 = projPoints[i + 1]
@@ -237,27 +247,105 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         
                         val baseThickness = settings.lineThickness.current
                         val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
-                        drawLine(
-                            color = segmentColor,
-                            start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
-                            end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
-                            strokeWidth = strokeWidth * scaleFactor
-                        )
+                        segmentsList.add(ComposeSegment(p1, p2, segmentColor, strokeWidth))
                     }
 
-                    // Render active pen drawing point
-                    if (projPoints.isNotEmpty()) {
+                    // Store pen tip if enabled
+                    if (settings.penTipEnabled && projPoints.isNotEmpty()) {
                         val tip = projPoints.last()
-                        drawCircle(
-                            color = Color.White,
-                            radius = 6f * scaleFactor,
-                            center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
-                        )
-                        drawCircle(
-                            color = Color(0x33FFFFFF),
-                            radius = 12f * scaleFactor,
-                            center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
-                        )
+                        val tipColor = if (settings.penTipColorMode == "solid") {
+                            Color(settings.penTipColor)
+                        } else {
+                            if (projPoints.size > 1) {
+                                computeComposeColor(
+                                    settings = settings,
+                                    idx = projPoints.size - 2,
+                                    total = projPoints.size,
+                                    pt = projPoints[projPoints.size - 2],
+                                    width = width,
+                                    height = height,
+                                    hueOffset = timeHueOffset
+                                )
+                            } else {
+                                Color.White
+                            }
+                        }
+                        tipsList.add(Pair(tip, tipColor))
+                    }
+                }
+
+                // Sort all line segments back-to-front (descending by average depth)
+                segmentsList.sortByDescending { (it.p1.depth + it.p2.depth) / 2f }
+
+                // Draw depth-sorted segments
+                for (seg in segmentsList) {
+                    drawLine(
+                        color = seg.color,
+                        start = androidx.compose.ui.geometry.Offset(seg.p1.x, seg.p1.y),
+                        end = androidx.compose.ui.geometry.Offset(seg.p2.x, seg.p2.y),
+                        strokeWidth = seg.strokeWidth * scaleFactor
+                    )
+                }
+
+                // Render styled active pen tip markers
+                for ((tip, tipColor) in tipsList) {
+                    val s = settings.penTipSize * scaleFactor
+                    when (settings.penTipShape) {
+                        "square" -> {
+                            drawRect(
+                                color = tipColor,
+                                topLeft = androidx.compose.ui.geometry.Offset(tip.x - s, tip.y - s),
+                                size = androidx.compose.ui.geometry.Size(s * 2f, s * 2f)
+                            )
+                        }
+                        "diamond" -> {
+                            val path = Path().apply {
+                                moveTo(tip.x, tip.y - s)
+                                lineTo(tip.x + s, tip.y)
+                                lineTo(tip.x, tip.y + s)
+                                lineTo(tip.x - s, tip.y)
+                                close()
+                            }
+                            drawPath(path = path, color = tipColor)
+                        }
+                        "cross" -> {
+                            drawLine(
+                                color = tipColor,
+                                start = androidx.compose.ui.geometry.Offset(tip.x - s, tip.y),
+                                end = androidx.compose.ui.geometry.Offset(tip.x + s, tip.y),
+                                strokeWidth = 3f * scaleFactor
+                            )
+                            drawLine(
+                                color = tipColor,
+                                start = androidx.compose.ui.geometry.Offset(tip.x, tip.y - s),
+                                end = androidx.compose.ui.geometry.Offset(tip.x, tip.y + s),
+                                strokeWidth = 3f * scaleFactor
+                            )
+                        }
+                        "star" -> {
+                            val path = Path()
+                            for (i in 0 until 10) {
+                                val angle = (i * PI / 5).toFloat()
+                                val r = if (i % 2 == 0) s else s * 0.4f
+                                val px = tip.x + r * cos(angle - PI.toFloat() / 2f)
+                                val py = tip.y + r * sin(angle - PI.toFloat() / 2f)
+                                if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                            }
+                            path.close()
+                            drawPath(path = path, color = tipColor)
+                        }
+                        else -> { // circle
+                            drawCircle(
+                                color = tipColor,
+                                radius = s,
+                                center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
+                            )
+                            drawCircle(
+                                color = tipColor.copy(alpha = 0.2f),
+                                radius = s * 2f,
+                                center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
+                            )
+                        }
                     }
                 }
 
@@ -1357,6 +1445,92 @@ fun StyleAndPenConfigTab(
                 }
             }
         }
+
+        // Active Pen Tip Configuration Section
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Active Pen Tip Marker", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = settings.penTipEnabled,
+                            onCheckedChange = { onUpdate(settings.copy(penTipEnabled = it)) },
+                            modifier = Modifier.scale(0.8f).testTag("pen_tip_switch")
+                        )
+                    }
+
+                    if (settings.penTipEnabled) {
+                        Text("Pen Tip Marker Shape", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("circle", "square", "diamond", "cross", "star").forEach { shape ->
+                                val act = (settings.penTipShape == shape)
+                                Button(
+                                    onClick = { onUpdate(settings.copy(penTipShape = shape)) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (act) Color(0xFF00E5FF) else Color(0xFF1E293B),
+                                        contentColor = if (act) Color.Black else Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f).height(28.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(shape.replaceFirstChar { it.uppercase() }, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                            Text("Color Behavior", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                val matchLine = settings.penTipColorMode == "match_line"
+                                Button(
+                                    onClick = { onUpdate(settings.copy(penTipColorMode = "match_line")) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (matchLine) Color(0xFF00E5FF) else Color(0xFF1E293B),
+                                        contentColor = if (matchLine) Color.Black else Color.White
+                                    ),
+                                    modifier = Modifier.height(26.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text("Match Line", fontSize = 10.sp)
+                                }
+                                Button(
+                                    onClick = { onUpdate(settings.copy(penTipColorMode = "solid")) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (!matchLine) Color(0xFF00E5FF) else Color(0xFF1E293B),
+                                        contentColor = if (!matchLine) Color.Black else Color.White
+                                    ),
+                                    modifier = Modifier.height(26.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp)
+                                ) {
+                                    Text("Custom Color", fontSize = 10.sp)
+                                }
+                            }
+                        }
+
+                        if (settings.penTipColorMode == "solid") {
+                            RgbSlidersGroup(
+                                label = "Edit Pen Tip Color",
+                                colorValue = settings.penTipColor,
+                                onColorChange = { onUpdate(settings.copy(penTipColor = it)) }
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+                            Text("Marker Size: ${settings.penTipSize.roundToInt()}dp", color = Color.White, fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Slider(
+                                value = settings.penTipSize,
+                                onValueChange = { onUpdate(settings.copy(penTipSize = it)) },
+                                valueRange = 4f..24f,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1661,11 +1835,12 @@ private fun computeComposeColor(
             adjustComposeColor(colorVal, sat, hueOffset)
         }
         "center" -> {
-            val dx = pt.x - width / 2f
-            val dy = pt.y - height / 2f
-            val dist = sqrt(dx * dx + dy * dy)
-            val maxDist = minOf(width, height) / 2.2f
-            val ratio = (dist / maxDist).coerceIn(0f, 1f)
+            val maxDist3D = sqrt(
+                settings.ampX.current * settings.ampX.current +
+                settings.ampY.current * settings.ampY.current +
+                settings.ampZ.current * settings.ampZ.current
+            ).coerceAtLeast(10f)
+            val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
             adjustComposeColor(colorVal, sat, hueOffset)
         }
@@ -1716,7 +1891,7 @@ private fun drawComposeOrthogonalShape(
     settings: HarmonographSettings,
     scaleFactor: Float,
     mainPathPoints: List<Point3D> = emptyList(),
-    cameraTargetIndex: Int = -1
+    cameraTargetIndex: Float = -1f
 ) {
     // Standard DrawScope cannot be accessed outside draw extension function.
 }
@@ -1735,7 +1910,7 @@ private fun DrawScope.drawComposeOrthogonalShape(
     settings: HarmonographSettings,
     scaleFactor: Float,
     mainPathPoints: List<Point3D> = emptyList(),
-    cameraTargetIndex: Int = -1
+    cameraTargetIndex: Float = -1f
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -1777,7 +1952,7 @@ private fun DrawScope.drawComposeOrthogonalShape(
             yaw = yawVal,
             pitch = pitchVal,
             perspective = perspective,
-            currentDrawIndex = shape3DPoints.size,
+            currentDrawProgress = shape3DPoints.size.toFloat(),
             screenWidth = width,
             screenHeight = height,
             angularLock = angularLock,
@@ -1795,7 +1970,7 @@ private fun DrawScope.drawComposeOrthogonalShape(
             yaw = yawVal,
             pitch = pitchVal,
             perspective = perspective,
-            currentDrawIndex = 1,
+            currentDrawProgress = 1f,
             screenWidth = width,
             screenHeight = height,
             angularLock = angularLock,

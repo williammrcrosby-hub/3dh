@@ -162,6 +162,13 @@ data class HarmonographSettings(
     val penRotationMultiplier: IntParameter = IntParameter(2, rangeMin = 1, rangeMax = 8),
     val penRotationIsMultiply: Boolean = true,
     
+    // Pen tip settings
+    val penTipEnabled: Boolean = true,
+    val penTipShape: String = "circle", // "circle", "square", "diamond", "cross", "star"
+    val penTipColorMode: String = "match_line", // "match_line", "solid"
+    val penTipColor: Int = 0xFFFFFFFF.toInt(),
+    val penTipSize: Float = 8f,
+    
     // Periodic shapes orthogonal to the path line
     val periodicShape: String = "none", // "none", "circle", "triangle", "star"
     val periodicShapeSize: FloatParameter = FloatParameter(6f, rangeMin = 2f, rangeMax = 18f),
@@ -192,6 +199,37 @@ data class HarmonographSettings(
     val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f)
 ) {
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
+        val randAmpSubX = if (ampSubX.locked) ampSubX else {
+            if (random.nextBoolean()) {
+                val minVal = (if (ampSubX.rangeLocked) ampSubX.actualSelectedMin else ampSubX.rangeMin).coerceAtLeast(15f)
+                val maxVal = if (ampSubX.rangeLocked) ampSubX.actualSelectedMax else ampSubX.rangeMax
+                val v = minVal + random.nextFloat() * (maxVal - minVal)
+                ampSubX.copy(current = v)
+            } else {
+                ampSubX.copy(current = 0f)
+            }
+        }
+        val randAmpSubY = if (ampSubY.locked) ampSubY else {
+            if (random.nextBoolean()) {
+                val minVal = (if (ampSubY.rangeLocked) ampSubY.actualSelectedMin else ampSubY.rangeMin).coerceAtLeast(15f)
+                val maxVal = if (ampSubY.rangeLocked) ampSubY.actualSelectedMax else ampSubY.rangeMax
+                val v = minVal + random.nextFloat() * (maxVal - minVal)
+                ampSubY.copy(current = v)
+            } else {
+                ampSubY.copy(current = 0f)
+            }
+        }
+        val randAmpSubZ = if (ampSubZ.locked) ampSubZ else {
+            if (random.nextBoolean()) {
+                val minVal = (if (ampSubZ.rangeLocked) ampSubZ.actualSelectedMin else ampSubZ.rangeMin).coerceAtLeast(15f)
+                val maxVal = if (ampSubZ.rangeLocked) ampSubZ.actualSelectedMax else ampSubZ.rangeMax
+                val v = minVal + random.nextFloat() * (maxVal - minVal)
+                ampSubZ.copy(current = v)
+            } else {
+                ampSubZ.copy(current = 0f)
+            }
+        }
+
         return copy(
             ampX = ampX.randomize(random),
             ampY = ampY.randomize(random),
@@ -209,9 +247,9 @@ data class HarmonographSettings(
             phaseY = phaseY.randomize(random),
             phaseZ = phaseZ.randomize(random),
             
-            ampSubX = ampSubX.randomize(random),
-            ampSubY = ampSubY.randomize(random),
-            ampSubZ = ampSubZ.randomize(random),
+            ampSubX = randAmpSubX,
+            ampSubY = randAmpSubY,
+            ampSubZ = randAmpSubZ,
             
             subXFreqFactor = subXFreqFactor.randomize(random),
             subXFreqIsMultiply = subXFreqIsMultiply.randomize(random),

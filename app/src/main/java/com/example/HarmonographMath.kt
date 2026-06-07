@@ -27,7 +27,8 @@ data class ProjectedPoint(
     val y: Float,
     val depth: Float,
     val originalIndex: Int,
-    val isTip: Boolean = false
+    val isTip: Boolean = false,
+    val dist3D: Float = 0f
 )
 
 data class CustomShapeData(
@@ -68,26 +69,25 @@ object HarmonographMath {
         }
         
         // Compute sublayers X', Y', Z' if amplitudes > 0
-        val fastestBase = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
         
         // Sublayer X'
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
-            val freqSubX = if (settings.subXFreqIsMultiply.current) fastestBase * factor else fastestBase / factor
+            val freqSubX = if (settings.subXFreqIsMultiply.current) settings.freqX.current * factor else settings.freqX.current / factor
             xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + PI.toFloat() / 4f)
         }
         
         // Sublayer Y'
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
             val factor = settings.subYFreqFactor.current.toFloat()
-            val freqSubY = if (settings.subYFreqIsMultiply.current) fastestBase * factor else fastestBase / factor
+            val freqSubY = if (settings.subYFreqIsMultiply.current) settings.freqY.current * factor else settings.freqY.current / factor
             yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + PI.toFloat() / 4f)
         }
         
         // Sublayer Z'
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
             val factor = settings.subZFreqFactor.current.toFloat()
-            val freqSubZ = if (settings.subZFreqIsMultiply.current) fastestBase * factor else fastestBase / factor
+            val freqSubZ = if (settings.subZFreqIsMultiply.current) settings.freqZ.current * factor else settings.freqZ.current / factor
             // Let sublayer Z' influence the depth
             xRaw += settings.ampSubZ.current * decayFactorZ * sin(freqSubZ * t + pz + PI.toFloat() / 4f)
         }
@@ -101,8 +101,29 @@ object HarmonographMath {
     fun generatePathPoints(
         settings: HarmonographSettings,
         maxSteps: Int,
-        dt: Float = 0.015f
+        dtDefault: Float = 0.015f
     ): List<List<Point3D>> {
+        // Calculate max active frequency in the system to determine optimal dt
+        var maxActiveFreq = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
+        if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
+            val factor = settings.subXFreqFactor.current.toFloat()
+            val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
+            if (f > maxActiveFreq) maxActiveFreq = f
+        }
+        if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
+            val factor = settings.subYFreqFactor.current.toFloat()
+            val f = if (settings.subYFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
+            if (f > maxActiveFreq) maxActiveFreq = f
+        }
+        if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
+            val factor = settings.subZFreqFactor.current.toFloat()
+            val f = if (settings.subZFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
+            if (f > maxActiveFreq) maxActiveFreq = f
+        }
+        
+        // Dynamically compute adaptive dt: for higher frequencies, sample with a much finer steps to preserve smooth curves.
+        val dt = minOf(0.015f, 0.45f / maxActiveFreq)
+
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         
         // Initialize lines for pen counts: 1 to 3
@@ -167,10 +188,31 @@ object HarmonographMath {
     fun generatePeriodicShapes(
         settings: HarmonographSettings,
         maxSteps: Int,
-        dt: Float = 0.015f
+        dtDefault: Float = 0.015f
     ): List<CustomShapeData> {
         if (settings.periodicShape == "none") return emptyList()
         
+        // Calculate max active frequency in the system to determine optimal dt
+        var maxActiveFreq = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
+        if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
+            val factor = settings.subXFreqFactor.current.toFloat()
+            val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
+            if (f > maxActiveFreq) maxActiveFreq = f
+        }
+        if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
+            val factor = settings.subYFreqFactor.current.toFloat()
+            val f = if (settings.subYFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
+            if (f > maxActiveFreq) maxActiveFreq = f
+        }
+        if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
+            val factor = settings.subZFreqFactor.current.toFloat()
+            val f = if (settings.subZFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
+            if (f > maxActiveFreq) maxActiveFreq = f
+        }
+        
+        // Dynamically compute adaptive dt to match the path point sampling perfectly
+        val dt = minOf(0.015f, 0.45f / maxActiveFreq)
+
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         val shapesList = mutableListOf<CustomShapeData>()
         
@@ -224,20 +266,38 @@ object HarmonographMath {
         yaw: Float, // horizontal rotation degrees
         pitch: Float, // vertical elevation degrees
         perspective: Int, // 1 = Distant screen fill, 2 = Roller coaster follow tip
-        currentDrawIndex: Int,
+        currentDrawProgress: Float, // floating-point progress to enable micro-pixel smooth trailing path!
         screenWidth: Float,
         screenHeight: Float,
         angularLock: Boolean,
         angularLockAxis: String = "Z",
         referencePoints: List<Point3D>? = null,
-        cameraTargetIndex: Int = -1,
+        cameraTargetIndex: Float = -1f,
         cameraDistance: Float = 220f,
         dynamicCameraZoomEnabled: Boolean = false
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
-        val maxIndex = minOf(currentDrawIndex, points.size - 1)
-        val activePoints = points.subList(0, maxIndex + 1)
+        // Find fractional progress index and fractional parts to avoid "jumpy / choppy" front tip steps!
+        val progressInt = floor(currentDrawProgress).toInt().coerceIn(0, points.size - 1)
+        val progressFrac = (currentDrawProgress - progressInt).coerceIn(0f, 1f)
+        
+        val activePoints = ArrayList<Point3D>(progressInt + 2)
+        for (i in 0..progressInt) {
+            activePoints.add(points[i])
+        }
+        if (progressFrac > 0.001f && progressInt < points.size - 1) {
+            val p1 = points[progressInt]
+            val p2 = points[progressInt + 1]
+            val interpolated = Point3D(
+                p1.x + (p2.x - p1.x) * progressFrac,
+                p1.y + (p2.y - p1.y) * progressFrac,
+                p1.z + (p2.z - p1.z) * progressFrac
+            )
+            activePoints.add(interpolated)
+        }
+        
+        val maxIndex = activePoints.size - 1
         
         // Focal distance
         val dFocal = 550f 
@@ -274,12 +334,14 @@ object HarmonographMath {
                 return rawProj.mapIndexed { idx, (rx, ry, depth) ->
                     val u = screenWidth / 2f + rx * fitMultiplier
                     val v = screenHeight / 2f + ry * fitMultiplier
+                    val pt = activePoints[idx]
                     ProjectedPoint(
                         x = u,
                         y = v,
                         depth = depth,
                         originalIndex = idx,
-                        isTip = (idx == maxIndex)
+                        isTip = (idx == maxIndex),
+                        dist3D = pt.length()
                     )
                 }
             } else {
@@ -297,7 +359,8 @@ object HarmonographMath {
                         y = v,
                         depth = depth,
                         originalIndex = idx,
-                        isTip = (idx == maxIndex)
+                        isTip = (idx == maxIndex),
+                        dist3D = pt.length()
                     )
                 }
             }
@@ -345,12 +408,14 @@ object HarmonographMath {
                 rawProj.mapIndexed { idx, (rx, ry, depth) ->
                     val u = screenWidth / 2f + rx * fitMultiplier
                     val v = screenHeight / 2f + ry * fitMultiplier
+                    val pt = activePoints[idx]
                     ProjectedPoint(
                         x = u,
                         y = v,
                         depth = depth,
                         originalIndex = idx,
-                        isTip = (idx == maxIndex)
+                        isTip = (idx == maxIndex),
+                        dist3D = pt.length()
                     )
                 }
             } else {
@@ -376,22 +441,32 @@ object HarmonographMath {
                         y = v,
                         depth = zRot2,
                         originalIndex = idx,
-                        isTip = (idx == maxIndex)
+                        isTip = (idx == maxIndex),
+                        dist3D = pt.length()
                     )
                 }
             }
         } else {
             // Perspective 2: Roller coaster pen-riding!
-            // Follow lookAtTarget with continuous stable camera based on yaw and pitch
             val refPts = referencePoints ?: points
-            val activeCameraTargetIndex = if (cameraTargetIndex >= 0) {
-                cameraTargetIndex.coerceIn(0, refPts.size - 1)
-            } else {
-                minOf(currentDrawIndex, refPts.size - 1)
-            }
-            val lookAtTarget = refPts[activeCameraTargetIndex]
             
-            // Stable camera following lookAtTarget using spherical coordinates derived from drag
+            // Smoothly interpolate lookAtTarget based on cameraTargetIndex (floating-point parameter) or currentDrawProgress!
+            val targetIdx = if (cameraTargetIndex >= 0f) cameraTargetIndex else currentDrawProgress
+            val idxInt = floor(targetIdx).toInt().coerceIn(0, refPts.size - 1)
+            val idxFrac = (targetIdx - idxInt).coerceIn(0f, 1f)
+            val lookAtTarget = if (idxFrac > 0.001f && idxInt < refPts.size - 1) {
+                val p1 = refPts[idxInt]
+                val p2 = refPts[idxInt + 1]
+                Point3D(
+                    p1.x + (p2.x - p1.x) * idxFrac,
+                    p1.y + (p2.y - p1.y) * idxFrac,
+                    p1.z + (p2.z - p1.z) * idxFrac
+                )
+            } else {
+                refPts[idxInt]
+            }
+            
+            // Stable camera following lookAtTarget using analytical polar orientation vectors
             val dist = cameraDistance
             val radYaw = Math.toRadians(yaw.toDouble()).toFloat()
             val radPitch = Math.toRadians(pitch.toDouble()).toFloat()
@@ -403,18 +478,10 @@ object HarmonographMath {
             
             val camPos = lookAtTarget + Point3D(offsetX, offsetY, offsetZ)
             
-            // Camera viewing direction pointing from camera towards target
-            val viewVec = lookAtTarget - camPos
-            val viewLen = viewVec.length()
-            val viewDir = if (viewLen > 0.05f) {
-                Point3D(viewVec.x / viewLen, viewVec.y / viewLen, viewVec.z / viewLen)
-            } else {
-                Point3D(0f, 1f, 0f)
-            }
-            
-            val helper = if (abs(viewDir.z) > 0.9f) Point3D(0f, 1f, 0f) else Point3D(0f, 0f, 1f)
-            val sideDir = viewDir.cross(helper).normalized()
-            val upDir = sideDir.cross(viewDir).normalized()
+            // Orthonormal spherical coordinates framing to prevent sudden 180 flips & jumps!
+            val sideDir = Point3D(cos(radYaw), sin(radYaw), 0f)
+            val upDir = Point3D(-sin(radPitch) * sin(radYaw), sin(radPitch) * cos(radYaw), cos(radPitch))
+            val viewDir = Point3D(-cos(radPitch) * sin(radYaw), cos(radPitch) * cos(radYaw), -sin(radPitch))
             
             activePoints.mapIndexed { idx, pt ->
                 val rel = pt - camPos
@@ -436,7 +503,8 @@ object HarmonographMath {
                     y = v,
                     depth = depth,
                     originalIndex = idx,
-                    isTip = (idx == activeCameraTargetIndex && referencePoints == null)
+                    isTip = (idx == maxIndex && referencePoints == null),
+                    dist3D = pt.length()
                 )
             }
         }

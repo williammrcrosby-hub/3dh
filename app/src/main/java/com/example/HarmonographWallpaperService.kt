@@ -13,6 +13,13 @@ import java.util.Random
 
 class HarmonographWallpaperService : WallpaperService() {
 
+    private data class WallpaperSegment(
+        val p1: ProjectedPoint,
+        val p2: ProjectedPoint,
+        val color: Int,
+        val strokeWidth: Float
+    )
+
     private val moshi = Moshi.Builder()
         .addLast(KotlinJsonAdapterFactory())
         .build()
@@ -29,11 +36,13 @@ class HarmonographWallpaperService : WallpaperService() {
 
         private var drawProgress = 0f
         private var isVisible = false
+        private val startTime = System.currentTimeMillis()
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
-        // Camera yaw & pitch for interactive drags
-        private var yaw = 35f
-        private var pitch = 25f
+        // Camera base yaw & pitch (from interactive drags) and launcher parallax offset
+        private var touchBaseYaw = 35f
+        private var touchBasePitch = 25f
+        private var launcherYawOffset = 0f
         private var lastX = 0f
         private var lastY = 0f
 
@@ -168,8 +177,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     if (pointerCount == 1 && !isTwoFingersHeld) {
                         val dx = event.x - lastX
                         val dy = event.y - lastY
-                        yaw += dx * 0.35f
-                        pitch -= dy * 0.35f
+                        touchBaseYaw += dx * 0.35f
+                        touchBasePitch -= dy * 0.35f
                         lastX = event.x
                         lastY = event.y
                     }
@@ -199,6 +208,22 @@ class HarmonographWallpaperService : WallpaperService() {
             }
         }
 
+        override fun onOffsetsChanged(
+            xOffset: Float,
+            yOffset: Float,
+            xOffsetStep: Float,
+            yOffsetStep: Float,
+            xPixelOffset: Int,
+            yPixelOffset: Int
+        ) {
+            super.onOffsetsChanged(xOffset, yOffset, xOffsetStep, yOffsetStep, xPixelOffset, yPixelOffset)
+            // Adjust camera yaw proportionally to launcher swiping for dynamic 3D depth parallax!
+            launcherYawOffset = (xOffset - 0.5f) * 60f
+            if (isVisible) {
+                drawFrame()
+            }
+        }
+
         private fun drawFrame() {
             val holder = surfaceHolder
             val canvas = holder.lockCanvas() ?: return
@@ -210,66 +235,155 @@ class HarmonographWallpaperService : WallpaperService() {
                 val width = canvas.width.toFloat()
                 val height = canvas.height.toFloat()
 
+                // Calculate relative elapsed milliseconds smoothly without losing precision
+                val elapsedMs = System.currentTimeMillis() - startTime
+                val timeSec = elapsedMs * 0.001f
+
+                // Combine touch drag rotation and launcher offsets
+                val baseYaw = touchBaseYaw + launcherYawOffset
+                val basePitch = touchBasePitch
+
                 // Yaw and Pitch auto-rotation logic (continuous rotation to match the main app)
-                var activeYaw = yaw
-                var activePitch = pitch
+                var activeYaw = baseYaw
+                var activePitch = basePitch
                 if (settings.cameraAutoRotationEnabled) {
-                    val timeSec = System.currentTimeMillis() * 0.001f
-                    activeYaw = (yaw + timeSec * settings.cameraAutoRotationSpeed * 25f) % 360f
-                    activePitch = pitch + (sin(timeSec * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
+                    activeYaw = (baseYaw + timeSec * settings.cameraAutoRotationSpeed * 25f) % 360f
+                    activePitch = basePitch + (sin(timeSec * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
                 }
                 
                 // Base drawing paths evaluation
                 val rawPaths = HarmonographMath.generatePathPoints(settings, settings.drawLengthSteps)
                 
-                // Color hue cycle
+                // Color hue cycle using elapsed elapsedMs
                 val timeHueOffset = if (settings.hueShiftingEnabled) {
-                    (System.currentTimeMillis() / 24) % 360
+                    (elapsedMs / 24) % 360
                 } else {
                     0L
                 }
 
-                // Project and draw lines
+                val stepsCount = settings.drawLengthSteps
+                val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
+                    val cycleDurationMs = 15000L // 15 seconds to tour the finished curves
+                    val progressFrac = (elapsedMs % cycleDurationMs).toFloat() / cycleDurationMs
+                    (progressFrac * (stepsCount - 1)).coerceIn(0f, (stepsCount - 1).toFloat())
+                } else {
+                    drawProgress
+                }
+
+                // Project and gather line segments across all paths for unified depth sorting
+                val segmentsList = mutableListOf<WallpaperSegment>()
+                val tipsList = mutableListOf<Pair<ProjectedPoint, Int>>()
+
                 for (pIdx in rawPaths.indices) {
                     val path3D = rawPaths[pIdx]
                     if (path3D.isEmpty()) continue
-                    
+
                     val projPoints = HarmonographMath.project3DTo2D(
                         points = path3D,
                         yaw = activeYaw,
                         pitch = activePitch,
                         perspective = settings.cameraPerspective,
-                        currentDrawIndex = drawProgress.roundToInt(),
+                        currentDrawProgress = drawProgress,
                         screenWidth = width,
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
+                        cameraTargetIndex = cameraTargetIndex,
                         cameraDistance = settings.cameraDistance.current,
                         dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                     )
                     
-                    if (projPoints.size < 2) continue
+                    if (projPoints.isEmpty()) continue
                     
-                    // Standard drawing path lines
+                    // Segment lines gathering
                     for (i in 0 until projPoints.size - 1) {
                         val p1 = projPoints[i]
                         val p2 = projPoints[i + 1]
                         
                         // Compute color styled dynamically
                         val segmentColor = computeDynamicColor(i, projPoints.size, p1, width, height, timeHueOffset)
-                        paint.color = segmentColor
-                        paint.strokeWidth = 2.8f + (1.2f * (p1.depth / 500f).coerceIn(-1f, 1f))
+                        val baseThickness = settings.lineThickness.current
+                        val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
                         
-                        canvas.drawLine(p1.x, p1.y, p2.x, p2.y, paint)
+                        segmentsList.add(WallpaperSegment(p1, p2, segmentColor, strokeWidth))
                     }
 
-                    // Draw drawing tip
-                    if (projPoints.isNotEmpty()) {
+                    // Store pen tip if enabled
+                    if (settings.penTipEnabled && projPoints.isNotEmpty()) {
                         val tip = projPoints.last()
-                        fillPaint.color = Color.WHITE
-                        canvas.drawCircle(tip.x, tip.y, 6.5f, fillPaint)
-                        paint.color = 0x44FFFFFF.toInt()
-                        canvas.drawCircle(tip.x, tip.y, 14f, paint)
+                        val tipColor = if (settings.penTipColorMode == "solid") {
+                            settings.penTipColor
+                        } else {
+                            if (projPoints.size > 1) {
+                                computeDynamicColor(
+                                    projPoints.size - 2,
+                                    projPoints.size,
+                                    projPoints[projPoints.size - 2],
+                                    width,
+                                    height,
+                                    timeHueOffset
+                                )
+                            } else {
+                                0xFFFFFFFF.toInt()
+                            }
+                        }
+                        tipsList.add(Pair(tip, tipColor))
+                    }
+                }
+
+                // Sort all line segments back-to-front (descending by average depth)
+                segmentsList.sortByDescending { (it.p1.depth + it.p2.depth) / 2f }
+
+                // Draw depth-sorted segments on the canvas
+                for (seg in segmentsList) {
+                    paint.color = seg.color
+                    paint.strokeWidth = seg.strokeWidth
+                    canvas.drawLine(seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y, paint)
+                }
+
+                // Render styled active pen tip markers on top of all segment drawings
+                for ((tip, tipColor) in tipsList) {
+                    val s = settings.penTipSize
+                    fillPaint.color = tipColor
+                    
+                    when (settings.penTipShape) {
+                        "square" -> {
+                            canvas.drawRect(tip.x - s, tip.y - s, tip.x + s, tip.y + s, fillPaint)
+                        }
+                        "diamond" -> {
+                            val p = Path().apply {
+                                moveTo(tip.x, tip.y - s)
+                                lineTo(tip.x + s, tip.y)
+                                lineTo(tip.x, tip.y + s)
+                                lineTo(tip.x - s, tip.y)
+                                close()
+                            }
+                            canvas.drawPath(p, fillPaint)
+                        }
+                        "cross" -> {
+                            paint.color = tipColor
+                            paint.strokeWidth = 3f
+                            canvas.drawLine(tip.x - s, tip.y, tip.x + s, tip.y, paint)
+                            canvas.drawLine(tip.x, tip.y - s, tip.x, tip.y + s, paint)
+                        }
+                        "star" -> {
+                            val p = Path()
+                            val stepRad = Math.PI / 5
+                            for (i in 0 until 10) {
+                                val angle = i * stepRad
+                                val r = if (i % 2 == 0) s else s * 0.4f
+                                val px = tip.x + (r * cos(angle - Math.PI / 2f)).toFloat()
+                                val py = tip.y + (r * sin(angle - Math.PI / 2f)).toFloat()
+                                if (i == 0) p.moveTo(px, py) else p.lineTo(px, py)
+                            }
+                            p.close()
+                            canvas.drawPath(p, fillPaint)
+                        }
+                        else -> { // circle
+                            canvas.drawCircle(tip.x, tip.y, s, fillPaint)
+                            paint.color = (tipColor and 0x00FFFFFF) or 0x33000000 // 20% alpha glow
+                            canvas.drawCircle(tip.x, tip.y, s * 2f, paint)
+                        }
                     }
                 }
 
@@ -285,8 +399,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     // Draw outer shapes
                     drawOrthogonalShapeOnCanvas(
                         canvas, shape, activeYaw, activePitch, settings.cameraPerspective,
-                        drawProgress.roundToInt(), width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
-                        timeHueOffset, stepsCount
+                        width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
+                        timeHueOffset, stepsCount, rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex
                     )
                 }
 
@@ -317,12 +431,13 @@ class HarmonographWallpaperService : WallpaperService() {
                     adjustSaturationAndHue(color, sat, hueOffset)
                 }
                 "center" -> {
-                    // Gradient based on distance from center of screen
-                    val dx = pt.x - width / 2f
-                    val dy = pt.y - height / 2f
-                    val dist = sqrt(dx * dx + dy * dy)
-                    val maxDist = minOf(width, height) / 2.2f
-                    val ratio = (dist / maxDist).coerceIn(0f, 1f)
+                    // True 3D density proximity from origin
+                    val maxDist3D = sqrt(
+                        settings.ampX.current * settings.ampX.current +
+                        settings.ampY.current * settings.ampY.current +
+                        settings.ampZ.current * settings.ampZ.current
+                    ).coerceAtLeast(10f)
+                    val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
                     adjustSaturationAndHue(color, sat, hueOffset)
                 }
@@ -341,13 +456,14 @@ class HarmonographWallpaperService : WallpaperService() {
             yawVal: Float,
             pitchVal: Float,
             perspective: Int,
-            drawLimitIdx: Int,
             width: Float,
             height: Float,
             angularLock: Boolean,
             angularLockAxis: String,
             hueOffset: Long,
-            totalSteps: Int
+            totalSteps: Int,
+            mainPathPoints: List<Point3D> = emptyList(),
+            cameraTargetIndex: Float = -1f
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -394,11 +510,13 @@ class HarmonographWallpaperService : WallpaperService() {
                     yaw = yawVal,
                     pitch = pitchVal,
                     perspective = perspective,
-                    currentDrawIndex = shape3DPoints.size,
+                    currentDrawProgress = shape3DPoints.size.toFloat(),
                     screenWidth = width,
                     screenHeight = height,
                     angularLock = angularLock,
                     angularLockAxis = angularLockAxis,
+                    referencePoints = mainPathPoints.ifEmpty { null },
+                    cameraTargetIndex = cameraTargetIndex,
                     cameraDistance = settings.cameraDistance.current,
                     dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                 )
@@ -411,11 +529,13 @@ class HarmonographWallpaperService : WallpaperService() {
                     yaw = yawVal,
                     pitch = pitchVal,
                     perspective = perspective,
-                    currentDrawIndex = 1,
+                    currentDrawProgress = 1f,
                     screenWidth = width,
                     screenHeight = height,
                     angularLock = angularLock,
                     angularLockAxis = angularLockAxis,
+                    referencePoints = mainPathPoints.ifEmpty { null },
+                    cameraTargetIndex = cameraTargetIndex,
                     cameraDistance = settings.cameraDistance.current,
                     dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled
                 )
