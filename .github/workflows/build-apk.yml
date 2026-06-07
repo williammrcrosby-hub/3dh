@@ -24,7 +24,11 @@ jobs:
         with:
           distribution: 'zulu'
           java-version: '21'
-
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          # This specifically bypasses the old, corrupted cache
+          cache-read-only: false
       - name: Make Gradle Wrapper Executable and Repair Line Endings
         # Fixing carriage returns if checked out on Windows and granting execution
         run: |
