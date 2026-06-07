@@ -179,7 +179,14 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     }
                 }
         ) {
+            var completionTimeOfAnim by remember { mutableStateOf<Long?>(null) }
             val stepsCount = settings.drawLengthSteps
+            if (drawProgress < stepsCount - 1f) {
+                completionTimeOfAnim = null
+            } else if (completionTimeOfAnim == null) {
+                completionTimeOfAnim = animTime
+            }
+
             val paths = remember(settings) {
                 HarmonographMath.generatePathPoints(settings, stepsCount)
             }
@@ -188,7 +195,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             }
             
             val timeHueOffset = if (settings.hueShiftingEnabled) {
-                (animTime / 24) % 360
+                (animTime * settings.hueShiftSpeed.current / 360).toLong() % 360
             } else {
                 0L
             }
@@ -199,11 +206,13 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 val height = size.height
 
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
-                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes
+                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes.current
                     val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
-                    val progressFrac = (animTime % cycleDurationMs).toFloat() / cycleDurationMs
+                    val startT = completionTimeOfAnim ?: animTime
+                    val completedTime = (animTime - startT).coerceAtLeast(0L)
+                    val fraction = (completedTime.toFloat() / cycleDurationMs) % 1.0f
                     val stepsInPath = paths.firstOrNull()?.size ?: stepsCount
-                    (progressFrac * (stepsInPath - 1)).coerceIn(0f, (stepsInPath - 1).toFloat())
+                    ((stepsInPath - 1f + (fraction * stepsInPath)) % stepsInPath).coerceIn(0f, (stepsInPath - 1).toFloat())
                 } else {
                     drawProgress
                 }
@@ -397,7 +406,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     if (settings.ampSubX.current > 0 || settings.ampSubY.current > 0 || settings.ampSubZ.current > 0) {
                         TelemetryRow("SubAmps", "${settings.ampSubX.current.roundToInt()}, ${settings.ampSubY.current.roundToInt()}, ${settings.ampSubZ.current.roundToInt()}")
                     }
-                    TelemetryRow("Pen Mode", if (settings.penCount > 1) "${settings.penCount} Pens (${if (settings.penRotationEnabled) "Rotational" else "Parallel"})" else "1 Pen")
+                    TelemetryRow("Pen Mode", if (settings.penCount.current > 1) "${settings.penCount.current} Pens (${if (settings.penRotationEnabled.current) "Rotational" else "Parallel"})" else "1 Pen")
                 }
             }
         }
@@ -1165,7 +1174,14 @@ fun StyleAndPenConfigTab(
                                     .size(24.dp)
                                     .clip(CircleShape)
                                     .background(Color(sw))
-                                    .clickable { onUpdate(settings.copy(solidColor = sw.toInt())) }
+                                    .clickable {
+                                        val hsv = FloatArray(3)
+                                        android.graphics.Color.colorToHSV(sw.toInt(), hsv)
+                                        onUpdate(settings.copy(
+                                            solidColor = sw.toInt(),
+                                            solidColorHue = settings.solidColorHue.setValueCompat(hsv[0])
+                                        ))
+                                    }
                             ) {
                                 if (act) {
                                     Icon(Icons.Default.Check, null, tint = Color.Black, modifier = Modifier.size(14.dp).align(Alignment.Center))
@@ -1174,10 +1190,50 @@ fun StyleAndPenConfigTab(
                         }
                     }
                     
+                    ParameterSliderRow(
+                        label = "Solid Color Hue",
+                        value = settings.solidColorHue.current,
+                        minVal = settings.solidColorHue.rangeMin,
+                        maxVal = settings.solidColorHue.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f°",
+                        isLocked = settings.solidColorHue.locked,
+                        onLockToggle = { onUpdate(settings.copy(solidColorHue = settings.solidColorHue.copy(locked = it))) },
+                        isRangeLocked = settings.solidColorHue.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(solidColorHue = settings.solidColorHue.withRangeLocked(it))) },
+                        selectedMin = settings.solidColorHue.actualSelectedMin,
+                        selectedMax = settings.solidColorHue.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(solidColorHue = settings.solidColorHue.withRanges(min, max))) },
+                        onValueChange = {
+                            val hsv = floatArrayOf(it, settings.saturation.current, 1.0f)
+                            val activeCol = android.graphics.Color.HSVToColor(hsv)
+                            onUpdate(settings.copy(
+                                solidColorHue = settings.solidColorHue.withValue(it),
+                                solidColor = activeCol
+                            ))
+                        },
+                        onRandomize = {
+                            val r = settings.solidColorHue.randomize(java.util.Random())
+                            val hsv = floatArrayOf(r.current, settings.saturation.current, 1.0f)
+                            val activeCol = android.graphics.Color.HSVToColor(hsv)
+                            onUpdate(settings.copy(
+                                solidColorHue = r,
+                                solidColor = activeCol
+                            ))
+                        }
+                    )
+                    
                     RgbSlidersGroup(
                         label = "Custom Solid Color Controls",
                         colorValue = settings.solidColor,
-                        onColorChange = { onUpdate(settings.copy(solidColor = it)) }
+                        onColorChange = {
+                            val hsv = FloatArray(3)
+                            android.graphics.Color.colorToHSV(it, hsv)
+                            onUpdate(settings.copy(
+                                solidColor = it,
+                                solidColorHue = settings.solidColorHue.setValueCompat(hsv[0])
+                            ))
+                        }
                     )
                 }
             }
@@ -1199,7 +1255,14 @@ fun StyleAndPenConfigTab(
                                     .size(22.dp)
                                     .clip(CircleShape)
                                     .background(Color(sw))
-                                    .clickable { onUpdate(settings.copy(gradientStartColor = sw.toInt())) }
+                                    .clickable {
+                                        val hsv = FloatArray(3)
+                                        android.graphics.Color.colorToHSV(sw.toInt(), hsv)
+                                        onUpdate(settings.copy(
+                                            gradientStartColor = sw.toInt(),
+                                            gradientStartHue = settings.gradientStartHue.setValueCompat(hsv[0])
+                                        ))
+                                    }
                             ) {
                                 if (settings.gradientStartColor == sw.toInt()) Icon(Icons.Default.Check, null, tint = Color.Black, modifier = Modifier.size(12.dp).align(Alignment.Center))
                             }
@@ -1214,33 +1277,141 @@ fun StyleAndPenConfigTab(
                                     .size(22.dp)
                                     .clip(CircleShape)
                                     .background(Color(sw))
-                                    .clickable { onUpdate(settings.copy(gradientEndColor = sw.toInt())) }
+                                    .clickable {
+                                        val hsv = FloatArray(3)
+                                        android.graphics.Color.colorToHSV(sw.toInt(), hsv)
+                                        onUpdate(settings.copy(
+                                            gradientEndColor = sw.toInt(),
+                                            gradientEndHue = settings.gradientEndHue.setValueCompat(hsv[0])
+                                        ))
+                                    }
                             ) {
                                 if (settings.gradientEndColor == sw.toInt()) Icon(Icons.Default.Check, null, tint = Color.White, modifier = Modifier.size(12.dp).align(Alignment.Center))
                             }
                         }
                     }
                     
+                    ParameterSliderRow(
+                        label = "Gradient Start Hue (Color A)",
+                        value = settings.gradientStartHue.current,
+                        minVal = settings.gradientStartHue.rangeMin,
+                        maxVal = settings.gradientStartHue.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f°",
+                        isLocked = settings.gradientStartHue.locked,
+                        onLockToggle = { onUpdate(settings.copy(gradientStartHue = settings.gradientStartHue.copy(locked = it))) },
+                        isRangeLocked = settings.gradientStartHue.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(gradientStartHue = settings.gradientStartHue.withRangeLocked(it))) },
+                        selectedMin = settings.gradientStartHue.actualSelectedMin,
+                        selectedMax = settings.gradientStartHue.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(gradientStartHue = settings.gradientStartHue.withRanges(min, max))) },
+                        onValueChange = {
+                            val hsv = floatArrayOf(it, settings.saturation.current, 1.0f)
+                            val activeCol = android.graphics.Color.HSVToColor(hsv)
+                            onUpdate(settings.copy(
+                                gradientStartHue = settings.gradientStartHue.withValue(it),
+                                gradientStartColor = activeCol
+                            ))
+                        },
+                        onRandomize = {
+                            val r = settings.gradientStartHue.randomize(java.util.Random())
+                            val hsv = floatArrayOf(r.current, settings.saturation.current, 1.0f)
+                            val activeCol = android.graphics.Color.HSVToColor(hsv)
+                            onUpdate(settings.copy(
+                                gradientStartHue = r,
+                                gradientStartColor = activeCol
+                            ))
+                        }
+                    )
+                    
+                    ParameterSliderRow(
+                        label = "Gradient End Hue (Color B)",
+                        value = settings.gradientEndHue.current,
+                        minVal = settings.gradientEndHue.rangeMin,
+                        maxVal = settings.gradientEndHue.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f°",
+                        isLocked = settings.gradientEndHue.locked,
+                        onLockToggle = { onUpdate(settings.copy(gradientEndHue = settings.gradientEndHue.copy(locked = it))) },
+                        isRangeLocked = settings.gradientEndHue.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(gradientEndHue = settings.gradientEndHue.withRangeLocked(it))) },
+                        selectedMin = settings.gradientEndHue.actualSelectedMin,
+                        selectedMax = settings.gradientEndHue.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(gradientEndHue = settings.gradientEndHue.withRanges(min, max))) },
+                        onValueChange = {
+                            val hsv = floatArrayOf(it, settings.saturation.current, 1.0f)
+                            val activeCol = android.graphics.Color.HSVToColor(hsv)
+                            onUpdate(settings.copy(
+                                gradientEndHue = settings.gradientEndHue.withValue(it),
+                                gradientEndColor = activeCol
+                            ))
+                        },
+                        onRandomize = {
+                            val r = settings.gradientEndHue.randomize(java.util.Random())
+                            val hsv = floatArrayOf(r.current, settings.saturation.current, 1.0f)
+                            val activeCol = android.graphics.Color.HSVToColor(hsv)
+                            onUpdate(settings.copy(
+                                gradientEndHue = r,
+                                gradientEndColor = activeCol
+                            ))
+                        }
+                    )
+                    
                     RgbSlidersGroup(
                         label = "Gradient Start (Color A)",
                         colorValue = settings.gradientStartColor,
-                        onColorChange = { onUpdate(settings.copy(gradientStartColor = it)) }
+                        onColorChange = {
+                            val hsv = FloatArray(3)
+                            android.graphics.Color.colorToHSV(it, hsv)
+                            onUpdate(settings.copy(
+                                gradientStartColor = it,
+                                gradientStartHue = settings.gradientStartHue.setValueCompat(hsv[0])
+                            ))
+                        }
                     )
                     
                     RgbSlidersGroup(
                         label = "Gradient End (Color B)",
                         colorValue = settings.gradientEndColor,
-                        onColorChange = { onUpdate(settings.copy(gradientEndColor = it)) }
+                        onColorChange = {
+                            val hsv = FloatArray(3)
+                            android.graphics.Color.colorToHSV(it, hsv)
+                            onUpdate(settings.copy(
+                                gradientEndColor = it,
+                                gradientEndHue = settings.gradientEndHue.setValueCompat(hsv[0])
+                            ))
+                        }
                     )
                 }
             }
         }
 
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Live Color Hue Shifting", color = Color.White, fontSize = 12.sp)
-                Spacer(modifier = Modifier.weight(1f))
-                Switch(checked = settings.hueShiftingEnabled, onCheckedChange = { onUpdate(settings.copy(hueShiftingEnabled = it)) }, modifier = Modifier.scale(0.8f))
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Live Color Hue Shifting", color = Color.White, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Switch(checked = settings.hueShiftingEnabled, onCheckedChange = { onUpdate(settings.copy(hueShiftingEnabled = it)) }, modifier = Modifier.scale(0.8f))
+                }
+                if (settings.hueShiftingEnabled) {
+                    ParameterSliderRow(
+                        label = "Hue Shift Speed",
+                        value = settings.hueShiftSpeed.current,
+                        minVal = settings.hueShiftSpeed.rangeMin,
+                        maxVal = settings.hueShiftSpeed.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f speed",
+                        isLocked = settings.hueShiftSpeed.locked,
+                        onLockToggle = { onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.copy(locked = it))) },
+                        isRangeLocked = settings.hueShiftSpeed.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.withRangeLocked(it))) },
+                        selectedMin = settings.hueShiftSpeed.actualSelectedMin,
+                        selectedMax = settings.hueShiftSpeed.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.randomize(java.util.Random()))) }
+                    )
+                }
             }
         }
 
@@ -1252,41 +1423,90 @@ fun StyleAndPenConfigTab(
         item {
             Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A))) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Active Pen Count", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.weight(1f))
-                        for (p in 1..3) {
-                            val active = (settings.penCount == p)
-                            Button(
-                                onClick = { onUpdate(settings.copy(penCount = p)) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (active) Color(0xFF00E5FF) else Color(0xFF1E293B),
-                                    contentColor = if (active) Color.Black else Color.White
-                                ),
-                                contentPadding = PaddingValues(0.dp),
-                                modifier = Modifier.padding(horizontal = 4.dp).size(width = 44.dp, height = 30.dp)
-                            ) {
-                                Text("$p", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
+                    ParameterSliderRow(
+                        label = "Active Pen Count",
+                        value = settings.penCount.current.toFloat(),
+                        minVal = settings.penCount.rangeMin.toFloat(),
+                        maxVal = settings.penCount.rangeMax.toFloat(),
+                        stepValue = 1f,
+                        formatString = "%.0f pens",
+                        isLocked = settings.penCount.locked,
+                        onLockToggle = { onUpdate(settings.copy(penCount = settings.penCount.copy(locked = it))) },
+                        isRangeLocked = settings.penCount.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(penCount = settings.penCount.withRangeLocked(it))) },
+                        selectedMin = settings.penCount.actualSelectedMin.toFloat(),
+                        selectedMax = settings.penCount.actualSelectedMax.toFloat(),
+                        onRangeChange = { min, max -> onUpdate(settings.copy(penCount = settings.penCount.withRanges(min.roundToInt(), max.roundToInt()))) },
+                        onValueChange = { onUpdate(settings.copy(penCount = settings.penCount.withValue(it.roundToInt()))) },
+                        onRandomize = { onUpdate(settings.copy(penCount = settings.penCount.randomize(java.util.Random()))) }
+                    )
 
-                    if (settings.penCount > 1) {
+                    if (settings.penCount.current > 1) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("Rotational Pen Offset", color = Color.White, fontSize = 12.sp)
                             Spacer(modifier = Modifier.weight(1f))
-                            Switch(checked = settings.penRotationEnabled, onCheckedChange = { onUpdate(settings.copy(penRotationEnabled = it)) }, modifier = Modifier.scale(0.7f))
+                            IconButton(
+                                onClick = { onUpdate(settings.copy(penRotationEnabled = settings.penRotationEnabled.copy(locked = !settings.penRotationEnabled.locked))) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settings.penRotationEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "Lock Rotational Offset",
+                                    tint = if (settings.penRotationEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Switch(
+                                checked = settings.penRotationEnabled.current,
+                                onCheckedChange = { onUpdate(settings.copy(penRotationEnabled = settings.penRotationEnabled.copy(current = it))) },
+                                modifier = Modifier.scale(0.7f),
+                                enabled = !settings.penRotationEnabled.locked
+                            )
                         }
-                        if (settings.penRotationEnabled) {
+                        if (settings.penRotationEnabled.current) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Rotation Frequency Modes", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = { onUpdate(settings.copy(penRotationIsMultiply = settings.penRotationIsMultiply.copy(locked = !settings.penRotationIsMultiply.locked))) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (settings.penRotationIsMultiply.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                        contentDescription = "Lock Frequency Mode",
+                                        tint = if (settings.penRotationIsMultiply.locked) Color(0xFF00E5FF) else Color.Gray,
+                                        modifier = Modifier.size(15.dp)
+                                    )
+                                }
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Divide", color = if (!settings.penRotationIsMultiply) Color(0xFF00E5FF) else Color.White, fontSize = 11.sp, modifier = Modifier.clickable { onUpdate(settings.copy(penRotationIsMultiply = false)) })
+                                    Text(
+                                        text = "Divide",
+                                        color = if (!settings.penRotationIsMultiply.current) Color(0xFF00E5FF) else Color.White,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.clickable {
+                                            if (!settings.penRotationIsMultiply.locked) {
+                                                onUpdate(settings.copy(penRotationIsMultiply = settings.penRotationIsMultiply.copy(current = false)))
+                                            }
+                                        }
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Switch(checked = settings.penRotationIsMultiply, onCheckedChange = { onUpdate(settings.copy(penRotationIsMultiply = it)) }, modifier = Modifier.scale(0.6f))
+                                    Switch(
+                                        checked = settings.penRotationIsMultiply.current,
+                                        onCheckedChange = { onUpdate(settings.copy(penRotationIsMultiply = settings.penRotationIsMultiply.copy(current = it))) },
+                                        modifier = Modifier.scale(0.6f),
+                                        enabled = !settings.penRotationIsMultiply.locked
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Multiply", color = if (settings.penRotationIsMultiply) Color(0xFF00E5FF) else Color.White, fontSize = 11.sp, modifier = Modifier.clickable { onUpdate(settings.copy(penRotationIsMultiply = true)) })
+                                    Text(
+                                        text = "Multiply",
+                                        color = if (settings.penRotationIsMultiply.current) Color(0xFF00E5FF) else Color.White,
+                                        fontSize = 11.sp,
+                                        modifier = Modifier.clickable {
+                                            if (!settings.penRotationIsMultiply.locked) {
+                                                onUpdate(settings.copy(penRotationIsMultiply = settings.penRotationIsMultiply.copy(current = true)))
+                                            }
+                                        }
+                                    )
                                 }
                             }
                             
@@ -1718,11 +1938,22 @@ fun CameraAndSetupTab(
                     }
 
                     if (!settings.drawSpeedInstant) {
-                        Text("Duration: ${"%.1f".format(settings.drawSpeedMinutes)} minutes", color = Color(0xFF94A3B8), fontSize = 12.sp)
-                        Slider(
-                            value = settings.drawSpeedMinutes,
-                            onValueChange = { onUpdate(settings.copy(drawSpeedMinutes = it)) },
-                            valueRange = 1.0f..15.0f
+                        ParameterSliderRow(
+                            label = "Draw Duration (minutes)",
+                            value = settings.drawSpeedMinutes.current,
+                            minVal = settings.drawSpeedMinutes.rangeMin,
+                            maxVal = settings.drawSpeedMinutes.rangeMax,
+                            stepValue = 0.5f,
+                            formatString = "%.1f min",
+                            isLocked = settings.drawSpeedMinutes.locked,
+                            onLockToggle = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.copy(locked = it))) },
+                            isRangeLocked = settings.drawSpeedMinutes.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withRangeLocked(it))) },
+                            selectedMin = settings.drawSpeedMinutes.actualSelectedMin,
+                            selectedMax = settings.drawSpeedMinutes.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.randomize(java.util.Random()))) }
                         )
                     }
                 }

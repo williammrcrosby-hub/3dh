@@ -27,6 +27,10 @@ data class FloatParameter(
         return copy(current = v.coerceIn(valMin, valMax))
     }
 
+    fun setValueCompat(v: Float): FloatParameter {
+        return copy(current = v.coerceIn(rangeMin, rangeMax))
+    }
+
     fun withRanges(min: Float, max: Float): FloatParameter {
         val minCoerced = min.coerceIn(rangeMin, rangeMax)
         val maxCoerced = max.coerceIn(rangeMin, rangeMax)
@@ -146,7 +150,7 @@ data class HarmonographSettings(
     val subZFreqFactor: IntParameter = IntParameter(4, rangeMin = 1, rangeMax = 8),
     val subZFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     
-    val drawSpeedMinutes: Float = 2.0f, // 1 to 15 minutes, or instant
+    val drawSpeedMinutes: FloatParameter = FloatParameter(2.0f, rangeMin = 1.0f, rangeMax = 15.0f),
     val drawSpeedInstant: Boolean = false,
     val drawLengthSteps: Int = 3000, 
     val drawLengthFactor: Float = 1.0f,
@@ -157,15 +161,21 @@ data class HarmonographSettings(
     val solidColor: Int = 0xFF00E5FF.toInt(),
     val gradientStartColor: Int = 0xFF00E5FF.toInt(),
     val gradientEndColor: Int = 0xFFFF4081.toInt(),
+    
+    val solidColorHue: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
+    val gradientStartHue: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
+    val gradientEndHue: FloatParameter = FloatParameter(330f, rangeMin = 0f, rangeMax = 360f),
+    
     val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f),
     val hueShiftingEnabled: Boolean = true,
+    val hueShiftSpeed: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 60f),
     
     // Pen setups
-    val penCount: Int = 1, // 1, 2, or 3
+    val penCount: IntParameter = IntParameter(1, rangeMin = 1, rangeMax = 3),
     val penOffset: FloatParameter = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f),
-    val penRotationEnabled: Boolean = false,
+    val penRotationEnabled: BooleanParameter = BooleanParameter(false),
     val penRotationMultiplier: IntParameter = IntParameter(2, rangeMin = 1, rangeMax = 8),
-    val penRotationIsMultiply: Boolean = true,
+    val penRotationIsMultiply: BooleanParameter = BooleanParameter(true),
     
     // Pen tip settings
     val penTipEnabled: Boolean = true,
@@ -196,9 +206,9 @@ data class HarmonographSettings(
     val angularLockAxis: String = "Z", // "X", "Y", or "Z"
     
     // Resets
-    val postCompletionAutoReset: Boolean = false,
+    val postCompletionAutoReset: Boolean = true,
     val postCompletionResetTimeFactor: Float = 0.25f, // 25% of draw completion time or instant
-
+    
     // Additional options
     val decayEnabled: Boolean = true,
     val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f),
@@ -239,6 +249,15 @@ data class HarmonographSettings(
             }
         }
 
+        val randSat = saturation.randomize(random)
+        val randSolidHue = solidColorHue.randomize(random)
+        val randGradStartHue = gradientStartHue.randomize(random)
+        val randGradEndHue = gradientEndHue.randomize(random)
+
+        val activeSolid = hsvToColorInt(randSolidHue.current, randSat.current)
+        val activeGradStart = hsvToColorInt(randGradStartHue.current, randSat.current)
+        val activeGradEnd = hsvToColorInt(randGradEndHue.current, randSat.current)
+
         return copy(
             ampX = ampX.randomize(random),
             ampY = ampY.randomize(random),
@@ -271,14 +290,33 @@ data class HarmonographSettings(
             subZFreqFactor = subZFreqFactor.randomize(random),
             subZFreqIsMultiply = subZFreqIsMultiply.randomize(random),
             
-            saturation = saturation.randomize(random),
+            saturation = randSat,
+            solidColorHue = randSolidHue,
+            gradientStartHue = randGradStartHue,
+            gradientEndHue = randGradEndHue,
+            solidColor = activeSolid,
+            gradientStartColor = activeGradStart,
+            gradientEndColor = activeGradEnd,
+            
+            hueShiftSpeed = hueShiftSpeed.randomize(random),
+            
+            penCount = penCount.randomize(random),
+            penRotationEnabled = penRotationEnabled.randomize(random),
             penRotationMultiplier = penRotationMultiplier.randomize(random),
+            penRotationIsMultiply = penRotationIsMultiply.randomize(random),
+            drawSpeedMinutes = drawSpeedMinutes.randomize(random),
+            
             penOffset = penOffset.randomize(random),
             periodicShapeSize = periodicShapeSize.randomize(random),
             periodicShapeFreqFactor = periodicShapeFreqFactor.randomize(random),
             lineThickness = lineThickness.randomize(random),
             cameraDistance = cameraDistance.randomize(random)
         )
+    }
+
+    private fun hsvToColorInt(hue: Float, sat: Float): Int {
+        val hsv = floatArrayOf(hue, sat, 1.0f)
+        return android.graphics.Color.HSVToColor(hsv)
     }
 }
 

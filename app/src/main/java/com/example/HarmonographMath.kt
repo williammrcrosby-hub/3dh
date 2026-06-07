@@ -130,7 +130,7 @@ object HarmonographMath {
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         
         // Initialize lines for pen counts: 1 to 3
-        val paths = List(settings.penCount) { mutableListOf<Point3D>() }
+        val paths = List(settings.penCount.current) { mutableListOf<Point3D>() }
         
         val fastestBase = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
         
@@ -141,7 +141,7 @@ object HarmonographMath {
             val basePt = calculatePointAtStep(k, settings, dt)
             val t = k * dt
             
-            if (settings.penCount == 1) {
+            if (settings.penCount.current == 1) {
                 paths[0].add(basePt)
             } else {
                 // We need orthogonal plane to calculate offset vectors
@@ -165,9 +165,9 @@ object HarmonographMath {
                 }
                 prevUVec = uVec
                 
-                val rotationAngle = if (settings.penRotationEnabled) {
+                val rotationAngle = if (settings.penRotationEnabled.current) {
                     val factor = settings.penRotationMultiplier.current.toFloat()
-                    val rotSpeed = if (settings.penRotationIsMultiply) fastestBase * factor else fastestBase / factor
+                    val rotSpeed = if (settings.penRotationIsMultiply.current) fastestBase * factor else fastestBase / factor
                     rotSpeed * t
                 } else {
                     0f
@@ -180,12 +180,12 @@ object HarmonographMath {
                 // Primary offset direction
                 val dirOffset = uVec * cosAng + wVec * sinAng
                 
-                if (settings.penCount == 2) {
+                if (settings.penCount.current == 2) {
                     val p1 = basePt + dirOffset * settings.penOffset.current
                     val p2 = basePt - dirOffset * settings.penOffset.current
                     paths[0].add(p1)
                     paths[1].add(p2)
-                } else if (settings.penCount == 3) {
+                } else if (settings.penCount.current == 3) {
                     // Triangle placement
                     val dirOffset2 = uVec * cos(rotationAngle + 2f * PI.toFloat() / 3f) + wVec * sin(rotationAngle + 2f * PI.toFloat() / 3f)
                     val dirOffset3 = uVec * cos(rotationAngle + 4f * PI.toFloat() / 3f) + wVec * sin(rotationAngle + 4f * PI.toFloat() / 3f)

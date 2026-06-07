@@ -37,6 +37,7 @@ class HarmonographWallpaperService : WallpaperService() {
         private var drawProgress = 0f
         private var isVisible = false
         private val startTime = System.currentTimeMillis()
+        private var completionTimeOfAnim: Long? = null
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
 
         // Camera base yaw & pitch (from interactive drags) and launcher parallax offset
@@ -73,12 +74,12 @@ class HarmonographWallpaperService : WallpaperService() {
                         drawProgress = maxSteps
                     } else {
                         val dt = 0.016f // step time
-                        val stepsPerSec = maxSteps / (settings.drawSpeedMinutes * 60f)
+                        val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
                         drawProgress += stepsPerSec * dt
                         if (drawProgress >= maxSteps) {
                             if (settings.postCompletionAutoReset) {
                                 // Wait resets based on factor (e.g. 25% draw time)
-                                val postResetDelay = (settings.drawSpeedMinutes * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
                                 drawProgress = 0f
                                 randomizeUnlockedSettings()
                                 handler.postDelayed(this, postResetDelay)
@@ -256,17 +257,26 @@ class HarmonographWallpaperService : WallpaperService() {
                 
                 // Color hue cycle using elapsed elapsedMs
                 val timeHueOffset = if (settings.hueShiftingEnabled) {
-                    (elapsedMs / 24) % 360
+                    (elapsedMs * settings.hueShiftSpeed.current / 360).toLong() % 360
                 } else {
                     0L
                 }
 
                 val stepsCount = settings.drawLengthSteps
+                if (drawProgress < stepsCount - 1f) {
+                    completionTimeOfAnim = null
+                } else if (completionTimeOfAnim == null) {
+                    completionTimeOfAnim = elapsedMs
+                }
+
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
-                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes
+                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes.current
                     val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
-                    val progressFrac = (elapsedMs % cycleDurationMs).toFloat() / cycleDurationMs
-                    (progressFrac * (stepsCount - 1)).coerceIn(0f, (stepsCount - 1).toFloat())
+                    val startT = completionTimeOfAnim ?: elapsedMs
+                    val completedTime = (elapsedMs - startT).coerceAtLeast(0L)
+                    val fraction = (completedTime.toFloat() / cycleDurationMs) % 1.0f
+                    val stepsInPath = rawPaths.firstOrNull()?.size ?: stepsCount
+                    ((stepsInPath - 1f + (fraction * stepsInPath)) % stepsInPath).coerceIn(0f, (stepsInPath - 1).toFloat())
                 } else {
                     drawProgress
                 }

@@ -95,7 +95,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     } else {
                         completionTimeMs = 0L
                         // Compute step increment per frame (~16ms)
-                        val totalDurationSec = settings.drawSpeedMinutes * 60f
+                        val totalDurationSec = settings.drawSpeedMinutes.current * 60f
                         val stepsPerSec = maxSteps / totalDurationSec
                         val stepsPerFrame = stepsPerSec * 0.016f
                         
@@ -274,9 +274,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(90f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(4.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        penCount = 3,
+                        penCount = IntParameter(3, rangeMin = 1, rangeMax = 3),
                         penOffset = FloatParameter(18f, rangeMin = 2f, rangeMax = 30f),
-                        penRotationEnabled = true,
+                        penRotationEnabled = BooleanParameter(true),
                         penRotationMultiplier = IntParameter(5, rangeMin = 1, rangeMax = 8),
                         styleMode = "rainbow"
                     )
