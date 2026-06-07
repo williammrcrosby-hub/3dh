@@ -212,7 +212,9 @@ data class HarmonographSettings(
     // Additional options
     val decayEnabled: Boolean = true,
     val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f),
-    val coasterDirectionFacing: Boolean = false
+    val coasterDirectionFacing: Boolean = true,
+    val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
+    val coasterOrbitSpeed: FloatParameter = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f)
 ) {
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
@@ -310,7 +312,9 @@ data class HarmonographSettings(
             periodicShapeSize = periodicShapeSize.randomize(random),
             periodicShapeFreqFactor = periodicShapeFreqFactor.randomize(random),
             lineThickness = lineThickness.randomize(random),
-            cameraDistance = cameraDistance.randomize(random)
+            cameraDistance = cameraDistance.randomize(random),
+            coasterDeviationAngle = coasterDeviationAngle.randomize(random),
+            coasterOrbitSpeed = coasterOrbitSpeed.randomize(random)
         )
     }
 
@@ -339,6 +343,9 @@ interface HarmonographDao {
 
     @Query("DELETE FROM harmonograph_presets WHERE id = :id")
     suspend fun deletePresetById(id: Int)
+
+    @Query("DELETE FROM harmonograph_presets WHERE isUserPreset = 0")
+    suspend fun deleteDefaultPresets()
 }
 
 @Database(entities = [HarmonographPreset::class], version = 1, exportSchema = false)

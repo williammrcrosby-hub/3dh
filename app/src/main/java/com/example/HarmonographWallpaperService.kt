@@ -304,7 +304,9 @@ class HarmonographWallpaperService : WallpaperService() {
                         cameraDistance = settings.cameraDistance.current,
                         dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
                         coasterDirectionFacing = settings.coasterDirectionFacing,
-                        animTime = elapsedMs
+                        animTime = elapsedMs,
+                        coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -536,7 +538,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     cameraDistance = settings.cameraDistance.current,
                     dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
                     coasterDirectionFacing = settings.coasterDirectionFacing,
-                    animTime = animTime
+                    animTime = animTime,
+                    coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                    coasterOrbitSpeed = settings.coasterOrbitSpeed.current
                 )
                 
                 if (projPts.size < 2) continue
@@ -557,7 +561,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     cameraDistance = settings.cameraDistance.current,
                     dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
                     coasterDirectionFacing = settings.coasterDirectionFacing,
-                    animTime = animTime
+                    animTime = animTime,
+                    coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                    coasterOrbitSpeed = settings.coasterOrbitSpeed.current
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue

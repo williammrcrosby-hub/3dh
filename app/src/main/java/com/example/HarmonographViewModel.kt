@@ -53,13 +53,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
             }
         }
 
-        // Pre-populate some gorgeous default presets if DB is empty
+        // Pre-populate updated default presets on startup, keeping user-created presets intact
         viewModelScope.launch(Dispatchers.IO) {
-            dao.getAllPresets().first().let { currentList ->
-                if (currentList.isEmpty()) {
-                    insertDefaultPresets()
-                }
-            }
+            dao.deleteDefaultPresets()
+            insertDefaultPresets()
         }
         startDrawingLoop()
     }
@@ -295,7 +292,52 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         freqZ = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
                         styleMode = "rainbow",
                         cameraPerspective = 2,
-                        cameraAutoRotationEnabled = false
+                        cameraAutoRotationEnabled = false,
+                        coasterDirectionFacing = true,
+                        coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
+                        coasterOrbitSpeed = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Chroma Center Spiral",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        styleMode = "center",
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
+                        gradientStartHue = FloatParameter(200f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        gradientEndHue = FloatParameter(320f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        penOffset = FloatParameter(14f, rangeMin = 2f, rangeMax = 30f, rangeLocked = true, selectedMin = 10f, selectedMax = 20f)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Quantum Orbit Wave",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        styleMode = "rainbow",
+                        cameraPerspective = 2,
+                        cameraAutoRotationEnabled = false,
+                        coasterDirectionFacing = true,
+                        coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f, locked = true),
+                        coasterOrbitSpeed = FloatParameter(1.8f, rangeMin = 0.2f, rangeMax = 5.0f, locked = true),
+                        penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
+                        penRotationEnabled = BooleanParameter(true, locked = true)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Cosmic Star Weaver",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        periodicShape = "star",
+                        periodicShapeSize = FloatParameter(8f, rangeMin = 2f, rangeMax = 18f, locked = true),
+                        periodicShapeFreqFactor = IntParameter(4, rangeMin = 1, rangeMax = 8, locked = true),
+                        styleMode = "rainbow",
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true)
                     )
                 ) ?: ""
             )

@@ -238,7 +238,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         cameraDistance = settings.cameraDistance.current,
                         dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
                         coasterDirectionFacing = settings.coasterDirectionFacing,
-                        animTime = animTime
+                        animTime = animTime,
+                        coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -1858,6 +1860,64 @@ fun CameraAndSetupTab(
                         onRandomize = { onUpdate(settings.copy(cameraDistance = settings.cameraDistance.randomize(java.util.Random()))) }
                     )
 
+                    if (settings.cameraPerspective == 2) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        androidx.compose.material3.HorizontalDivider(color = Color(0xFF1E293B), thickness = 1.dp)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Follow Pen Direction (Tangent Coastin')", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = settings.coasterDirectionFacing,
+                                onCheckedChange = { onUpdate(settings.copy(coasterDirectionFacing = it)) },
+                                modifier = Modifier.scale(0.7f).testTag("coaster_direction_facing_switch")
+                            )
+                        }
+                        
+                        if (settings.coasterDirectionFacing) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            ParameterSliderRow(
+                                label = "Look Angle Deviation",
+                                value = settings.coasterDeviationAngle.current,
+                                minVal = settings.coasterDeviationAngle.rangeMin,
+                                maxVal = settings.coasterDeviationAngle.rangeMax,
+                                stepValue = 1f,
+                                formatString = "%.0f° deviation behind pen",
+                                isLocked = settings.coasterDeviationAngle.locked,
+                                onLockToggle = { onUpdate(settings.copy(coasterDeviationAngle = settings.coasterDeviationAngle.copy(locked = it))) },
+                                isRangeLocked = settings.coasterDeviationAngle.rangeLocked,
+                                onRangeLockToggle = { onUpdate(settings.copy(coasterDeviationAngle = settings.coasterDeviationAngle.withRangeLocked(it))) },
+                                selectedMin = settings.coasterDeviationAngle.actualSelectedMin,
+                                selectedMax = settings.coasterDeviationAngle.actualSelectedMax,
+                                onRangeChange = { min, max -> onUpdate(settings.copy(coasterDeviationAngle = settings.coasterDeviationAngle.withRanges(min, max))) },
+                                onValueChange = { onUpdate(settings.copy(coasterDeviationAngle = settings.coasterDeviationAngle.withValue(it))) },
+                                onRandomize = { onUpdate(settings.copy(coasterDeviationAngle = settings.coasterDeviationAngle.randomize(java.util.Random()))) }
+                            )
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            ParameterSliderRow(
+                                label = "Orbital Orbit & Sway Speed",
+                                value = settings.coasterOrbitSpeed.current,
+                                minVal = settings.coasterOrbitSpeed.rangeMin,
+                                maxVal = settings.coasterOrbitSpeed.rangeMax,
+                                stepValue = 0.1f,
+                                formatString = "%.1fx orbit speed multiplier",
+                                isLocked = settings.coasterOrbitSpeed.locked,
+                                onLockToggle = { onUpdate(settings.copy(coasterOrbitSpeed = settings.coasterOrbitSpeed.copy(locked = it))) },
+                                isRangeLocked = settings.coasterOrbitSpeed.rangeLocked,
+                                onRangeLockToggle = { onUpdate(settings.copy(coasterOrbitSpeed = settings.coasterOrbitSpeed.withRangeLocked(it))) },
+                                selectedMin = settings.coasterOrbitSpeed.actualSelectedMin,
+                                selectedMax = settings.coasterOrbitSpeed.actualSelectedMax,
+                                onRangeChange = { min, max -> onUpdate(settings.copy(coasterOrbitSpeed = settings.coasterOrbitSpeed.withRanges(min, max))) },
+                                onValueChange = { onUpdate(settings.copy(coasterOrbitSpeed = settings.coasterOrbitSpeed.withValue(it))) },
+                                onRandomize = { onUpdate(settings.copy(coasterOrbitSpeed = settings.coasterOrbitSpeed.randomize(java.util.Random()))) }
+                            )
+                        }
+                    }
+
 
                 }
             }
@@ -2221,7 +2281,9 @@ private fun DrawScope.drawComposeOrthogonalShape(
             cameraDistance = settings.cameraDistance.current,
             dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
             coasterDirectionFacing = settings.coasterDirectionFacing,
-            animTime = animTime
+            animTime = animTime,
+            coasterDeviationAngle = settings.coasterDeviationAngle.current,
+            coasterOrbitSpeed = settings.coasterOrbitSpeed.current
         )
 
         if (projPts.size < 2) continue
@@ -2241,7 +2303,9 @@ private fun DrawScope.drawComposeOrthogonalShape(
             cameraDistance = settings.cameraDistance.current,
             dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
             coasterDirectionFacing = settings.coasterDirectionFacing,
-            animTime = animTime
+            animTime = animTime,
+            coasterDeviationAngle = settings.coasterDeviationAngle.current,
+            coasterOrbitSpeed = settings.coasterOrbitSpeed.current
         )
 
         val centerPtScreen = centerProj.firstOrNull() ?: continue

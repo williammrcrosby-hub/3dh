@@ -310,7 +310,9 @@ object HarmonographMath {
         cameraDistance: Float = 220f,
         dynamicCameraZoomEnabled: Boolean = false,
         coasterDirectionFacing: Boolean = false,
-        animTime: Long = 0L
+        animTime: Long = 0L,
+        coasterDeviationAngle: Float = 25f,
+        coasterOrbitSpeed: Float = 1.2f
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -537,9 +539,9 @@ object HarmonographMath {
                 val wVec = T.cross(uVec).normalized()
                 
                 // Slow continuous orbital orbit sways around tangent axis
-                val swayAngle = (animTime * 0.0003f) * 2f * PI.toFloat() + sin(animTime * 0.001f).toFloat() * 0.15f
+                val swayAngle = (animTime * 0.0003f * coasterOrbitSpeed) * 2f * PI.toFloat() + sin(animTime * 0.001f * coasterOrbitSpeed).toFloat() * 0.15f
                 
-                val angleRad = Math.toRadians(25.0).toDouble().toFloat() // 25 degree look deviation
+                val angleRad = Math.toRadians(coasterDeviationAngle.toDouble()).toFloat() // customizable deviation angle
                 val cosAng = cos(angleRad)
                 val sinAng = sin(angleRad)
                 
