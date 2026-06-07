@@ -426,6 +426,15 @@ class HarmonographWallpaperService : WallpaperService() {
             }
         }
 
+        private fun mapHueIntoRange(hue: Float, minHue: Float, maxHue: Float): Float {
+            if (maxHue <= minHue) return minHue
+            val range = maxHue - minHue
+            if (range >= 360f) return (hue % 360f + 360f) % 360f
+            val shifted = hue - minHue
+            val wrapped = (shifted % range + range) % range
+            return minHue + wrapped
+        }
+
         private fun computeDynamicColor(
             idx: Int,
             total: Int,
@@ -435,17 +444,19 @@ class HarmonographWallpaperService : WallpaperService() {
             hueOffset: Long
         ): Int {
             val sat = settings.saturation.current
+            val minHue = settings.hueShiftRange.actualSelectedMin
+            val maxHue = settings.hueShiftRange.actualSelectedMax
             
             return when (settings.styleMode) {
                 "solid" -> {
                     // Solid Color with slight opacity
-                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset)
+                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue)
                 }
                 "length" -> {
                     // Length Gradient along path
                     val ratio = idx.toFloat() / total.coerceAtLeast(1)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturationAndHue(color, sat, hueOffset)
+                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue)
                 }
                 "center" -> {
                     // True 3D density proximity from origin
@@ -456,12 +467,13 @@ class HarmonographWallpaperService : WallpaperService() {
                     ).coerceAtLeast(10f)
                     val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturationAndHue(color, sat, hueOffset)
+                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue)
                 }
                 else -> {
                     // Rainbow Gradient Mode + optional Live hue rotation
                     val baseHue = (idx.toFloat() / total.coerceAtLeast(1)) * 360f
-                    val finalHue = (baseHue + hueOffset) % 360f
+                    val shiftedHue = (baseHue + hueOffset) % 360f
+                    val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
                     Color.HSVToColor(floatArrayOf(finalHue, sat, 0.95f))
                 }
             }
@@ -601,13 +613,17 @@ class HarmonographWallpaperService : WallpaperService() {
             return Color.argb(a, r, g, b)
         }
 
-        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long): Int {
+        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long, minHue: Float, maxHue: Float): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(color, hsv)
             hsv[1] = sat
-            if (hueOffset != 0L) {
-                hsv[0] = (hsv[0] + hueOffset) % 360f
+            val baseHue = hsv[0]
+            val shiftedHue = if (hueOffset != 0L) {
+                (baseHue + hueOffset) % 360f
+            } else {
+                baseHue
             }
+            hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
             // Preserve the original alpha channel if any
             val alpha = Color.alpha(color)
             return Color.HSVToColor(alpha, hsv)

@@ -169,6 +169,7 @@ data class HarmonographSettings(
     val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f),
     val hueShiftingEnabled: Boolean = true,
     val hueShiftSpeed: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 60f),
+    val hueShiftRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f, rangeLocked = false, selectedMin = 0f, selectedMax = 360f),
     
     // Pen setups
     val penCount: IntParameter = IntParameter(1, rangeMin = 1, rangeMax = 3),
@@ -301,6 +302,7 @@ data class HarmonographSettings(
             gradientEndColor = activeGradEnd,
             
             hueShiftSpeed = hueShiftSpeed.randomize(random),
+            hueShiftRange = hueShiftRange.randomize(random),
             
             penCount = penCount.randomize(random),
             penRotationEnabled = penRotationEnabled.randomize(random),

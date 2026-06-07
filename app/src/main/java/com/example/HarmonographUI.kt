@@ -1413,6 +1413,24 @@ fun StyleAndPenConfigTab(
                         onValueChange = { onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.withValue(it))) },
                         onRandomize = { onUpdate(settings.copy(hueShiftSpeed = settings.hueShiftSpeed.randomize(java.util.Random()))) }
                     )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    ParameterSliderRow(
+                        label = "Hue Shift Active Range",
+                        value = settings.hueShiftRange.current,
+                        minVal = settings.hueShiftRange.rangeMin,
+                        maxVal = settings.hueShiftRange.rangeMax,
+                        stepValue = 5f,
+                        formatString = "%.0f° hue limits",
+                        isLocked = settings.hueShiftRange.locked,
+                        onLockToggle = { onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.copy(locked = it))) },
+                        isRangeLocked = settings.hueShiftRange.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.withRangeLocked(it))) },
+                        selectedMin = settings.hueShiftRange.actualSelectedMin,
+                        selectedMax = settings.hueShiftRange.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.randomize(java.util.Random()))) }
+                    )
                 }
             }
         }
@@ -2132,6 +2150,15 @@ fun PresetsTab(
     }
 }
 
+private fun mapHueIntoRange(hue: Float, minHue: Float, maxHue: Float): Float {
+    if (maxHue <= minHue) return minHue
+    val range = maxHue - minHue
+    if (range >= 360f) return (hue % 360f + 360f) % 360f
+    val shifted = hue - minHue
+    val wrapped = (shifted % range + range) % range
+    return minHue + wrapped
+}
+
 private fun computeComposeColor(
     settings: HarmonographSettings,
     idx: Int,
@@ -2142,14 +2169,16 @@ private fun computeComposeColor(
     hueOffset: Long
 ): Color {
     val sat = settings.saturation.current
+    val minHue = settings.hueShiftRange.actualSelectedMin
+    val maxHue = settings.hueShiftRange.actualSelectedMax
     return when (settings.styleMode) {
         "solid" -> {
-            adjustComposeColor(Color(settings.solidColor), sat, hueOffset)
+            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue)
         }
         "length" -> {
             val ratio = idx.toFloat() / total.coerceAtLeast(1)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue)
         }
         "center" -> {
             val maxDist3D = sqrt(
@@ -2159,17 +2188,18 @@ private fun computeComposeColor(
             ).coerceAtLeast(10f)
             val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue)
         }
         else -> {
             val baseHue = (idx.toFloat() / total.coerceAtLeast(1)) * 360f
-            val finalHue = (baseHue + hueOffset) % 360f
+            val shiftedHue = (baseHue + Math.abs(hueOffset)) % 360f
+            val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
             Color.hsv(finalHue, sat, 0.95f)
         }
     }
 }
 
-private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long): Color {
+private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(
         (color.alpha * 255).roundToInt(),
@@ -2178,9 +2208,13 @@ private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long): Color
         (color.blue * 255).roundToInt()
     ), hsv)
     hsv[1] = sat
-    if (hueOffset != 0L) {
-        hsv[0] = (hsv[0] + hueOffset) % 360f
+    val baseHue = hsv[0]
+    val shiftedHue = if (hueOffset != 0L) {
+        (baseHue + Math.abs(hueOffset)) % 360f
+    } else {
+        baseHue
     }
+    hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
     val alphaInt = (color.alpha * 255).roundToInt()
     val rawInt = android.graphics.Color.HSVToColor(alphaInt, hsv)
     return Color(rawInt)
