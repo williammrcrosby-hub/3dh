@@ -28,6 +28,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           allow-snapshot-wrappers: true
+          wrapper-cache-enabled: true
+          allow-checksum-failures: true 
           # This specifically bypasses the old, corrupted cache
           cache-read-only: false
       - name: Make Gradle Wrapper Executable and Repair Line Endings
