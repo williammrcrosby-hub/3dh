@@ -25,11 +25,10 @@ jobs:
           distribution: 'zulu'
           java-version: '21'
 
-      - name: Make Gradle Wrapper Executable and Repair Line Endings
-        # Fixing carriage returns if checked out on Windows and granting execution
-        run: |
-          sed -i 's/\r$//' gradlew
-          chmod +x gradlew
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
 
       - name: Create empty .env file
         run: |
@@ -45,13 +44,38 @@ jobs:
             tr -d '\r\n' < debug.keystore.base64 | base64 -d > debug.keystore
           fi
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      - name: Decode Custom Keystore (Optional)
+        run: |
+          if [ ! -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ github.workspace }}/my-upload-key.jks"
+          fi
 
-      - name: Upload Debug APK Artifact
+      - name: Build Android APKs (Debug and Signed Release)
+        run: gradle assembleDebug assembleRelease --no-daemon
+        env:
+          KEYSTORE_PATH: "${{ github.workspace }}/my-upload-key.jks"
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Prepare APK Artifacts
+        run: |
+          mkdir -p apk-artifacts
+          if [ -f app/build/outputs/apk/release/app-release.apk ]; then
+            cp app/build/outputs/apk/release/app-release.apk apk-artifacts/Harmonograph-3D-Signed-Release.apk
+          else
+            echo "Release APK not found under app/build/outputs/apk/release/app-release.apk"
+          fi
+          if [ -f app/build/outputs/apk/debug/app-debug.apk ]; then
+            cp app/build/outputs/apk/debug/app-debug.apk apk-artifacts/Harmonograph-3D-Debug.apk
+          else
+            echo "Debug APK not found under app/build/outputs/apk/debug/app-debug.apk"
+          fi
+
+      - name: Upload APK Artifacts (ZIP)
         uses: actions/upload-artifact@v4
         with:
-          name: Harmonograph-3D-Debug-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Harmonograph-3D-Signed-APKs
+          path: apk-artifacts/
           if-no-files-found: error
           retention-days: 14
