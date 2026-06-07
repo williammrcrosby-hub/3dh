@@ -30,6 +30,11 @@ jobs:
         with:
           gradle-version: '9.3.1'
 
+      - name: Make Gradle Wrapper Executable and Repair Line Endings
+        run: |
+          sed -i 's/\r$//' gradlew
+          chmod +x gradlew
+
       - name: Create empty .env file
         run: |
           if [ -f .env.example ]; then
@@ -51,7 +56,7 @@ jobs:
           fi
 
       - name: Build Android APKs (Debug and Signed Release)
-        run: gradle assembleDebug assembleRelease --no-daemon
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
         env:
           KEYSTORE_PATH: "${{ github.workspace }}/my-upload-key.jks"
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
