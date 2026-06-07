@@ -29,7 +29,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
-          wrapper-validation-enabled: false
+          validate-wrappers: false
 
       - name: Make Gradle Wrapper Executable and Repair Line Endings
         run: |
