@@ -240,7 +240,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDirectionFacing = settings.coasterDirectionFacing,
                         animTime = animTime,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                        isPrimaryPath = (pIdx == 0)
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -402,7 +403,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     Text("TELEMETRY", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                     Spacer(modifier = Modifier.height(2.dp))
                     TelemetryRow("XYZ Amps", "${settings.ampX.current.roundToInt()}, ${settings.ampY.current.roundToInt()}, ${settings.ampZ.current.roundToInt()}")
-                    TelemetryRow("XYZ Freqs", "${"%.2f".format(settings.freqX.current)}x, ${"%.2f".format(settings.freqY.current)}x, ${"%.2f".format(settings.freqZ.current)}x")
+                    TelemetryRow("XYZ Freqs", "${"%.3f".format(settings.activeFreqX)}x, ${"%.3f".format(settings.activeFreqY)}x, ${"%.3f".format(settings.activeFreqZ)}x")
                     TelemetryRow("Decays", "${"%.4f".format(settings.decayX.current)}, ${"%.4f".format(settings.decayY.current)}, ${"%.4f".format(settings.decayZ.current)}")
                     TelemetryRow("Phases", "${settings.phaseX.current.roundToInt()}°, ${settings.phaseY.current.roundToInt()}°, ${settings.phaseZ.current.roundToInt()}°")
                     if (settings.ampSubX.current > 0 || settings.ampSubY.current > 0 || settings.ampSubZ.current > 0) {
@@ -598,15 +599,42 @@ fun OscillatorConfigTab(
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("PRIMARY XYZ OSCILLATORS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
-                Spacer(modifier = Modifier.weight(1f))
-                Text("Decay Rates", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
-                Switch(
-                    checked = settings.decayEnabled.current,
-                    onCheckedChange = { onUpdate(settings.copy(decayEnabled = settings.decayEnabled.withValue(it))) },
-                    modifier = Modifier.scale(0.7f).testTag("decay_enabled_switch")
-                )
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("PRIMARY XYZ OSCILLATORS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 11.sp)
+                    HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Enable Friction/Decay", color = Color.White, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = { onUpdate(settings.copy(decayEnabled = settings.decayEnabled.copy(locked = !settings.decayEnabled.locked))) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settings.decayEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = "Lock Friction/Decay",
+                                tint = if (settings.decayEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Switch(
+                            checked = settings.decayEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(decayEnabled = settings.decayEnabled.withValue(it))) },
+                            modifier = Modifier.scale(0.75f).testTag("decay_enabled_switch")
+                        )
+                    }
+                    
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Rational Frequencies Only", color = Color.White, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = settings.rationalFrequenciesEnabled,
+                            onCheckedChange = { onUpdate(settings.copy(rationalFrequenciesEnabled = it)) },
+                            modifier = Modifier.scale(0.75f).testTag("rational_frequencies_switch")
+                        )
+                    }
+                }
             }
         }
         
@@ -894,8 +922,8 @@ fun ParameterSliderRow(
     onValueChange: (Float) -> Unit,
     onRandomize: () -> Unit
 ) {
-    val activeMin = if (isRangeLocked) selectedMin else minVal
-    val activeMax = if (isRangeLocked) selectedMax else maxVal
+    val activeMin = if (isRangeLocked) minOf(selectedMin, selectedMax) else minVal
+    val activeMax = if (isRangeLocked) maxOf(selectedMin, selectedMax) else maxVal
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1140,8 +1168,8 @@ fun StyleAndPenConfigTab(
 
         // Style Mode Selectors
         item {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                val modeLabels = listOf("solid", "length", "center", "rainbow")
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+                val modeLabels = listOf("solid", "length", "center", "rainbow", "spicy")
                 for (mode in modeLabels) {
                     val active = (settings.styleMode == mode)
                     Button(
@@ -1390,6 +1418,96 @@ fun StyleAndPenConfigTab(
             }
         }
 
+        // Rainbow Style Settings Control Block
+        if (settings.styleMode == "rainbow") {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Rainbow Style Settings", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    
+                    ParameterSliderRow(
+                        label = "Rainbow Starting Hue",
+                        value = settings.rainbowHue.current,
+                        minVal = settings.rainbowHue.rangeMin,
+                        maxVal = settings.rainbowHue.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f°",
+                        isLocked = settings.rainbowHue.locked,
+                        onLockToggle = { onUpdate(settings.copy(rainbowHue = settings.rainbowHue.copy(locked = it))) },
+                        isRangeLocked = settings.rainbowHue.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(rainbowHue = settings.rainbowHue.withRangeLocked(it))) },
+                        selectedMin = settings.rainbowHue.actualSelectedMin,
+                        selectedMax = settings.rainbowHue.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(rainbowHue = settings.rainbowHue.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(rainbowHue = settings.rainbowHue.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(rainbowHue = settings.rainbowHue.randomize(java.util.Random()))) }
+                    )
+                    
+                    ParameterSliderRow(
+                        label = "Rainbow Color Range",
+                        value = settings.rainbowColorRange.current,
+                        minVal = settings.rainbowColorRange.rangeMin,
+                        maxVal = settings.rainbowColorRange.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f° range",
+                        isLocked = settings.rainbowColorRange.locked,
+                        onLockToggle = { onUpdate(settings.copy(rainbowColorRange = settings.rainbowColorRange.copy(locked = it))) },
+                        isRangeLocked = settings.rainbowColorRange.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(rainbowColorRange = settings.rainbowColorRange.withRangeLocked(it))) },
+                        selectedMin = settings.rainbowColorRange.actualSelectedMin,
+                        selectedMax = settings.rainbowColorRange.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(rainbowColorRange = settings.rainbowColorRange.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(rainbowColorRange = settings.rainbowColorRange.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(rainbowColorRange = settings.rainbowColorRange.randomize(java.util.Random()))) }
+                    )
+                }
+            }
+        }
+
+        // Spicy Style Settings Control Block
+        if (settings.styleMode == "spicy") {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Spicy Style Settings", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    
+                    ParameterSliderRow(
+                        label = "Spicy Starting Hue",
+                        value = settings.spicyHue.current,
+                        minVal = settings.spicyHue.rangeMin,
+                        maxVal = settings.spicyHue.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f°",
+                        isLocked = settings.spicyHue.locked,
+                        onLockToggle = { onUpdate(settings.copy(spicyHue = settings.spicyHue.copy(locked = it))) },
+                        isRangeLocked = settings.spicyHue.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(spicyHue = settings.spicyHue.withRangeLocked(it))) },
+                        selectedMin = settings.spicyHue.actualSelectedMin,
+                        selectedMax = settings.spicyHue.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(spicyHue = settings.spicyHue.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(spicyHue = settings.spicyHue.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(spicyHue = settings.spicyHue.randomize(java.util.Random()))) }
+                    )
+                    
+                    ParameterSliderRow(
+                        label = "Spicy Color Range",
+                        value = settings.spicyColorRange.current,
+                        minVal = settings.spicyColorRange.rangeMin,
+                        maxVal = settings.spicyColorRange.rangeMax,
+                        stepValue = 1f,
+                        formatString = "%.0f° range",
+                        isLocked = settings.spicyColorRange.locked,
+                        onLockToggle = { onUpdate(settings.copy(spicyColorRange = settings.spicyColorRange.copy(locked = it))) },
+                        isRangeLocked = settings.spicyColorRange.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(spicyColorRange = settings.spicyColorRange.withRangeLocked(it))) },
+                        selectedMin = settings.spicyColorRange.actualSelectedMin,
+                        selectedMax = settings.spicyColorRange.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(spicyColorRange = settings.spicyColorRange.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(spicyColorRange = settings.spicyColorRange.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(spicyColorRange = settings.spicyColorRange.randomize(java.util.Random()))) }
+                    )
+                }
+            }
+        }
+
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1432,6 +1550,64 @@ fun StyleAndPenConfigTab(
                         onRangeChange = { min, max -> onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.withRanges(min, max))) },
                         onValueChange = { onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.withValue(it))) },
                         onRandomize = { onUpdate(settings.copy(hueShiftRange = settings.hueShiftRange.randomize(java.util.Random()))) }
+                    )
+                }
+            }
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Line Brightness Config", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                
+                ParameterSliderRow(
+                    label = "Render Brightness",
+                    value = settings.brightness.current,
+                    minVal = settings.brightness.rangeMin,
+                    maxVal = settings.brightness.rangeMax,
+                    stepValue = 0.05f,
+                    formatString = "%.2f",
+                    isLocked = settings.brightness.locked,
+                    onLockToggle = { onUpdate(settings.copy(brightness = settings.brightness.copy(locked = it))) },
+                    isRangeLocked = settings.brightness.rangeLocked,
+                    onRangeLockToggle = { onUpdate(settings.copy(brightness = settings.brightness.withRangeLocked(it))) },
+                    selectedMin = settings.brightness.actualSelectedMin,
+                    selectedMax = settings.brightness.actualSelectedMax,
+                    onRangeChange = { min, max -> onUpdate(settings.copy(brightness = settings.brightness.withRanges(min, max))) },
+                    onValueChange = { onUpdate(settings.copy(brightness = settings.brightness.withValue(it))) },
+                    onRandomize = { onUpdate(settings.copy(brightness = settings.brightness.randomize(java.util.Random()))) }
+                )
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Live Brightness Shift", color = Color.White, fontSize = 12.sp)
+                    Spacer(modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = settings.liveBrightnessShiftEnabled,
+                        onCheckedChange = { onUpdate(settings.copy(liveBrightnessShiftEnabled = it)) },
+                        modifier = Modifier.scale(0.8f)
+                    )
+                }
+                
+                if (settings.liveBrightnessShiftEnabled) {
+                    ParameterSliderRow(
+                        label = "Brightness Shift Speed",
+                        value = settings.brightnessShiftSpeed.current,
+                        minVal = settings.brightnessShiftSpeed.rangeMin,
+                        maxVal = settings.brightnessShiftSpeed.rangeMax,
+                        stepValue = 0.1f,
+                        formatString = "%.1fx",
+                        isLocked = settings.brightnessShiftSpeed.locked,
+                        onLockToggle = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.copy(locked = it))) },
+                        isRangeLocked = settings.brightnessShiftSpeed.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.withRangeLocked(it))) },
+                        selectedMin = settings.brightnessShiftSpeed.actualSelectedMin,
+                        selectedMax = settings.brightnessShiftSpeed.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.randomize(java.util.Random()))) }
                     )
                 }
             }
@@ -2176,7 +2352,14 @@ private fun computeComposeColor(
     
     val bMin = settings.brightness.actualSelectedMin
     val bMax = settings.brightness.actualSelectedMax
-    val segmentBrightness = if (settings.brightness.rangeLocked && bMax > bMin) {
+    val segmentBrightness = if (settings.liveBrightnessShiftEnabled) {
+        val sweepMin = if (settings.brightness.rangeLocked) bMin else 0.4f
+        val sweepMax = if (settings.brightness.rangeLocked) bMax else 1.0f
+        val speed = settings.brightnessShiftSpeed.current
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+        val liveB = sweepMin + cycleRatio * (sweepMax - sweepMin)
+        liveB.coerceIn(0.1f, 1.0f)
+    } else if (settings.brightness.rangeLocked && bMax > bMin) {
         val bRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
         bMin + bRand.nextFloat() * (bMax - bMin)
     } else {

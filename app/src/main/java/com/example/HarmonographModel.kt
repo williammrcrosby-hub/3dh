@@ -17,14 +17,24 @@ data class FloatParameter(
     val enabledLocked: Boolean = false
 ) {
     val actualSelectedMin: Float
-        get() = if (selectedMin == -1e9f) rangeMin else selectedMin
+        get() {
+            val rawMin = if (selectedMin == -1e9f) rangeMin else selectedMin
+            val rawMax = if (selectedMax == 1e9f) rangeMax else selectedMax
+            return minOf(rawMin, rawMax)
+        }
     val actualSelectedMax: Float
-        get() = if (selectedMax == 1e9f) rangeMax else selectedMax
+        get() {
+            val rawMin = if (selectedMin == -1e9f) rangeMin else selectedMin
+            val rawMax = if (selectedMax == 1e9f) rangeMax else selectedMax
+            return maxOf(rawMin, rawMax)
+        }
 
     fun withValue(v: Float): FloatParameter {
         val valMin = if (rangeLocked) actualSelectedMin else rangeMin
         val valMax = if (rangeLocked) actualSelectedMax else rangeMax
-        return copy(current = v.coerceIn(valMin, valMax))
+        val safeMin = minOf(valMin, valMax)
+        val safeMax = maxOf(valMin, valMax)
+        return copy(current = v.coerceIn(safeMin, safeMax))
     }
 
     fun setValueCompat(v: Float): FloatParameter {
@@ -34,7 +44,9 @@ data class FloatParameter(
     fun withRanges(min: Float, max: Float): FloatParameter {
         val minCoerced = min.coerceIn(rangeMin, rangeMax)
         val maxCoerced = max.coerceIn(rangeMin, rangeMax)
-        val newCurrent = if (rangeLocked) current.coerceIn(minCoerced, maxCoerced) else current
+        val safeMin = minOf(minCoerced, maxCoerced)
+        val safeMax = maxOf(minCoerced, maxCoerced)
+        val newCurrent = if (rangeLocked) current.coerceIn(safeMin, safeMax) else current
         return copy(
             selectedMin = minCoerced,
             selectedMax = maxCoerced,
@@ -69,20 +81,32 @@ data class IntParameter(
     val enabled: Boolean = true
 ) {
     val actualSelectedMin: Int
-        get() = if (selectedMin == Int.MIN_VALUE) rangeMin else selectedMin
+        get() {
+            val rawMin = if (selectedMin == Int.MIN_VALUE) rangeMin else selectedMin
+            val rawMax = if (selectedMax == Int.MAX_VALUE) rangeMax else selectedMax
+            return minOf(rawMin, rawMax)
+        }
     val actualSelectedMax: Int
-        get() = if (selectedMax == Int.MAX_VALUE) rangeMax else selectedMax
+        get() {
+            val rawMin = if (selectedMin == Int.MIN_VALUE) rangeMin else selectedMin
+            val rawMax = if (selectedMax == Int.MAX_VALUE) rangeMax else selectedMax
+            return maxOf(rawMin, rawMax)
+        }
 
     fun withValue(v: Int): IntParameter {
         val valMin = if (rangeLocked) actualSelectedMin else rangeMin
         val valMax = if (rangeLocked) actualSelectedMax else rangeMax
-        return copy(current = v.coerceIn(valMin, valMax))
+        val safeMin = minOf(valMin, valMax)
+        val safeMax = maxOf(valMin, valMax)
+        return copy(current = v.coerceIn(safeMin, safeMax))
     }
 
     fun withRanges(min: Int, max: Int): IntParameter {
         val minCoerced = min.coerceIn(rangeMin, rangeMax)
         val maxCoerced = max.coerceIn(rangeMin, rangeMax)
-        val newCurrent = if (rangeLocked) current.coerceIn(minCoerced, maxCoerced) else current
+        val safeMin = minOf(minCoerced, maxCoerced)
+        val safeMax = maxOf(minCoerced, maxCoerced)
+        val newCurrent = if (rangeLocked) current.coerceIn(safeMin, safeMax) else current
         return copy(
             selectedMin = minCoerced,
             selectedMax = maxCoerced,
@@ -171,7 +195,7 @@ data class HarmonographSettings(
     val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f),
     val hueShiftingEnabled: Boolean = true,
     val hueShiftSpeed: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 60f),
-    val hueShiftRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f, locked = true, rangeLocked = false, selectedMin = 0f, selectedMax = 360f),
+    val hueShiftRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f, locked = true, rangeLocked = true, selectedMin = 0f, selectedMax = 360f),
     
     // Extra style coloring parameters
     val rainbowHue: FloatParameter = FloatParameter(0f, rangeMin = 0f, rangeMax = 360f),
@@ -179,6 +203,8 @@ data class HarmonographSettings(
     val spicyHue: FloatParameter = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f),
     val spicyColorRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
     val brightness: FloatParameter = FloatParameter(0.95f, rangeMin = 0.1f, rangeMax = 1.0f, locked = true),
+    val liveBrightnessShiftEnabled: Boolean = false,
+    val brightnessShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.0f, rangeMax = 5.0f),
     
     // Pen setups
     val penCount: IntParameter = IntParameter(1, rangeMin = 1, rangeMax = 3),
@@ -236,6 +262,13 @@ data class HarmonographSettings(
         )
         return validRationals.minByOrNull { kotlin.math.abs(it - v) } ?: v
     }
+
+    val activeFreqX: Float
+        get() = if (rationalFrequenciesEnabled) roundToRational(freqX.current) else freqX.current
+    val activeFreqY: Float
+        get() = if (rationalFrequenciesEnabled) roundToRational(freqY.current) else freqY.current
+    val activeFreqZ: Float
+        get() = if (rationalFrequenciesEnabled) roundToRational(freqZ.current) else freqZ.current
 
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
@@ -338,6 +371,8 @@ data class HarmonographSettings(
             spicyHue = spicyHue.randomize(random),
             spicyColorRange = spicyColorRange.randomize(random),
             brightness = brightness.randomize(random),
+            liveBrightnessShiftEnabled = random.nextBoolean(),
+            brightnessShiftSpeed = brightnessShiftSpeed.randomize(random),
             
             penCount = penCount.randomize(random),
             penRotationEnabled = penRotationEnabled.randomize(random),

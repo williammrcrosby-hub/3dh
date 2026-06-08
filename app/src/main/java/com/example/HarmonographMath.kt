@@ -63,10 +63,10 @@ object HarmonographMath {
         val decayFactorY = if (settings.decayEnabled.current) exp(-settings.decayY.current * t) else 1f
         val decayFactorZ = if (settings.decayEnabled.current) exp(-settings.decayZ.current * t) else 1f
         
-        var xRaw = settings.ampX.current * decayFactorX * sin(settings.freqX.current * t + px)
-        var yRaw = settings.ampY.current * decayFactorY * sin(settings.freqY.current * t + py)
+        var xRaw = settings.ampX.current * decayFactorX * sin(settings.activeFreqX * t + px)
+        var yRaw = settings.ampY.current * decayFactorY * sin(settings.activeFreqY * t + py)
         val zRaw = if (settings.ampZ.current > 0f) {
-            settings.ampZ.current * decayFactorZ * sin(settings.freqZ.current * t + pz)
+            settings.ampZ.current * decayFactorZ * sin(settings.activeFreqZ * t + pz)
         } else {
             0f
         }
@@ -76,7 +76,7 @@ object HarmonographMath {
         // Sublayer X'
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
-            val freqSubX = if (settings.subXFreqIsMultiply.current) settings.freqX.current * factor else settings.freqX.current / factor
+            val freqSubX = if (settings.subXFreqIsMultiply.current) settings.activeFreqX * factor else settings.activeFreqX / factor
             val pSubX = Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat()
             xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + pSubX)
         }
@@ -84,7 +84,7 @@ object HarmonographMath {
         // Sublayer Y'
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
             val factor = settings.subYFreqFactor.current.toFloat()
-            val freqSubY = if (settings.subYFreqIsMultiply.current) settings.freqY.current * factor else settings.freqY.current / factor
+            val freqSubY = if (settings.subYFreqIsMultiply.current) settings.activeFreqY * factor else settings.activeFreqY / factor
             val pSubY = Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat()
             yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + pSubY)
         }
@@ -92,7 +92,7 @@ object HarmonographMath {
         // Sublayer Z'
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
             val factor = settings.subZFreqFactor.current.toFloat()
-            val freqSubZ = if (settings.subZFreqIsMultiply.current) settings.freqZ.current * factor else settings.freqZ.current / factor
+            val freqSubZ = if (settings.subZFreqIsMultiply.current) settings.activeFreqZ * factor else settings.activeFreqZ / factor
             val pSubZ = Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat()
             // Let sublayer Z' influence the depth
             xRaw += settings.ampSubZ.current * decayFactorZ * sin(freqSubZ * t + pz + pSubZ)
@@ -110,7 +110,7 @@ object HarmonographMath {
         dtDefault: Float = 0.015f
     ): List<List<Point3D>> {
         // Calculate max active frequency in the system to determine optimal dt
-        var maxActiveFreq = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
+        var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
             val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
@@ -129,13 +129,13 @@ object HarmonographMath {
         
         // Dynamically compute adaptive dt: for higher frequencies, sample with a much finer steps to preserve smooth curves.
         val dt = minOf(0.015f, 0.45f / maxActiveFreq)
-
+ 
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         
         // Initialize lines for pen counts: 1 to 3
         val paths = List(settings.penCount.current) { mutableListOf<Point3D>() }
         
-        val fastestBase = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
+        val fastestBase = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
         
         // Stable parallel transport frame tracking to ensure zero jumpy or jagged flips!
         var prevUVec: Point3D? = null
@@ -169,7 +169,20 @@ object HarmonographMath {
                 } else {
                     val dot = prevUVec.x * dir.x + prevUVec.y * dir.y + prevUVec.z * dir.z
                     val uProj = prevUVec - dir * dot
-                    val u = uProj.normalized()
+                    val len = uProj.length()
+                    val u = if (len > 0.001f) {
+                        uProj.normalized()
+                    } else {
+                        val dotX = abs(dir.x)
+                        val dotY = abs(dir.y)
+                        val dotZ = abs(dir.z)
+                        val helper = when {
+                            dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
+                            dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
+                            else -> Point3D(0f, 0f, 1f)
+                        }
+                        dir.cross(helper).normalized()
+                    }
                     uVec = u
                     wVec = dir.cross(u).normalized()
                 }
@@ -423,7 +436,8 @@ object HarmonographMath {
         coasterDirectionFacing: Boolean = false,
         animTime: Long = 0L,
         coasterDeviationAngle: Float = 25f,
-        coasterOrbitSpeed: Float = 1.2f
+        coasterOrbitSpeed: Float = 1.2f,
+        isPrimaryPath: Boolean = false
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -479,7 +493,7 @@ object HarmonographMath {
                 
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
-                val fitMultiplier = if (points.size > 50) {
+                val fitMultiplier = if (isPrimaryPath && points.size > 50) {
                     val m = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
                     lastCalculatedFitMultiplier = m
                     m
@@ -560,7 +574,7 @@ object HarmonographMath {
                 
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
-                val fitMultiplier = if (points.size > 50) {
+                val fitMultiplier = if (isPrimaryPath && points.size > 50) {
                     val m = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
                     lastCalculatedFitMultiplier = m
                     m

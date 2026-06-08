@@ -21,6 +21,31 @@ class HarmonographWallpaperService : WallpaperService() {
         val strokeWidth: Float
     )
 
+    private fun HarmonographSettings.isDrawingFormEquivalent(other: HarmonographSettings): Boolean {
+        return this.freqX.current == other.freqX.current &&
+               this.freqY.current == other.freqY.current &&
+               this.freqZ.current == other.freqZ.current &&
+               this.ampX.current == other.ampX.current &&
+               this.ampY.current == other.ampY.current &&
+               this.ampZ.current == other.ampZ.current &&
+               this.decayX.current == other.decayX.current &&
+               this.decayY.current == other.decayY.current &&
+               this.decayZ.current == other.decayZ.current &&
+               this.phaseX.current == other.phaseX.current &&
+               this.phaseY.current == other.phaseY.current &&
+               this.phaseZ.current == other.phaseZ.current &&
+               this.decayEnabled.current == other.decayEnabled.current &&
+               this.ampSubX.current == other.ampSubX.current &&
+               this.ampSubY.current == other.ampSubY.current &&
+               this.ampSubZ.current == other.ampSubZ.current &&
+               this.penCount.current == other.penCount.current &&
+               this.penOffset.current == other.penOffset.current &&
+               this.penRotationEnabled.current == other.penRotationEnabled.current &&
+               this.drawLengthSteps == other.drawLengthSteps &&
+               this.drawLengthFactor == other.drawLengthFactor &&
+               this.rationalFrequenciesEnabled == other.rationalFrequenciesEnabled
+    }
+
     private val moshi = Moshi.Builder()
         .addLast(KotlinJsonAdapterFactory())
         .build()
@@ -30,7 +55,7 @@ class HarmonographWallpaperService : WallpaperService() {
         return HarmonographEngine()
     }
 
-    inner class HarmonographEngine : Engine(), SharedPreferences.OnSharedPreferenceChangeListener {
+    inner class HarmonographEngine : Engine(), SharedPreferences.OnSharedPreferenceChangeListener, android.hardware.SensorEventListener {
 
         private var settings = HarmonographSettings()
         private var sharedPrefs: SharedPreferences? = null
@@ -40,6 +65,39 @@ class HarmonographWallpaperService : WallpaperService() {
         private val startTime = System.currentTimeMillis()
         private var completionTimeOfAnim: Long? = null
         private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+
+        // Gyroscope tracking
+        private var sensorManager: android.hardware.SensorManager? = null
+        private var gyroscope: android.hardware.Sensor? = null
+        private var gyroYawOffset = 0f
+        private var gyroPitchOffset = 0f
+        private var isGyroRegistered = false
+
+        private fun updateGyroRegistration() {
+            val shouldRegister = isVisible && settings.gyroEnabled
+            if (shouldRegister && !isGyroRegistered) {
+                gyroscope?.let {
+                    sensorManager?.registerListener(this, it, android.hardware.SensorManager.SENSOR_DELAY_GAME)
+                    isGyroRegistered = true
+                }
+            } else if (!shouldRegister && isGyroRegistered) {
+                sensorManager?.unregisterListener(this)
+                isGyroRegistered = false
+            }
+        }
+
+        override fun onSensorChanged(event: android.hardware.SensorEvent?) {
+            if (event == null || event.sensor.type != android.hardware.Sensor.TYPE_GYROSCOPE) return
+            if (settings.gyroEnabled) {
+                val sensitivity = settings.gyroSensitivity.current
+                val pyDelta = Math.toDegrees(event.values[0].toDouble()).toFloat() * 0.016f * sensitivity * 10f
+                val ywDelta = Math.toDegrees(event.values[1].toDouble()).toFloat() * 0.016f * sensitivity * 10f
+                gyroYawOffset -= ywDelta
+                gyroPitchOffset -= pyDelta
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
 
         // Camera base yaw & pitch (from interactive drags) and launcher parallax offset
         private var touchBaseYaw = 35f
@@ -102,12 +160,18 @@ class HarmonographWallpaperService : WallpaperService() {
             setTouchEventsEnabled(true)
             sharedPrefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
             sharedPrefs?.registerOnSharedPreferenceChangeListener(this)
+            
+            sensorManager = getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
+            gyroscope = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_GYROSCOPE)
+            
             loadActiveSettings()
         }
 
         override fun onDestroy() {
             super.onDestroy()
             sharedPrefs?.unregisterOnSharedPreferenceChangeListener(this)
+            sensorManager?.unregisterListener(this)
+            isGyroRegistered = false
             handler.removeCallbacks(runDrawingRunnable)
         }
 
@@ -119,6 +183,7 @@ class HarmonographWallpaperService : WallpaperService() {
             } else {
                 handler.removeCallbacks(runDrawingRunnable)
             }
+            updateGyroRegistration()
         }
 
         override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
@@ -133,8 +198,16 @@ class HarmonographWallpaperService : WallpaperService() {
                 try {
                     val s = adapter.fromJson(json)
                     if (s != null) {
+                        val needsReset = !settings.isDrawingFormEquivalent(s)
                         settings = s
-                        drawProgress = 0f // Restart drawing upon preference update
+                        if (needsReset) {
+                            drawProgress = 0f // Restart drawing only if physical form parameters changed
+                        }
+                        if (!settings.gyroEnabled) {
+                            gyroYawOffset = 0f
+                            gyroPitchOffset = 0f
+                        }
+                        updateGyroRegistration()
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
@@ -263,6 +336,12 @@ class HarmonographWallpaperService : WallpaperService() {
                     activePitch = basePitch + (sin(timeSec * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
                 }
                 
+                // Incorporate gyroscopic offsets if enabled
+                if (settings.gyroEnabled) {
+                    activeYaw = (activeYaw + gyroYawOffset) % 360f
+                    activePitch = (activePitch + gyroPitchOffset)
+                }
+                
                 // Base drawing paths evaluation
                 val rawPaths = HarmonographMath.generatePathPoints(settings, settings.drawLengthSteps)
                 
@@ -300,7 +379,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     val path3D = rawPaths[pIdx]
                     if (path3D.isEmpty()) continue
 
-                    val projPoints = HarmonographMath.project3DTo2D(
+                     val projPoints = HarmonographMath.project3DTo2D(
                         points = path3D,
                         yaw = activeYaw,
                         pitch = activePitch,
@@ -317,7 +396,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDirectionFacing = settings.coasterDirectionFacing,
                         animTime = elapsedMs,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                        isPrimaryPath = (pIdx == 0)
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -471,7 +551,14 @@ class HarmonographWallpaperService : WallpaperService() {
             
             val bMin = settings.brightness.actualSelectedMin
             val bMax = settings.brightness.actualSelectedMax
-            val segmentBrightness = if (settings.brightness.rangeLocked && bMax > bMin) {
+            val segmentBrightness = if (settings.liveBrightnessShiftEnabled) {
+                val sweepMin = if (settings.brightness.rangeLocked) bMin else 0.4f
+                val sweepMax = if (settings.brightness.rangeLocked) bMax else 1.0f
+                val speed = settings.brightnessShiftSpeed.current
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+                val liveB = sweepMin + cycleRatio * (sweepMax - sweepMin)
+                liveB.coerceIn(0.1f, 1.0f)
+            } else if (settings.brightness.rangeLocked && bMax > bMin) {
                 val bRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
                 bMin + bRand.nextFloat() * (bMax - bMin)
             } else {
