@@ -273,19 +273,113 @@ object HarmonographMath {
                 }
                 prevUVec = uVec
                 
-                shapesList.add(
-                    CustomShapeData(
-                        center = basePt,
-                        shapeType = settings.periodicShape,
-                        size = settings.periodicShapeSize.current,
-                        isSolid = settings.periodicShapeSolid,
-                        concentric = settings.periodicShapeConcentric,
-                        deployment = settings.periodicShapeDeployment,
-                        uVector = uVec,
-                        wVector = wVec,
-                        colorIndex = k
+                val penCount = settings.penCount.current
+                if (penCount == 1) {
+                    shapesList.add(
+                        CustomShapeData(
+                            center = basePt,
+                            shapeType = settings.periodicShape,
+                            size = settings.periodicShapeSize.current,
+                            isSolid = settings.periodicShapeSolid,
+                            concentric = settings.periodicShapeConcentric,
+                            deployment = settings.periodicShapeDeployment,
+                            uVector = uVec,
+                            wVector = wVec,
+                            colorIndex = k
+                        )
                     )
-                )
+                } else {
+                    val rotationAngle = if (settings.penRotationEnabled.current) {
+                        val factor = settings.penRotationMultiplier.current.toFloat()
+                        val rotSpeed = if (settings.penRotationIsMultiply.current) fastestBase * factor else fastestBase / factor
+                        rotSpeed * t
+                    } else {
+                        0f
+                    }
+                    
+                    // Rotation offsets
+                    val cosAng = cos(rotationAngle)
+                    val sinAng = sin(rotationAngle)
+                    
+                    // Primary offset direction
+                    val dirOffset = uVec * cosAng + wVec * sinAng
+
+                    if (penCount == 2) {
+                        val p1 = basePt + dirOffset * settings.penOffset.current
+                        val p2 = basePt - dirOffset * settings.penOffset.current
+                        shapesList.add(
+                            CustomShapeData(
+                                center = p1,
+                                shapeType = settings.periodicShape,
+                                size = settings.periodicShapeSize.current,
+                                isSolid = settings.periodicShapeSolid,
+                                concentric = settings.periodicShapeConcentric,
+                                deployment = settings.periodicShapeDeployment,
+                                uVector = uVec,
+                                wVector = wVec,
+                                colorIndex = k
+                            )
+                        )
+                        shapesList.add(
+                            CustomShapeData(
+                                center = p2,
+                                shapeType = settings.periodicShape,
+                                size = settings.periodicShapeSize.current,
+                                isSolid = settings.periodicShapeSolid,
+                                concentric = settings.periodicShapeConcentric,
+                                deployment = settings.periodicShapeDeployment,
+                                uVector = uVec,
+                                wVector = wVec,
+                                colorIndex = k
+                            )
+                        )
+                    } else if (penCount == 3) {
+                        val dirOffset2 = uVec * cos(rotationAngle + 2f * PI.toFloat() / 3f) + wVec * sin(rotationAngle + 2f * PI.toFloat() / 3f)
+                        val dirOffset3 = uVec * cos(rotationAngle + 4f * PI.toFloat() / 3f) + wVec * sin(rotationAngle + 4f * PI.toFloat() / 3f)
+                        val p1 = basePt + dirOffset * settings.penOffset.current
+                        val p2 = basePt + dirOffset2 * settings.penOffset.current
+                        val p3 = basePt + dirOffset3 * settings.penOffset.current
+                        shapesList.add(
+                            CustomShapeData(
+                                center = p1,
+                                shapeType = settings.periodicShape,
+                                size = settings.periodicShapeSize.current,
+                                isSolid = settings.periodicShapeSolid,
+                                concentric = settings.periodicShapeConcentric,
+                                deployment = settings.periodicShapeDeployment,
+                                uVector = uVec,
+                                wVector = wVec,
+                                colorIndex = k
+                            )
+                        )
+                        shapesList.add(
+                            CustomShapeData(
+                                center = p2,
+                                shapeType = settings.periodicShape,
+                                size = settings.periodicShapeSize.current,
+                                isSolid = settings.periodicShapeSolid,
+                                concentric = settings.periodicShapeConcentric,
+                                deployment = settings.periodicShapeDeployment,
+                                uVector = uVec,
+                                wVector = wVec,
+                                colorIndex = k
+                            )
+                        )
+                        shapesList.add(
+                            CustomShapeData(
+                                center = p3,
+                                shapeType = settings.periodicShape,
+                                size = settings.periodicShapeSize.current,
+                                isSolid = settings.periodicShapeSolid,
+                                concentric = settings.periodicShapeConcentric,
+                                deployment = settings.periodicShapeDeployment,
+                                uVector = uVec,
+                                wVector = wVec,
+                                colorIndex = k
+                            )
+                        )
+                    }
+                }
             }
             prevVal = currentVal
         }
@@ -514,28 +608,66 @@ object HarmonographMath {
             val viewDir: Point3D
             
             if (coasterDirectionFacing) {
-                // Direction facing follow: Aligns camera looking forward along tangent
-                val aheadIdx = (targetIdx + 1.25f).coerceAtMost((refPts.size - 1).toFloat())
-                val aheadIdxInt = floor(aheadIdx).toInt().coerceIn(0, refPts.size - 1)
-                val aheadIdxFrac = (aheadIdx - aheadIdxInt).coerceIn(0f, 1f)
-                val aheadTarget = if (aheadIdxFrac > 0.001f && aheadIdxInt < refPts.size - 1) {
-                    val p1 = refPts[aheadIdxInt]
-                    val p2 = refPts[aheadIdxInt + 1]
-                    Point3D(
-                        p1.x + (p2.x - p1.x) * aheadIdxFrac,
-                        p1.y + (p2.y - p1.y) * aheadIdxFrac,
-                        p1.z + (p2.z - p1.z) * aheadIdxFrac
-                    )
-                } else {
-                    refPts[aheadIdxInt]
+                // Smooth helper function to interpolate point along the list path
+                fun getInterpolatedPoint(list: List<Point3D>, t: Float): Point3D {
+                    val idxInt = floor(t).toInt().coerceIn(0, list.size - 1)
+                    val idxFrac = (t - idxInt).coerceIn(0f, 1f)
+                    return if (idxFrac > 0.001f && idxInt < list.size - 1) {
+                        val p1 = list[idxInt]
+                        val p2 = list[idxInt + 1]
+                        Point3D(
+                            p1.x + (p2.x - p1.x) * idxFrac,
+                            p1.y + (p2.y - p1.y) * idxFrac,
+                            p1.z + (p2.z - p1.z) * idxFrac
+                        )
+                    } else {
+                        list[idxInt]
+                    }
                 }
+
+                // Symmetrically smooth tangent vector computed over a wider sliding window
+                val windowSize = 25f
+                val startT = (targetIdx - windowSize).coerceAtLeast(0f)
+                val endT = (targetIdx + windowSize).coerceAtMost((refPts.size - 1).toFloat())
                 
-                val rawDiff = aheadTarget - lookAtTarget
+                val pStart = getInterpolatedPoint(refPts, startT)
+                val pEnd = getInterpolatedPoint(refPts, endT)
+                
+                val rawDiff = pEnd - pStart
                 val T = if (rawDiff.length() > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
                 
-                // Stable orthogonal helper frame on the tangent line
-                val helper = if (abs(T.z) < 0.9f) Point3D(0f, 0f, 1f) else Point3D(0f, 1f, 0f)
-                val uVec = T.cross(helper).normalized()
+                // Perfect stable Parallel Transport Frame tracked continuously starting from first node to targetIdxInt.
+                // This eliminates gimbal-lock flips and hard boundary jumps completely!
+                val targetIdxInt = targetIdx.toInt().coerceIn(0, refPts.size - 1)
+                var transportU = Point3D(0f, 1f, 0f)
+                var transportW = Point3D(0f, 0f, 1f)
+                if (refPts.size > 1) {
+                    val firstDiff = refPts[1] - refPts[0]
+                    val firstT = if (firstDiff.length() > 0.001f) firstDiff.normalized() else Point3D(1f, 0f, 0f)
+                    val firstHelper = if (abs(firstT.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
+                    transportU = firstT.cross(firstHelper).normalized()
+                    transportW = firstT.cross(transportU).normalized()
+                    
+                    val stepSize = maxOf(1, targetIdxInt / 1000)
+                    for (i in stepSize..targetIdxInt step stepSize) {
+                        val prevPt = refPts[i - stepSize]
+                        val currPt = refPts[i]
+                        val segmentDiff = currPt - prevPt
+                        val segmentT = if (segmentDiff.length() > 0.001f) segmentDiff.normalized() else Point3D(1f, 0f, 0f)
+                        
+                        val dotVal = transportU.x * segmentT.x + transportU.y * segmentT.y + transportU.z * segmentT.z
+                        val uProj = transportU - segmentT * dotVal
+                        if (uProj.length() > 0.001f) {
+                            transportU = uProj.normalized()
+                            transportW = segmentT.cross(transportU).normalized()
+                        }
+                    }
+                }
+                
+                // Align the transported frame with our smoothed sliding tangent T
+                val dotVal = transportU.x * T.x + transportU.y * T.y + transportU.z * T.z
+                val uProj = transportU - T * dotVal
+                val uVec = if (uProj.length() > 0.001f) uProj.normalized() else transportU
                 val wVec = T.cross(uVec).normalized()
                 
                 // Slow continuous orbital orbit sways around tangent axis
