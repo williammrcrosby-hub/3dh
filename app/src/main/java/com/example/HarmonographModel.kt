@@ -48,8 +48,8 @@ data class FloatParameter(
         val safeMax = maxOf(minCoerced, maxCoerced)
         val newCurrent = if (rangeLocked) current.coerceIn(safeMin, safeMax) else current
         return copy(
-            selectedMin = minCoerced,
-            selectedMax = maxCoerced,
+            selectedMin = safeMin,
+            selectedMax = safeMax,
             current = newCurrent
         )
     }
@@ -108,8 +108,8 @@ data class IntParameter(
         val safeMax = maxOf(minCoerced, maxCoerced)
         val newCurrent = if (rangeLocked) current.coerceIn(safeMin, safeMax) else current
         return copy(
-            selectedMin = minCoerced,
-            selectedMax = maxCoerced,
+            selectedMin = safeMin,
+            selectedMax = safeMax,
             current = newCurrent
         )
     }
@@ -202,7 +202,7 @@ data class HarmonographSettings(
     val rainbowColorRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f),
     val spicyHue: FloatParameter = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f),
     val spicyColorRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
-    val brightness: FloatParameter = FloatParameter(0.95f, rangeMin = 0.1f, rangeMax = 1.0f, locked = true),
+    val brightness: FloatParameter = FloatParameter(0.95f, rangeMin = 0.1f, rangeMax = 1.0f, locked = false),
     val liveBrightnessShiftEnabled: Boolean = false,
     val brightnessShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.0f, rangeMax = 5.0f),
     
@@ -226,6 +226,7 @@ data class HarmonographSettings(
     val periodicShapeSolid: Boolean = false,
     val periodicShapeConcentric: Int = 1, // 1, 2, 3 concentric
     val periodicShapeDeployment: String = "stacked", // "stacked" or "progressive"
+    val periodicProgressiveDelay: FloatParameter = FloatParameter(0.5f, rangeMin = 0.25f, rangeMax = 1.5f),
     val periodicShapeFreqFactor: IntParameter = IntParameter(3, rangeMin = 1, rangeMax = 8),
     val periodicShapeFreqIsMultiply: Boolean = true,
     
@@ -382,6 +383,7 @@ data class HarmonographSettings(
             
             penOffset = penOffset.randomize(random),
             periodicShapeSize = periodicShapeSize.randomize(random),
+            periodicProgressiveDelay = periodicProgressiveDelay.randomize(random),
             periodicShapeFreqFactor = periodicShapeFreqFactor.randomize(random),
             lineThickness = lineThickness.randomize(random),
             cameraDistance = cameraDistance.randomize(random),

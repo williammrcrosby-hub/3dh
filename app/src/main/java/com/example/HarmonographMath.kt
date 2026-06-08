@@ -263,6 +263,8 @@ object HarmonographMath {
         
         // We will plant shapes at peaks of the sine wave of the periodic trigger
         var prevVal = 0f
+        var hasTriggeredThisPeak = false
+        var lastShapeAnimTime = -10.0f
         
         // Stable parallel transport tracking for shape orientations
         var prevUVec: Point3D? = null
@@ -298,7 +300,27 @@ object HarmonographMath {
             prevUVec = uVec
             
             val currentVal = sin(freqShape * t)
-            val isPeak = currentVal > 0.95f && currentVal < prevVal && prevVal > 0.94f
+            
+            // Check time-based progressive delay if progressive deployment is enabled
+            val virtualDurationSec = if (settings.drawSpeedInstant) 120f else settings.drawSpeedMinutes.current * 60f
+            val stepAnimTime = (k.toFloat() / totalSteps.coerceAtLeast(1)) * virtualDurationSec
+            val timeDelayOk = if (settings.periodicShapeDeployment == "progressive") {
+                (stepAnimTime - lastShapeAnimTime) >= settings.periodicProgressiveDelay.current
+            } else {
+                true
+            }
+
+            val isPeakCandidate = currentVal > 0.95f && currentVal < prevVal && prevVal > 0.94f
+            val isPeak = isPeakCandidate && !hasTriggeredThisPeak && timeDelayOk
+            
+            if (currentVal > 0.95f) {
+                if (isPeak) {
+                    hasTriggeredThisPeak = true
+                    lastShapeAnimTime = stepAnimTime
+                }
+            } else {
+                hasTriggeredThisPeak = false
+            }
             prevVal = currentVal
             
             if (isPeak) {
@@ -723,8 +745,8 @@ object HarmonographMath {
                 
                 // Slow continuous orbital orbit sways around tangent axis with smooth semi-periodic randomization sways
                 val orbitDrift = sin(animTime * 0.000083f).toFloat() * 1.2f + cos(animTime * 0.000031f).toFloat() * 0.7f + sin(animTime * 0.00017f).toFloat() * 0.3f
-                val swayAngle = (animTime * 0.0003f * coasterOrbitSpeed) * 2f * PI.toFloat() + 
-                                  sin(animTime * 0.001f * coasterOrbitSpeed).toFloat() * 0.15f + orbitDrift
+                val swayAngle = (animTime * 0.00005f * coasterOrbitSpeed) * 2f * PI.toFloat() + 
+                                  sin(animTime * 0.0002f * coasterOrbitSpeed).toFloat() * 0.15f + orbitDrift
                 
                 val angleRad = Math.toRadians(coasterDeviationAngle.toDouble()).toFloat() // customizable deviation angle
                 val cosAng = cos(angleRad)

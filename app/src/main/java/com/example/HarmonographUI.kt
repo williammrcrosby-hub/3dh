@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.focus.onFocusChanged
 import kotlin.math.*
 
 val usableFrequencies = listOf(1f/12f, 1f/8f, 1f/6f, 1f/4f, 1f/3f, 1f/2f, 2f/3f, 3f/4f, 1f, 1.5f, 2f, 3f, 4f, 5f, 6f, 8f, 10f, 12f)
@@ -206,7 +207,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 val height = size.height
 
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
-                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes.current
+                    val durationMin = if (settings.drawSpeedInstant) 18.0f else (settings.drawSpeedMinutes.current * 7.0f).coerceAtLeast(15.0f)
                     val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
                     val startT = completionTimeOfAnim ?: animTime
                     val completedTime = (animTime - startT).coerceAtLeast(0L)
@@ -745,6 +746,22 @@ fun AxisConfigCard(
                     } else {
                         usableFrequenciesLabels[freqIndex]
                     }
+
+                    val freqValueMapper: (Float) -> String = { idx ->
+                        val index = idx.roundToInt().coerceIn(0, usableFrequencies.size - 1)
+                        usableFrequenciesLabels[index].replace("x", "")
+                    }
+                    val freqValueParser: (String) -> Float? = { text ->
+                        val parsedFloat = parseMathExpression(text)
+                        if (parsedFloat != null) {
+                            val nearestIdx = usableFrequencies.mapIndexed { idx, f -> idx to kotlin.math.abs(f - parsedFloat) }
+                                .minByOrNull { it.second }?.first
+                            nearestIdx?.toFloat()
+                        } else {
+                            null
+                        }
+                    }
+
                     ParameterSliderRow(
                         label = "Frequency",
                         value = freqIndex.toFloat(),
@@ -757,7 +774,9 @@ fun AxisConfigCard(
                         selectedMin = selectedMinIndex.toFloat(), selectedMax = selectedMaxIndex.toFloat(),
                         onRangeChange = { min, max -> onFreqChange(freq.withRanges(usableFrequencies[min.roundToInt()], usableFrequencies[max.roundToInt()])) },
                         onValueChange = { onFreqChange(freq.withValue(usableFrequencies[it.roundToInt()])) },
-                        onRandomize = { onFreqChange(freq.randomize(java.util.Random())) }
+                        onRandomize = { onFreqChange(freq.randomize(java.util.Random())) },
+                        valueMapper = freqValueMapper,
+                        valueParser = freqValueParser
                     )
 
                     // Decay
@@ -903,6 +922,58 @@ fun SublayerCard(
     }
 }
 
+private fun formatCleanFloat(v: Float): String {
+    if (v % 1f == 0f) return v.toInt().toString()
+    val s = String.format(java.util.Locale.US, "%.5f", v)
+    if (s.contains(".")) {
+        return s.dropLastWhile { it == '0' }.dropLastWhile { it == '.' }
+    }
+    return s
+}
+
+private fun parseMathExpression(input: String): Float? {
+    val clean = input.replace(" ", "").replace(",", ".")
+    if (clean.isBlank()) return null
+    clean.toFloatOrNull()?.let { return it }
+    
+    // Evaluate simple division (e.g., "1/12")
+    if (clean.contains("/")) {
+        val parts = clean.split("/")
+        if (parts.size == 2) {
+            val num = parts[0].toFloatOrNull()
+            val den = parts[1].toFloatOrNull()
+            if (num != null && den != null && den != 0f) {
+                return num / den
+            }
+        }
+    }
+    if (clean.contains("*")) {
+        val parts = clean.split("*")
+        if (parts.size == 2) {
+            val p1 = parts[0].toFloatOrNull()
+            val p2 = parts[1].toFloatOrNull()
+            if (p1 != null && p2 != null) return p1 * p2
+        }
+    }
+    if (clean.contains("+")) {
+        val parts = clean.split("+")
+        if (parts.size == 2) {
+            val p1 = parts[0].toFloatOrNull()
+            val p2 = parts[1].toFloatOrNull()
+            if (p1 != null && p2 != null) return p1 + p2
+        }
+    }
+    if (clean.contains("-")) {
+        val parts = clean.split("-")
+        if (parts.size == 2) {
+            val p1 = parts[0].toFloatOrNull()
+            val p2 = parts[1].toFloatOrNull()
+            if (p1 != null && p2 != null) return p1 - p2
+        }
+    }
+    return null
+}
+
 @Composable
 fun ParameterSliderRow(
     label: String,
@@ -920,10 +991,20 @@ fun ParameterSliderRow(
     selectedMax: Float,
     onRangeChange: (Float, Float) -> Unit,
     onValueChange: (Float) -> Unit,
-    onRandomize: () -> Unit
+    onRandomize: () -> Unit,
+    valueMapper: ((Float) -> String)? = null,
+    valueParser: ((String) -> Float?)? = null
 ) {
     val activeMin = if (isRangeLocked) minOf(selectedMin, selectedMax) else minVal
     val activeMax = if (isRangeLocked) maxOf(selectedMin, selectedMax) else maxVal
+
+    val defaultMapper: (Float) -> String = { formatCleanFloat(it) }
+    val defaultParser: (String) -> Float? = { parseMathExpression(it) }
+
+    val mapper = valueMapper ?: defaultMapper
+    val parser = valueParser ?: defaultParser
+
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -1010,27 +1091,53 @@ fun ParameterSliderRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    var minInput by remember(selectedMin) { mutableStateOf(String.format(formatString, selectedMin)) }
-                    var maxInput by remember(selectedMax) { mutableStateOf(String.format(formatString, selectedMax)) }
+                    var minInput by remember(selectedMin) { mutableStateOf(mapper(selectedMin)) }
+                    var maxInput by remember(selectedMax) { mutableStateOf(mapper(selectedMax)) }
 
                     androidx.compose.foundation.text.BasicTextField(
                         value = minInput,
                         onValueChange = { newVal ->
-                            minInput = newVal
-                            newVal.toFloatOrNull()?.let { parsed ->
+                            val filtered = newVal.filter { it.isDigit() || it in "./*+- " || it == ',' }.replace(",", ".")
+                            minInput = filtered
+                            parser(filtered)?.let { parsed ->
                                 if (parsed >= minVal && parsed <= maxVal) {
                                     onRangeChange(parsed, selectedMax)
                                 }
                             }
                         },
                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onDone = {
+                                val parsed = parser(minInput)
+                                if (parsed != null && parsed >= minVal && parsed <= maxVal) {
+                                    onRangeChange(parsed, selectedMax)
+                                } else {
+                                    minInput = mapper(selectedMin)
+                                }
+                                focusManager.clearFocus()
+                            }
+                        ),
                         modifier = Modifier
                             .weight(1f)
                             .background(Color(0x550F172A), RoundedCornerShape(4.dp))
                             .padding(vertical = 4.dp, horizontal = 8.dp)
+                            .onFocusChanged { focusState ->
+                                if (!focusState.isFocused) {
+                                    val parsed = parser(minInput)
+                                    if (parsed != null && parsed >= minVal && parsed <= maxVal) {
+                                        onRangeChange(parsed, selectedMax)
+                                    } else {
+                                        minInput = mapper(selectedMin)
+                                    }
+                                }
+                            }
                     ) { innerTextField ->
                         Column {
-                            Text("Min (Limit: ${String.format(formatString, minVal)})", color = Color(0xFF94A3B8), fontSize = 8.sp)
+                            Text("Min (Limit: ${mapper(minVal)})", color = Color(0xFF94A3B8), fontSize = 8.sp)
                             innerTextField()
                         }
                     }
@@ -1040,21 +1147,47 @@ fun ParameterSliderRow(
                     androidx.compose.foundation.text.BasicTextField(
                         value = maxInput,
                         onValueChange = { newVal ->
-                            maxInput = newVal
-                            newVal.toFloatOrNull()?.let { parsed ->
+                            val filtered = newVal.filter { it.isDigit() || it in "./*+- " || it == ',' }.replace(",", ".")
+                            maxInput = filtered
+                            parser(filtered)?.let { parsed ->
                                 if (parsed >= minVal && parsed <= maxVal) {
                                     onRangeChange(selectedMin, parsed)
                                 }
                             }
                         },
                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri,
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Done
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onDone = {
+                                val parsed = parser(maxInput)
+                                if (parsed != null && parsed >= minVal && parsed <= maxVal) {
+                                    onRangeChange(selectedMin, parsed)
+                                } else {
+                                    maxInput = mapper(selectedMax)
+                                }
+                                focusManager.clearFocus()
+                            }
+                        ),
                         modifier = Modifier
                             .weight(1f)
                             .background(Color(0x550F172A), RoundedCornerShape(4.dp))
                             .padding(vertical = 4.dp, horizontal = 8.dp)
+                            .onFocusChanged { focusState ->
+                                if (!focusState.isFocused) {
+                                    val parsed = parser(maxInput)
+                                    if (parsed != null && parsed >= minVal && parsed <= maxVal) {
+                                        onRangeChange(selectedMin, parsed)
+                                    } else {
+                                        maxInput = mapper(selectedMax)
+                                    }
+                                }
+                            }
                     ) { innerTextField ->
                         Column {
-                            Text("Max (Limit: ${String.format(formatString, maxVal)})", color = Color(0xFF94A3B8), fontSize = 8.sp)
+                            Text("Max (Limit: ${mapper(maxVal)})", color = Color(0xFF94A3B8), fontSize = 8.sp)
                             innerTextField()
                         }
                     }
@@ -1868,11 +2001,11 @@ fun StyleAndPenConfigTab(
                         }
 
                         if (settings.periodicShapeConcentric > 1) {
+                            val isProgressive = settings.periodicShapeDeployment == "progressive"
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text("Layer Deployment Mode", color = Color.White, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.weight(1f))
                                 Row {
-                                    val isProgressive = settings.periodicShapeDeployment == "progressive"
                                     Button(
                                         onClick = { onUpdate(settings.copy(periodicShapeDeployment = "stacked")) },
                                         colors = ButtonDefaults.buttonColors(
@@ -1889,13 +2022,33 @@ fun StyleAndPenConfigTab(
                                         colors = ButtonDefaults.buttonColors(
                                             containerColor = if (isProgressive) Color(0xFFFF4081) else Color(0xFF1E293B),
                                             contentColor = Color.White
-                                        ),
+                                         ),
                                         modifier = Modifier.height(28.dp).padding(horizontal = 2.dp),
                                         contentPadding = PaddingValues(horizontal = 8.dp)
                                     ) {
                                         Text("Progressive", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                     }
                                 }
+                            }
+                            if (isProgressive) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                ParameterSliderRow(
+                                    label = "Progressive Deployment Delay",
+                                    value = settings.periodicProgressiveDelay.current,
+                                    minVal = settings.periodicProgressiveDelay.rangeMin,
+                                    maxVal = settings.periodicProgressiveDelay.rangeMax,
+                                    stepValue = 0.05f,
+                                    formatString = "%.2fs delay between layers",
+                                    isLocked = settings.periodicProgressiveDelay.locked,
+                                    onLockToggle = { onUpdate(settings.copy(periodicProgressiveDelay = settings.periodicProgressiveDelay.copy(locked = it))) },
+                                    isRangeLocked = settings.periodicProgressiveDelay.rangeLocked,
+                                    onRangeLockToggle = { onUpdate(settings.copy(periodicProgressiveDelay = settings.periodicProgressiveDelay.withRangeLocked(it))) },
+                                    selectedMin = settings.periodicProgressiveDelay.actualSelectedMin,
+                                    selectedMax = settings.periodicProgressiveDelay.actualSelectedMax,
+                                    onRangeChange = { min, max -> onUpdate(settings.copy(periodicProgressiveDelay = settings.periodicProgressiveDelay.withRanges(min, max))) },
+                                    onValueChange = { onUpdate(settings.copy(periodicProgressiveDelay = settings.periodicProgressiveDelay.withValue(it))) },
+                                    onRandomize = { onUpdate(settings.copy(periodicProgressiveDelay = settings.periodicProgressiveDelay.randomize(java.util.Random()))) }
+                                )
                             }
                         }
                     }
@@ -2421,7 +2574,7 @@ private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue
         baseHue
     }
     hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
-    hsv[2] = hsv[2] * (brightnessVal / 0.95f)
+    hsv[2] = hsv[2] * brightnessVal
     val alphaInt = (color.alpha * 255).roundToInt()
     val rawInt = android.graphics.Color.HSVToColor(alphaInt, hsv)
     return Color(rawInt)

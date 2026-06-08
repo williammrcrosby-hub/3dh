@@ -360,7 +360,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
-                    val durationMin = if (settings.drawSpeedInstant) 2.0f else settings.drawSpeedMinutes.current
+                    val durationMin = if (settings.drawSpeedInstant) 18.0f else (settings.drawSpeedMinutes.current * 7.0f).coerceAtLeast(15.0f)
                     val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
                     val startT = completionTimeOfAnim ?: elapsedMs
                     val completedTime = (elapsedMs - startT).coerceAtLeast(0L)
@@ -753,7 +753,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 baseHue
             }
             hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
-            hsv[2] = hsv[2] * (brightnessVal / 0.95f)
+            hsv[2] = hsv[2] * brightnessVal
             // Preserve the original alpha channel if any
             val alpha = Color.alpha(color)
             return Color.HSVToColor(alpha, hsv)
