@@ -11,8 +11,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Random
+import androidx.compose.runtime.mutableStateOf
 
 class HarmonographViewModel(application: Application) : AndroidViewModel(application) {
+
+    val gyroYawOffset = mutableStateOf(0f)
+    val gyroPitchOffset = mutableStateOf(0f)
+
+    fun addGyroOffsets(yawDelta: Float, pitchDelta: Float) {
+        gyroYawOffset.value += yawDelta
+        gyroPitchOffset.value += pitchDelta
+    }
 
     private val db = DatabaseProvider.getDatabase(application)
     private val dao = db.dao()
@@ -134,6 +143,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
      */
     fun resetAndRandomize() {
         var updated: HarmonographSettings? = null
+        gyroYawOffset.value = 0f
+        gyroPitchOffset.value = 0f
         _uiState.update { current ->
             val u = current.randomizeAll(random)
             updated = u
@@ -159,6 +170,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
      * Fresh drawing restart
      */
     fun restartDrawing() {
+        gyroYawOffset.value = 0f
+        gyroPitchOffset.value = 0f
         _currentDrawProgress.value = 0f
     }
 
@@ -187,6 +200,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
             if (settings != null) {
                 // Randomize unlocked parameter values to generate a new variation
                 // based on the preset's structural settings and lock constraints
+                gyroYawOffset.value = 0f
+                gyroPitchOffset.value = 0f
                 val randomizedSettings = settings.randomizeAll(random)
                 _uiState.value = randomizedSettings
                 _currentDrawProgress.value = 0f
@@ -338,6 +353,46 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         periodicShapeFreqFactor = IntParameter(4, rangeMin = 1, rangeMax = 8, locked = true),
                         styleMode = "rainbow",
                         penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Spicy Neon Swarm",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        styleMode = "spicy",
+                        spicyHue = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        spicyColorRange = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
+                        penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f, locked = true)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Gyroscopic Starburst",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        periodicShape = "star",
+                        periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f, locked = true),
+                        gyroEnabled = true,
+                        rationalFrequenciesEnabled = true,
+                        penCount = IntParameter(1, rangeMin = 1, rangeMax = 3, locked = true)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Infinite Chroma Loop",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        styleMode = "rainbow",
+                        rainbowHue = FloatParameter(90f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        rainbowColorRange = FloatParameter(270f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
+                        penRotationEnabled = BooleanParameter(true, locked = true),
+                        penRotationMultiplier = IntParameter(6, rangeMin = 1, rangeMax = 8, locked = true)
                     )
                 ) ?: ""
             )

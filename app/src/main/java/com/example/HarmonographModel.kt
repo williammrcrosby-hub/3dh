@@ -110,6 +110,8 @@ data class BooleanParameter(
     val current: Boolean,
     val locked: Boolean = false
 ) {
+    fun withValue(value: Boolean): BooleanParameter = copy(current = value)
+    fun withLocked(lockedVal: Boolean): BooleanParameter = copy(locked = lockedVal)
     fun randomize(random: java.util.Random): BooleanParameter {
         if (locked) return this
         return copy(current = random.nextBoolean())
@@ -169,7 +171,14 @@ data class HarmonographSettings(
     val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f),
     val hueShiftingEnabled: Boolean = true,
     val hueShiftSpeed: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 60f),
-    val hueShiftRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f, rangeLocked = false, selectedMin = 0f, selectedMax = 360f),
+    val hueShiftRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f, locked = true, rangeLocked = false, selectedMin = 0f, selectedMax = 360f),
+    
+    // Extra style coloring parameters
+    val rainbowHue: FloatParameter = FloatParameter(0f, rangeMin = 0f, rangeMax = 360f),
+    val rainbowColorRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f),
+    val spicyHue: FloatParameter = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f),
+    val spicyColorRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
+    val brightness: FloatParameter = FloatParameter(0.95f, rangeMin = 0.1f, rangeMax = 1.0f, locked = true),
     
     // Pen setups
     val penCount: IntParameter = IntParameter(1, rangeMin = 1, rangeMax = 3),
@@ -205,18 +214,29 @@ data class HarmonographSettings(
     val cameraAutoRotationSpeed: Float = 0.3f,
     val isAngularLockEnabled: Boolean = false,
     val angularLockAxis: String = "Z", // "X", "Y", or "Z"
+    val gyroEnabled: Boolean = false,
+    val gyroSensitivity: FloatParameter = FloatParameter(0.5f, rangeMin = 0.1f, rangeMax = 2.0f),
     
     // Resets
     val postCompletionAutoReset: Boolean = true,
     val postCompletionResetTimeFactor: Float = 0.25f, // 25% of draw completion time or instant
     
     // Additional options
-    val decayEnabled: Boolean = true,
+    val decayEnabled: BooleanParameter = BooleanParameter(true),
+    val rationalFrequenciesEnabled: Boolean = false,
     val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f),
     val coasterDirectionFacing: Boolean = true,
     val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
     val coasterOrbitSpeed: FloatParameter = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f)
 ) {
+    fun roundToRational(v: Float): Float {
+        val validRationals = listOf(
+            1f/12f, 1f/11f, 1f/10f, 1f/9f, 1f/8f, 1f/7f, 1f/6f, 1f/5f, 1f/4f, 1f/3f, 1f/2f,
+            1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f
+        )
+        return validRationals.minByOrNull { kotlin.math.abs(it - v) } ?: v
+    }
+
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
             val nextEnabled = if (ampSubX.enabledLocked) ampSubX.enabled else random.nextBoolean()
@@ -261,14 +281,23 @@ data class HarmonographSettings(
         val activeGradStart = hsvToColorInt(randGradStartHue.current, randSat.current)
         val activeGradEnd = hsvToColorInt(randGradEndHue.current, randSat.current)
 
+        var randFreqX = freqX.randomize(random)
+        var randFreqY = freqY.randomize(random)
+        var randFreqZ = freqZ.randomize(random)
+        if (rationalFrequenciesEnabled) {
+            randFreqX = randFreqX.copy(current = roundToRational(randFreqX.current))
+            randFreqY = randFreqY.copy(current = roundToRational(randFreqY.current))
+            randFreqZ = randFreqZ.copy(current = roundToRational(randFreqZ.current))
+        }
+
         return copy(
             ampX = ampX.randomize(random),
             ampY = ampY.randomize(random),
             ampZ = ampZ.randomize(random),
             
-            freqX = freqX.randomize(random),
-            freqY = freqY.randomize(random),
-            freqZ = freqZ.randomize(random),
+            freqX = randFreqX,
+            freqY = randFreqY,
+            freqZ = randFreqZ,
             
             decayX = decayX.randomize(random),
             decayY = decayY.randomize(random),
@@ -304,6 +333,12 @@ data class HarmonographSettings(
             hueShiftSpeed = hueShiftSpeed.randomize(random),
             hueShiftRange = hueShiftRange.randomize(random),
             
+            rainbowHue = rainbowHue.randomize(random),
+            rainbowColorRange = rainbowColorRange.randomize(random),
+            spicyHue = spicyHue.randomize(random),
+            spicyColorRange = spicyColorRange.randomize(random),
+            brightness = brightness.randomize(random),
+            
             penCount = penCount.randomize(random),
             penRotationEnabled = penRotationEnabled.randomize(random),
             penRotationMultiplier = penRotationMultiplier.randomize(random),
@@ -316,7 +351,9 @@ data class HarmonographSettings(
             lineThickness = lineThickness.randomize(random),
             cameraDistance = cameraDistance.randomize(random),
             coasterDeviationAngle = coasterDeviationAngle.randomize(random),
-            coasterOrbitSpeed = coasterOrbitSpeed.randomize(random)
+            coasterOrbitSpeed = coasterOrbitSpeed.randomize(random),
+            decayEnabled = decayEnabled.randomize(random),
+            gyroSensitivity = gyroSensitivity.randomize(random)
         )
     }
 

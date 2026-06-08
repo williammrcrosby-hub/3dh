@@ -81,15 +81,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
 
     // Dynamic rotation angle calculation driven by the animation timer state
     val animatedYaw = if (settings.cameraAutoRotationEnabled) {
-        (yaw + animTime * 0.001f * settings.cameraAutoRotationSpeed * 25f) % 360f
+        (yaw + animTime * 0.001f * settings.cameraAutoRotationSpeed * 25f + viewModel.gyroYawOffset.value) % 360f
     } else {
-        yaw
+        yaw + viewModel.gyroYawOffset.value
     }
 
     val animatedPitch = if (settings.cameraAutoRotationEnabled) {
-        pitch + (sin(animTime * 0.001f * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
+        pitch + (sin(animTime * 0.001f * settings.cameraAutoRotationSpeed * 0.5f) * 15f) + viewModel.gyroPitchOffset.value
     } else {
-        pitch
+        pitch + viewModel.gyroPitchOffset.value
     }
 
     Box(
@@ -603,8 +603,8 @@ fun OscillatorConfigTab(
                 Spacer(modifier = Modifier.weight(1f))
                 Text("Decay Rates", color = Color.White, fontSize = 11.sp, modifier = Modifier.padding(end = 4.dp))
                 Switch(
-                    checked = settings.decayEnabled,
-                    onCheckedChange = { onUpdate(settings.copy(decayEnabled = it)) },
+                    checked = settings.decayEnabled.current,
+                    onCheckedChange = { onUpdate(settings.copy(decayEnabled = settings.decayEnabled.withValue(it))) },
                     modifier = Modifier.scale(0.7f).testTag("decay_enabled_switch")
                 )
             }
@@ -612,21 +612,21 @@ fun OscillatorConfigTab(
         
         // Axis configuration blocks
         item {
-            AxisConfigCard("X-Axis Control", settings.ampX, settings.freqX, settings.decayX, settings.phaseX, settings.decayEnabled,
+            AxisConfigCard("X-Axis Control", settings.ampX, settings.freqX, settings.decayX, settings.phaseX, settings.decayEnabled.current,
                 onAmpChange = { onUpdate(settings.copy(ampX = it)) },
                 onFreqChange = { onUpdate(settings.copy(freqX = it)) },
                 onDecayChange = { onUpdate(settings.copy(decayX = it)) },
                 onPhaseChange = { onUpdate(settings.copy(phaseX = it)) })
         }
         item {
-            AxisConfigCard("Y-Axis Control", settings.ampY, settings.freqY, settings.decayY, settings.phaseY, settings.decayEnabled,
+            AxisConfigCard("Y-Axis Control", settings.ampY, settings.freqY, settings.decayY, settings.phaseY, settings.decayEnabled.current,
                 onAmpChange = { onUpdate(settings.copy(ampY = it)) },
                 onFreqChange = { onUpdate(settings.copy(freqY = it)) },
                 onDecayChange = { onUpdate(settings.copy(decayY = it)) },
                 onPhaseChange = { onUpdate(settings.copy(phaseY = it)) })
         }
         item {
-            AxisConfigCard("Z-Axis Control (3D Depth)", settings.ampZ, settings.freqZ, settings.decayZ, settings.phaseZ, settings.decayEnabled,
+            AxisConfigCard("Z-Axis Control (3D Depth)", settings.ampZ, settings.freqZ, settings.decayZ, settings.phaseZ, settings.decayEnabled.current,
                 onAmpChange = { onUpdate(settings.copy(ampZ = it)) },
                 onFreqChange = { onUpdate(settings.copy(freqZ = it)) },
                 onDecayChange = { onUpdate(settings.copy(decayZ = it)) },
@@ -973,62 +973,64 @@ fun ParameterSliderRow(
                     .fillMaxWidth()
                     .padding(start = 12.dp, end = 12.dp, bottom = 4.dp)
                     .background(Color(0x3300E5FF), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
+                Text("Configure Randomizer Range (Same value on both locks to static):", color = Color(0xFF00E5FF), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Randomizer Range Limit:", color = Color(0xFF00E5FF), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                    
-                    val minLabel = if (valueLabelFallback != null) {
-                        try {
-                            val usableFrequenciesLabels = listOf(
-                                "1/12×", "1/11×", "1/10×", "1/9×", "1/8×", "1/7×", "1/6×", "1/5×", "1/4×", "1/3×", "1/2×",
-                                "1× (Default)", "2×", "3×", "4×", "5×", "6×", "7×", "8×", "9×", "10×", "11×", "12×"
-                            )
-                            usableFrequenciesLabels[selectedMin.roundToInt().coerceIn(0, usableFrequenciesLabels.size - 1)]
-                        } catch(e: Exception) {
-                            String.format(formatString, selectedMin)
+                    var minInput by remember(selectedMin) { mutableStateOf(String.format(formatString, selectedMin)) }
+                    var maxInput by remember(selectedMax) { mutableStateOf(String.format(formatString, selectedMax)) }
+
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = minInput,
+                        onValueChange = { newVal ->
+                            minInput = newVal
+                            newVal.toFloatOrNull()?.let { parsed ->
+                                if (parsed >= minVal && parsed <= maxVal) {
+                                    onRangeChange(parsed, selectedMax)
+                                }
+                            }
+                        },
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(Color(0x550F172A), RoundedCornerShape(4.dp))
+                            .padding(vertical = 4.dp, horizontal = 8.dp)
+                    ) { innerTextField ->
+                        Column {
+                            Text("Min (Limit: ${String.format(formatString, minVal)})", color = Color(0xFF94A3B8), fontSize = 8.sp)
+                            innerTextField()
                         }
-                    } else {
-                        String.format(formatString, selectedMin)
                     }
-                    val maxLabel = if (valueLabelFallback != null) {
-                        try {
-                            val usableFrequenciesLabels = listOf(
-                                "1/12×", "1/11×", "1/10×", "1/9×", "1/8×", "1/7×", "1/6×", "1/5×", "1/4×", "1/3×", "1/2×",
-                                "1× (Default)", "2×", "3×", "4×", "5×", "6×", "7×", "8×", "9×", "10×", "11×", "12×"
-                            )
-                            usableFrequenciesLabels[selectedMax.roundToInt().coerceIn(0, usableFrequenciesLabels.size - 1)]
-                        } catch(e: Exception) {
-                            String.format(formatString, selectedMax)
+
+                    Text("to", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = maxInput,
+                        onValueChange = { newVal ->
+                            maxInput = newVal
+                            newVal.toFloatOrNull()?.let { parsed ->
+                                if (parsed >= minVal && parsed <= maxVal) {
+                                    onRangeChange(selectedMin, parsed)
+                                }
+                            }
+                        },
+                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold),
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(Color(0x550F172A), RoundedCornerShape(4.dp))
+                            .padding(vertical = 4.dp, horizontal = 8.dp)
+                    ) { innerTextField ->
+                        Column {
+                            Text("Max (Limit: ${String.format(formatString, maxVal)})", color = Color(0xFF94A3B8), fontSize = 8.sp)
+                            innerTextField()
                         }
-                    } else {
-                        String.format(formatString, selectedMax)
                     }
-                    
-                    Text(
-                        text = "$minLabel to $maxLabel",
-                        color = Color.White,
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
-                
-                RangeSlider(
-                    value = selectedMin..selectedMax,
-                    onValueChange = { range ->
-                        onRangeChange(range.start, range.endInclusive)
-                    },
-                    valueRange = minVal..maxVal,
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF00E5FF),
-                        activeTrackColor = Color(0xFF00E5FF)
-                    ),
-                    modifier = Modifier.height(24.dp)
-                )
             }
         }
     }
@@ -2171,14 +2173,24 @@ private fun computeComposeColor(
     val sat = settings.saturation.current
     val minHue = settings.hueShiftRange.actualSelectedMin
     val maxHue = settings.hueShiftRange.actualSelectedMax
+    
+    val bMin = settings.brightness.actualSelectedMin
+    val bMax = settings.brightness.actualSelectedMax
+    val segmentBrightness = if (settings.brightness.rangeLocked && bMax > bMin) {
+        val bRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
+        bMin + bRand.nextFloat() * (bMax - bMin)
+    } else {
+        settings.brightness.current
+    }
+
     return when (settings.styleMode) {
         "solid" -> {
-            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue)
+            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentBrightness)
         }
         "length" -> {
             val ratio = idx.toFloat() / total.coerceAtLeast(1)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentBrightness)
         }
         "center" -> {
             val maxDist3D = sqrt(
@@ -2188,18 +2200,29 @@ private fun computeComposeColor(
             ).coerceAtLeast(10f)
             val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentBrightness)
+        }
+        "spicy" -> {
+            val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
+            val segRand = java.util.Random(seedBase)
+            
+            val baseHue = settings.spicyHue.current
+            val hRange = settings.spicyColorRange.current
+            
+            val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
+            val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
+            Color.hsv(finalHue, sat, segmentBrightness)
         }
         else -> {
-            val baseHue = (idx.toFloat() / total.coerceAtLeast(1)) * 360f
+            val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
             val shiftedHue = (baseHue + Math.abs(hueOffset)) % 360f
             val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-            Color.hsv(finalHue, sat, 0.95f)
+            Color.hsv(finalHue, sat, segmentBrightness)
         }
     }
 }
 
-private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f): Color {
+private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f, brightnessVal: Float = 0.95f): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(
         (color.alpha * 255).roundToInt(),
@@ -2215,6 +2238,7 @@ private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue
         baseHue
     }
     hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
+    hsv[2] = hsv[2] * (brightnessVal / 0.95f)
     val alphaInt = (color.alpha * 255).roundToInt()
     val rawInt = android.graphics.Color.HSVToColor(alphaInt, hsv)
     return Color(rawInt)

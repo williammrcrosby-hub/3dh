@@ -45,6 +45,9 @@ data class CustomShapeData(
 
 object HarmonographMath {
 
+    @Volatile
+    var lastCalculatedFitMultiplier = 1f
+
     /**
      * Generates standard Harmonograph timeline base point at index/step k
      */
@@ -56,9 +59,9 @@ object HarmonographMath {
         val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
         val pz = Math.toRadians(settings.phaseZ.current.toDouble()).toFloat()
         
-        val decayFactorX = if (settings.decayEnabled) exp(-settings.decayX.current * t) else 1f
-        val decayFactorY = if (settings.decayEnabled) exp(-settings.decayY.current * t) else 1f
-        val decayFactorZ = if (settings.decayEnabled) exp(-settings.decayZ.current * t) else 1f
+        val decayFactorX = if (settings.decayEnabled.current) exp(-settings.decayX.current * t) else 1f
+        val decayFactorY = if (settings.decayEnabled.current) exp(-settings.decayY.current * t) else 1f
+        val decayFactorZ = if (settings.decayEnabled.current) exp(-settings.decayZ.current * t) else 1f
         
         var xRaw = settings.ampX.current * decayFactorX * sin(settings.freqX.current * t + px)
         var yRaw = settings.ampY.current * decayFactorY * sin(settings.freqY.current * t + py)
@@ -152,7 +155,14 @@ object HarmonographMath {
                 val uVec: Point3D
                 val wVec: Point3D
                 if (prevUVec == null) {
-                    val helper = if (abs(dir.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
+                    val dotX = abs(dir.x)
+                    val dotY = abs(dir.y)
+                    val dotZ = abs(dir.z)
+                    val helper = when {
+                        dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
+                        dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
+                        else -> Point3D(0f, 0f, 1f)
+                    }
                     val u = dir.cross(helper).normalized()
                     uVec = u
                     wVec = dir.cross(u).normalized()
@@ -239,39 +249,46 @@ object HarmonographMath {
         val freqShape = if (settings.periodicShapeFreqIsMultiply) fastestBase * factor else fastestBase / factor
         
         // We will plant shapes at peaks of the sine wave of the periodic trigger
-        val threshold = 0.08f
         var prevVal = 0f
         
         // Stable parallel transport tracking for shape orientations
         var prevUVec: Point3D? = null
         
-        for (k in 1 until totalSteps step 2) {
+        for (k in 0 until totalSteps) {
             val t = k * dt
-            val currentVal = sin(freqShape * t)
+            val basePt = calculatePointAtStep(k, settings, dt)
+            val nextPt = calculatePointAtStep(k + 1, settings, dt)
+            val dir = (nextPt - basePt).normalized()
             
-            // Check for peak threshold (local max)
-            if (currentVal > 0.92f && prevVal <= currentVal) {
-                // Trigger a shape here
-                val basePt = calculatePointAtStep(k, settings, dt)
-                val nextPt = calculatePointAtStep(k + 1, settings, dt)
-                val dir = (nextPt - basePt).normalized()
-                
-                // Stable parallel transport uVec calculation
-                val uVec: Point3D
-                val wVec: Point3D
-                if (prevUVec == null) {
-                    val helper = if (abs(dir.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
-                    val u = dir.cross(helper).normalized()
-                    uVec = u
-                    wVec = dir.cross(u).normalized()
-                } else {
-                    val dot = prevUVec.x * dir.x + prevUVec.y * dir.y + prevUVec.z * dir.z
-                    val uProj = prevUVec - dir * dot
-                    val u = uProj.normalized()
-                    uVec = u
-                    wVec = dir.cross(u).normalized()
+            // Stable parallel transport uVec calculation
+            val uVec: Point3D
+            val wVec: Point3D
+            if (prevUVec == null) {
+                val dotX = abs(dir.x)
+                val dotY = abs(dir.y)
+                val dotZ = abs(dir.z)
+                val helper = when {
+                    dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
+                    dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
+                    else -> Point3D(0f, 0f, 1f)
                 }
-                prevUVec = uVec
+                val u = dir.cross(helper).normalized()
+                uVec = u
+                wVec = dir.cross(u).normalized()
+            } else {
+                val dot = prevUVec.x * dir.x + prevUVec.y * dir.y + prevUVec.z * dir.z
+                val uProj = prevUVec - dir * dot
+                val u = uProj.normalized()
+                uVec = u
+                wVec = dir.cross(u).normalized()
+            }
+            prevUVec = uVec
+            
+            val currentVal = sin(freqShape * t)
+            val isPeak = currentVal > 0.95f && currentVal < prevVal && prevVal > 0.94f
+            prevVal = currentVal
+            
+            if (isPeak) {
                 
                 val penCount = settings.penCount.current
                 if (penCount == 1) {
@@ -462,7 +479,13 @@ object HarmonographMath {
                 
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
-                val fitMultiplier = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                val fitMultiplier = if (points.size > 50) {
+                    val m = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                    lastCalculatedFitMultiplier = m
+                    m
+                } else {
+                    lastCalculatedFitMultiplier
+                }
                 
                 return rawProj.mapIndexed { idx, (rx, ry, depth) ->
                     val u = screenWidth / 2f + rx * fitMultiplier
@@ -537,7 +560,13 @@ object HarmonographMath {
                 
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
-                val fitMultiplier = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                val fitMultiplier = if (points.size > 50) {
+                    val m = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                    lastCalculatedFitMultiplier = m
+                    m
+                } else {
+                    lastCalculatedFitMultiplier
+                }
                 
                 rawProj.mapIndexed { idx, (rx, ry, depth) ->
                     val u = screenWidth / 2f + rx * fitMultiplier
@@ -644,11 +673,19 @@ object HarmonographMath {
                 if (refPts.size > 1) {
                     val firstDiff = refPts[1] - refPts[0]
                     val firstT = if (firstDiff.length() > 0.001f) firstDiff.normalized() else Point3D(1f, 0f, 0f)
-                    val firstHelper = if (abs(firstT.y) < 0.9f) Point3D(0f, 1f, 0f) else Point3D(1f, 0f, 0f)
+                    
+                    val dotX = abs(firstT.x)
+                    val dotY = abs(firstT.y)
+                    val dotZ = abs(firstT.z)
+                    val firstHelper = when {
+                        dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
+                        dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
+                        else -> Point3D(0f, 0f, 1f)
+                    }
                     transportU = firstT.cross(firstHelper).normalized()
                     transportW = firstT.cross(transportU).normalized()
                     
-                    val stepSize = maxOf(1, targetIdxInt / 1000)
+                    val stepSize = 1
                     for (i in stepSize..targetIdxInt step stepSize) {
                         val prevPt = refPts[i - stepSize]
                         val currPt = refPts[i]
@@ -670,8 +707,10 @@ object HarmonographMath {
                 val uVec = if (uProj.length() > 0.001f) uProj.normalized() else transportU
                 val wVec = T.cross(uVec).normalized()
                 
-                // Slow continuous orbital orbit sways around tangent axis
-                val swayAngle = (animTime * 0.0003f * coasterOrbitSpeed) * 2f * PI.toFloat() + sin(animTime * 0.001f * coasterOrbitSpeed).toFloat() * 0.15f
+                // Slow continuous orbital orbit sways around tangent axis with smooth semi-periodic randomization sways
+                val orbitDrift = sin(animTime * 0.000083f).toFloat() * 1.2f + cos(animTime * 0.000031f).toFloat() * 0.7f + sin(animTime * 0.00017f).toFloat() * 0.3f
+                val swayAngle = (animTime * 0.0003f * coasterOrbitSpeed) * 2f * PI.toFloat() + 
+                                  sin(animTime * 0.001f * coasterOrbitSpeed).toFloat() * 0.15f + orbitDrift
                 
                 val angleRad = Math.toRadians(coasterDeviationAngle.toDouble()).toFloat() // customizable deviation angle
                 val cosAng = cos(angleRad)
@@ -685,9 +724,12 @@ object HarmonographMath {
                 sideDir = (uVec * (-sin(swayAngle)) + wVec * cos(swayAngle)).normalized()
                 upDir = sideDir.cross(viewDir).normalized()
             } else {
-                // Sphere-relative user controlled camera yaw & pitch
-                val radYaw = Math.toRadians(yaw.toDouble()).toFloat()
-                val radPitch = Math.toRadians(pitch.toDouble()).toFloat()
+                // Sphere-relative user controlled camera yaw & pitch with smooth semi-periodic sways
+                val orbitDriftYaw = sin(animTime * 0.000073f).toFloat() * 18f + cos(animTime * 0.000029f).toFloat() * 10f + sin(animTime * 0.00013f).toFloat() * 4f
+                val orbitDriftPitch = cos(animTime * 0.000067f).toFloat() * 12f + sin(animTime * 0.000023f).toFloat() * 7f + cos(animTime * 0.00011f).toFloat() * 3f
+                
+                val radYaw = Math.toRadians((yaw + orbitDriftYaw).toDouble()).toFloat()
+                val radPitch = Math.toRadians((pitch + orbitDriftPitch).toDouble()).toFloat()
                 
                 val offsetX = dist * cos(radPitch) * sin(radYaw)
                 val offsetY = -dist * cos(radPitch) * cos(radYaw)

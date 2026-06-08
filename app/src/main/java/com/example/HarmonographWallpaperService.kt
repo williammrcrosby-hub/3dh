@@ -16,7 +16,8 @@ class HarmonographWallpaperService : WallpaperService() {
     private data class WallpaperSegment(
         val p1: ProjectedPoint,
         val p2: ProjectedPoint,
-        val color: Int,
+        val color1: Int,
+        val color2: Int,
         val strokeWidth: Float
     )
 
@@ -172,10 +173,19 @@ class HarmonographWallpaperService : WallpaperService() {
                     if (pointerCount == 2) {
                         fingerDownTime = System.currentTimeMillis()
                         isTwoFingersHeld = true
+                        lastX = event.getX(0)
+                        lastY = event.getY(0)
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
-                    if (pointerCount == 1 && !isTwoFingersHeld) {
+                    if (pointerCount == 2) {
+                        val dx = event.getX(0) - lastX
+                        val dy = event.getY(0) - lastY
+                        touchBaseYaw += dx * 0.35f
+                        touchBasePitch -= dy * 0.35f
+                        lastX = event.getX(0)
+                        lastY = event.getY(0)
+                    } else if (pointerCount == 1 && !isTwoFingersHeld) {
                         val dx = event.x - lastX
                         val dy = event.y - lastY
                         touchBaseYaw += dx * 0.35f
@@ -187,17 +197,18 @@ class HarmonographWallpaperService : WallpaperService() {
                 MotionEvent.ACTION_POINTER_UP -> {
                     if (pointerCount == 2 && isTwoFingersHeld) {
                         val pressDuration = System.currentTimeMillis() - fingerDownTime
-                        // Two finger double tap reset detection
                         val now = System.currentTimeMillis()
-                        if (now - lastTwoFingerTapTime < 350) {
-                            // Two-finger Double Tap -> Randomize
-                            randomizeUnlockedSettings()
-                            drawProgress = 0f
-                        } else if (pressDuration > 450) {
+                        if (pressDuration > 450) {
                             // Two-finger tap and hold -> Swap perspectives
                             val p = if (settings.cameraPerspective == 1) 2 else 1
                             settings = settings.copy(cameraPerspective = p)
                             saveSettingsToPrefs(settings)
+                        } else {
+                            if (now - lastTwoFingerTapTime < 350) {
+                                // Two-finger Double Tap -> Randomize
+                                randomizeUnlockedSettings()
+                                drawProgress = 0f
+                            }
                         }
                         lastTwoFingerTapTime = now
                         isTwoFingersHeld = false
@@ -317,11 +328,12 @@ class HarmonographWallpaperService : WallpaperService() {
                         val p2 = projPoints[i + 1]
                         
                         // Compute color styled dynamically
-                        val segmentColor = computeDynamicColor(i, projPoints.size, p1, width, height, timeHueOffset)
+                        val segmentColor1 = computeDynamicColor(i, projPoints.size, p1, width, height, timeHueOffset)
+                        val segmentColor2 = computeDynamicColor(i + 1, projPoints.size, p2, width, height, timeHueOffset)
                         val baseThickness = settings.lineThickness.current
                         val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
                         
-                        segmentsList.add(WallpaperSegment(p1, p2, segmentColor, strokeWidth))
+                        segmentsList.add(WallpaperSegment(p1, p2, segmentColor1, segmentColor2, strokeWidth))
                     }
 
                     // Store pen tip if enabled
@@ -352,10 +364,20 @@ class HarmonographWallpaperService : WallpaperService() {
 
                 // Draw depth-sorted segments on the canvas
                 for (seg in segmentsList) {
-                    paint.color = seg.color
                     paint.strokeWidth = seg.strokeWidth
+                    if (seg.color1 == seg.color2) {
+                        paint.shader = null
+                        paint.color = seg.color1
+                    } else {
+                        paint.shader = android.graphics.LinearGradient(
+                            seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y,
+                            seg.color1, seg.color2,
+                            android.graphics.Shader.TileMode.CLAMP
+                        )
+                    }
                     canvas.drawLine(seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y, paint)
                 }
+                paint.shader = null
 
                 // Render styled active pen tip markers on top of all segment drawings
                 for ((tip, tipColor) in tipsList) {
@@ -447,16 +469,25 @@ class HarmonographWallpaperService : WallpaperService() {
             val minHue = settings.hueShiftRange.actualSelectedMin
             val maxHue = settings.hueShiftRange.actualSelectedMax
             
+            val bMin = settings.brightness.actualSelectedMin
+            val bMax = settings.brightness.actualSelectedMax
+            val segmentBrightness = if (settings.brightness.rangeLocked && bMax > bMin) {
+                val bRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
+                bMin + bRand.nextFloat() * (bMax - bMin)
+            } else {
+                settings.brightness.current
+            }
+            
             return when (settings.styleMode) {
                 "solid" -> {
                     // Solid Color with slight opacity
-                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue)
+                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue, segmentBrightness)
                 }
                 "length" -> {
                     // Length Gradient along path
                     val ratio = idx.toFloat() / total.coerceAtLeast(1)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue)
+                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentBrightness)
                 }
                 "center" -> {
                     // True 3D density proximity from origin
@@ -467,14 +498,25 @@ class HarmonographWallpaperService : WallpaperService() {
                     ).coerceAtLeast(10f)
                     val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue)
+                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentBrightness)
+                }
+                "spicy" -> {
+                    val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
+                    val segRand = java.util.Random(seedBase)
+                    
+                    val baseHue = settings.spicyHue.current
+                    val hRange = settings.spicyColorRange.current
+                    
+                    val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
+                    val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
+                    Color.HSVToColor(floatArrayOf(finalHue, sat, segmentBrightness))
                 }
                 else -> {
                     // Rainbow Gradient Mode + optional Live hue rotation
-                    val baseHue = (idx.toFloat() / total.coerceAtLeast(1)) * 360f
+                    val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
                     val shiftedHue = (baseHue + hueOffset) % 360f
                     val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-                    Color.HSVToColor(floatArrayOf(finalHue, sat, 0.95f))
+                    Color.HSVToColor(floatArrayOf(finalHue, sat, segmentBrightness))
                 }
             }
         }
@@ -613,7 +655,7 @@ class HarmonographWallpaperService : WallpaperService() {
             return Color.argb(a, r, g, b)
         }
 
-        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long, minHue: Float, maxHue: Float): Int {
+        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long, minHue: Float, maxHue: Float, brightnessVal: Float = 0.95f): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(color, hsv)
             hsv[1] = sat
@@ -624,6 +666,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 baseHue
             }
             hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
+            hsv[2] = hsv[2] * (brightnessVal / 0.95f)
             // Preserve the original alpha channel if any
             val alpha = Color.alpha(color)
             return Color.HSVToColor(alpha, hsv)
