@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+
 package com.example
 
 import android.app.WallpaperManager
@@ -8,6 +10,9 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -1328,16 +1333,36 @@ fun StyleAndPenConfigTab(
                 val modeLabels = listOf("solid", "length", "center", "rainbow", "spicy")
                 for (mode in modeLabels) {
                     val active = (settings.styleMode == mode)
-                    Button(
-                        onClick = { onUpdate(settings.copy(styleMode = mode)) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (active) Color(0xFF00E5FF) else Color(0xFF0F172A),
-                            contentColor = if (active) Color.Black else Color.White
+                    val allowedList = settings.allowedStyleModes.split(",").filter { it.isNotEmpty() }
+                    val isRot = allowedList.contains(mode)
+                    
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (active) Color(0xFF00E5FF) else Color(0xFF0F172A)
                         ),
-                        modifier = Modifier.weight(1f).height(38.dp),
-                        contentPadding = PaddingValues(0.dp)
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(38.dp)
+                            .combinedClickable(
+                                onClick = { onUpdate(settings.copy(styleMode = mode)) },
+                                onLongClick = { onUpdate(settings.toggleAllowedStyleMode(mode)) }
+                            ),
+                        border = BorderStroke(1.dp, if (isRot) Color(0xFFFF4081) else Color.Transparent)
                     ) {
-                        Text(mode.replaceFirstChar { it.uppercase() }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                Text(
+                                    mode.replaceFirstChar { it.uppercase() },
+                                    color = if (active) Color.Black else Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (isRot) {
+                                    Spacer(modifier = Modifier.width(2.dp))
+                                    Text("🎲", fontSize = 8.sp, color = if (active) Color.Black else Color(0xFFFF4081))
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1964,6 +1989,26 @@ fun StyleAndPenConfigTab(
                         onValueChange = { onUpdate(settings.copy(lineThickness = settings.lineThickness.withValue(it))) },
                         onRandomize = { onUpdate(settings.copy(lineThickness = settings.lineThickness.randomize(java.util.Random()))) }
                     )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    ParameterSliderRow(
+                        label = "Line Opacity (Alpha)",
+                        value = settings.lineAlpha.current,
+                        minVal = settings.lineAlpha.rangeMin,
+                        maxVal = settings.lineAlpha.rangeMax,
+                        stepValue = 0.05f,
+                        formatString = "%.2f",
+                        isLocked = settings.lineAlpha.locked,
+                        onLockToggle = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.copy(locked = it))) },
+                        isRangeLocked = settings.lineAlpha.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.withRangeLocked(it))) },
+                        selectedMin = settings.lineAlpha.actualSelectedMin,
+                        selectedMax = settings.lineAlpha.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(lineAlpha = settings.lineAlpha.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.randomize(java.util.Random()))) }
+                    )
                 }
             }
         }
@@ -2219,27 +2264,59 @@ fun CameraAndSetupTab(
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 val act1 = (settings.cameraPerspective == 1)
-                Button(
-                    onClick = { onUpdate(settings.copy(cameraPerspective = 1)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (act1) Color(0xFF00E5FF) else Color(0xFF0F172A), contentColor = if (act1) Color.Black else Color.White),
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    contentPadding = PaddingValues(2.dp)
+                val isP1Rot = settings.allowedPerspectives.split(",").contains("1")
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = if (act1) Color(0xFF00E5FF) else Color(0xFF0F172A)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .combinedClickable(
+                            onClick = { onUpdate(settings.copy(cameraPerspective = 1)) },
+                            onLongClick = { onUpdate(settings.toggleAllowedPerspective(1)) }
+                        ),
+                    border = BorderStroke(1.dp, if (isP1Rot) Color(0xFFFF4081) else Color.Transparent)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Full View", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Full View", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (act1) Color.Black else Color.White)
+                            if (isP1Rot) {
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("🎲", fontSize = 9.sp, color = if (act1) Color.Black else Color(0xFFFF4081))
+                            }
+                        }
                         Text("Optimal overview viewport", fontSize = 8.sp, color = if (act1) Color.DarkGray else Color.LightGray)
                     }
                 }
 
                 val act2 = (settings.cameraPerspective == 2)
-                Button(
-                    onClick = { onUpdate(settings.copy(cameraPerspective = 2)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (act2) Color(0xFF00E5FF) else Color(0xFF0F172A), contentColor = if (act2) Color.Black else Color.White),
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    contentPadding = PaddingValues(2.dp)
+                val isP2Rot = settings.allowedPerspectives.split(",").contains("2")
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = if (act2) Color(0xFF00E5FF) else Color(0xFF0F172A)),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(44.dp)
+                        .combinedClickable(
+                            onClick = { onUpdate(settings.copy(cameraPerspective = 2)) },
+                            onLongClick = { onUpdate(settings.toggleAllowedPerspective(2)) }
+                        ),
+                    border = BorderStroke(1.dp, if (isP2Rot) Color(0xFFFF4081) else Color.Transparent)
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Roller Coaster", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Roller Coaster", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (act2) Color.Black else Color.White)
+                            if (isP2Rot) {
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text("🎲", fontSize = 9.sp, color = if (act2) Color.Black else Color(0xFFFF4081))
+                            }
+                        }
                         Text("Dynamic pen-tip flight", fontSize = 8.sp, color = if (act2) Color.DarkGray else Color.LightGray)
                     }
                 }
@@ -2566,21 +2643,45 @@ fun PresetsTab(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(presets) { preset ->
+                val presetKey = if (preset.isUserPreset) "u_${preset.id}" else "f_${preset.name}"
+                val isPresetRot = activeSettings.allowedPresets.split(",").contains(presetKey)
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    border = if (isPresetRot) BorderStroke(1.dp, Color(0xFFFF4081)) else null
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column(modifier = Modifier.weight(1f).clickable {
-                            viewModel.loadPreset(preset)
-                            Toast.makeText(context, "Loaded: ${preset.name}", Toast.LENGTH_SHORT).show()
-                        }) {
-                            Text(preset.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                            Text(if (preset.isUserPreset) "My Custom Preset" else "Factory Standard Preset", color = Color(0xFF94A3B8), fontSize = 10.sp)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .combinedClickable(
+                                    onClick = {
+                                        viewModel.loadPreset(preset)
+                                        Toast.makeText(context, "Loaded: ${preset.name}", Toast.LENGTH_SHORT).show()
+                                    },
+                                    onLongClick = {
+                                        viewModel.updateSettings(activeSettings.toggleAllowedPreset(presetKey))
+                                        val added = !activeSettings.allowedPresets.split(",").contains(presetKey)
+                                        Toast.makeText(context, if (added) "Added to presets rotation!" else "Removed from presets rotation!", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(preset.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                if (isPresetRot) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text("🎲", fontSize = 10.sp, color = Color(0xFFFF4081))
+                                }
+                            }
+                            Text(
+                                if (preset.isUserPreset) "My Custom Preset" else "Factory Standard Preset",
+                                color = if (isPresetRot) Color(0xFFFF4081) else Color(0xFF94A3B8),
+                                fontSize = 10.sp
+                            )
                         }
 
                         if (preset.isUserPreset) {
@@ -2706,14 +2807,23 @@ private fun computeComposeColor(
         settings.chromaticShift.current
     }
 
+    val alphaMin = settings.lineAlpha.actualSelectedMin
+    val alphaMax = settings.lineAlpha.actualSelectedMax
+    val segmentAlpha = if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
+        val alphaRand = java.util.Random(idx.toLong() * 97L + settings.hashCode().toLong())
+        alphaMin + alphaRand.nextFloat() * (alphaMax - alphaMin)
+    } else {
+        settings.lineAlpha.current
+    }
+
     return when (settings.styleMode) {
         "solid" -> {
-            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
+            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
         "length" -> {
             val ratio = idx.toFloat() / total.coerceAtLeast(1)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
         "center" -> {
             val maxDist3D = sqrt(
@@ -2723,7 +2833,7 @@ private fun computeComposeColor(
             ).coerceAtLeast(10f)
             val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
         "spicy" -> {
             val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
@@ -2733,33 +2843,33 @@ private fun computeComposeColor(
             val hRange = settings.spicyColorRange.current
             
             val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
-            val finalHueVal = (rHue1 + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 500f)) % 360f
+            val finalHueVal = (rHue1 + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 120f)) % 360f
             val finalHue = mapHueIntoRange(finalHueVal, minHue, maxHue)
-            Color.hsv(finalHue, sat, 0.95f, 0.85f)
+            Color.hsv(finalHue, sat, 0.95f, segmentAlpha)
         }
         else -> {
             val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
-            val shiftedHue = (baseHue + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 500f)) % 360f
+            val shiftedHue = (baseHue + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 120f)) % 360f
             val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-            Color.hsv(finalHue, sat, 0.95f, 0.85f)
+            Color.hsv(finalHue, sat, 0.95f, segmentAlpha)
         }
     }
 }
 
-private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f, chromaticShiftVal: Float = 0f, pt: ProjectedPoint): Color {
+private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f, chromaticShiftVal: Float = 0f, pt: ProjectedPoint, alphaVal: Float = 0.85f): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(
-        (color.alpha * 255).roundToInt(),
+        255,
         (color.red * 255).roundToInt(),
         (color.green * 255).roundToInt(),
         (color.blue * 255).roundToInt()
     ), hsv)
     hsv[1] = sat
     val baseHue = hsv[0]
-    val shiftedHue = (baseHue + Math.abs(hueOffset) + chromaticShiftVal * (pt.depth / 500f)) % 360f
+    val shiftedHue = (baseHue + Math.abs(hueOffset) + chromaticShiftVal * (pt.depth / 120f)) % 360f
     hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
     hsv[2] = 0.95f
-    val alphaInt = (color.alpha * 255).roundToInt().coerceIn(0, 255)
+    val alphaInt = (alphaVal * 255).roundToInt().coerceIn(0, 255)
     return Color(android.graphics.Color.HSVToColor(alphaInt, hsv))
 }
 

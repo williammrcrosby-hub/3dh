@@ -202,7 +202,7 @@ data class HarmonographSettings(
     val rainbowColorRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f),
     val spicyHue: FloatParameter = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f),
     val spicyColorRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
-    val chromaticShift: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 180f, locked = false),
+    val chromaticShift: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 360f, locked = false),
     val liveChromaticShiftEnabled: BooleanParameter = BooleanParameter(false),
     val chromaticShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.0f, rangeMax = 5.0f),
     
@@ -254,8 +254,44 @@ data class HarmonographSettings(
     val lineThickness: FloatParameter = FloatParameter(3.5f, rangeMin = 0.5f, rangeMax = 12f),
     val coasterDirectionFacing: Boolean = true,
     val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
-    val coasterOrbitSpeed: FloatParameter = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f)
+    val coasterOrbitSpeed: FloatParameter = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f),
+    val lineAlpha: FloatParameter = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = false),
+    val allowedStyleModes: String = "solid,length,center,spicy,rainbow",
+    val allowedPerspectives: String = "1,2",
+    val allowedPresets: String = ""
 ) {
+    fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {
+        val currentList = allowedPresets.split(",").filter { it.isNotEmpty() }.toMutableList()
+        if (currentList.contains(presetNameOrId)) {
+            currentList.remove(presetNameOrId)
+        } else {
+            currentList.add(presetNameOrId)
+        }
+        return copy(allowedPresets = currentList.joinToString(","))
+    }
+
+    fun toggleAllowedStyleMode(mode: String): HarmonographSettings {
+        val currentModes = allowedStyleModes.split(",").filter { it.isNotEmpty() }.toMutableList()
+        if (currentModes.contains(mode)) {
+            currentModes.remove(mode)
+        } else {
+            currentModes.add(mode)
+        }
+        return copy(allowedStyleModes = currentModes.joinToString(","))
+    }
+
+    fun toggleAllowedPerspective(perspective: Int): HarmonographSettings {
+        val currentList = allowedPerspectives.split(",").filter { it.isNotEmpty() }.map { it.toInt() }.toMutableList()
+        val pStr = perspective.toString()
+        val listStr = allowedPerspectives.split(",").filter { it.isNotEmpty() }.toMutableList()
+        if (listStr.contains(pStr)) {
+            listStr.remove(pStr)
+        } else {
+            listStr.add(pStr)
+        }
+        return copy(allowedPerspectives = listStr.joinToString(","))
+    }
+
     fun lockAllLockable(): HarmonographSettings {
         return copy(
             ampX = ampX.copy(locked = true),
@@ -320,7 +356,8 @@ data class HarmonographSettings(
             coasterDeviationAngle = coasterDeviationAngle.copy(locked = true),
             coasterOrbitSpeed = coasterOrbitSpeed.copy(locked = true),
             decayEnabled = decayEnabled.copy(locked = true),
-            gyroSensitivity = gyroSensitivity.copy(locked = true)
+            gyroSensitivity = gyroSensitivity.copy(locked = true),
+            lineAlpha = lineAlpha.copy(locked = true)
         )
     }
 
@@ -392,7 +429,15 @@ data class HarmonographSettings(
             randFreqZ = randFreqZ.copy(current = roundToRational(randFreqZ.current))
         }
 
+        val styleList = allowedStyleModes.split(",").filter { it.isNotEmpty() }
+        val nextStyle = if (styleList.isNotEmpty()) styleList[random.nextInt(styleList.size)] else styleMode
+
+        val perspectiveList = allowedPerspectives.split(",").filter { it.isNotEmpty() }.mapNotNull { it.toIntOrNull() }
+        val nextPerspective = if (perspectiveList.isNotEmpty()) perspectiveList[random.nextInt(perspectiveList.size)] else cameraPerspective
+
         return copy(
+            styleMode = nextStyle,
+            cameraPerspective = nextPerspective,
             ampX = ampX.randomize(random),
             ampY = ampY.randomize(random),
             ampZ = ampZ.randomize(random),
@@ -458,7 +503,8 @@ data class HarmonographSettings(
             coasterDeviationAngle = coasterDeviationAngle.randomize(random),
             coasterOrbitSpeed = coasterOrbitSpeed.randomize(random),
             decayEnabled = decayEnabled.randomize(random),
-            gyroSensitivity = gyroSensitivity.randomize(random)
+            gyroSensitivity = gyroSensitivity.randomize(random),
+            lineAlpha = lineAlpha.randomize(random)
         )
     }
 

@@ -189,17 +189,42 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
      * Resets current progress and randomizes unlocked draw settings
      */
     fun resetAndRandomize() {
-        var updated: HarmonographSettings? = null
         gyroYawOffset.value = 0f
         gyroPitchOffset.value = 0f
         _isDrawing.value = true
-        _uiState.update { current ->
-            val u = current.randomizeAll(random)
-            updated = u
-            u
+        
+        val current = _uiState.value
+        val allowedKeys = current.allowedPresets.split(",").filter { it.isNotEmpty() }
+        var baseSettings = current
+
+        if (allowedKeys.isNotEmpty()) {
+            val allPresets = savedPresets.value
+            val valid = allPresets.filter { preset ->
+                val key = if (preset.isUserPreset) "u_${preset.id}" else "f_${preset.name}"
+                allowedKeys.contains(key)
+            }
+            if (valid.isNotEmpty()) {
+                val chosen = valid[random.nextInt(valid.size)]
+                try {
+                    val s = adapter.fromJson(chosen.settingsJson)
+                    if (s != null) {
+                        baseSettings = s.copy(
+                            allowedPresets = current.allowedPresets,
+                            allowedStyleModes = current.allowedStyleModes,
+                            allowedPerspectives = current.allowedPerspectives
+                        )
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
         }
+
+        val u = baseSettings.randomizeAll(random)
+        _uiState.value = u
         _currentDrawProgress.value = 0f
-        updated?.let { saveSettingsToPrefs(it) }
+        saveSettingsToPrefs(u)
+        startDrawingLoop()
     }
 
     private fun saveSettingsToPrefs(settings: HarmonographSettings) {
@@ -283,6 +308,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 _uiState.value = randomizedSettings
                 _currentDrawProgress.value = 0f
                 saveSettingsToPrefs(randomizedSettings)
+                startDrawingLoop()
             }
         } catch (e: Exception) {
             e.printStackTrace()
