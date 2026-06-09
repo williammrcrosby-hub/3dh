@@ -2410,17 +2410,13 @@ fun PresetsTab(
         Text("SAVED DRAWING PRESETS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
         
         // Save current preset block
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
                 value = customPresetName,
                 onValueChange = { customPresetName = it },
                 label = { Text("Custom Preset Title", fontSize = 11.sp, color = Color.White) },
                 singleLine = true,
-                modifier = Modifier.weight(1f).testTag("preset_name_input"),
+                modifier = Modifier.fillMaxWidth().testTag("preset_name_input"),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Color(0xFF00E5FF),
                     unfocusedBorderColor = Color.White,
@@ -2429,20 +2425,37 @@ fun PresetsTab(
                 )
             )
 
-            Button(
-                onClick = {
-                    if (customPresetName.isNotBlank()) {
-                        viewModel.savePreset(customPresetName)
-                        customPresetName = ""
-                        Toast.makeText(context, "Preset Saved!", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(context, "Give it a title first!", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color.Black),
-                modifier = Modifier.height(48.dp).testTag("save_preset_button")
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = {
+                        if (customPresetName.isNotBlank()) {
+                            viewModel.savePreset(customPresetName)
+                            customPresetName = ""
+                            Toast.makeText(context, "Preset Saved!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Give it a title first!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B), contentColor = Color.White),
+                    modifier = Modifier.weight(1f).height(44.dp).testTag("save_preset_button")
+                ) {
+                    Text("Save Standard", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Button(
+                    onClick = {
+                        viewModel.saveSnapshotPreset(customPresetName)
+                        customPresetName = ""
+                        Toast.makeText(context, "Snapshot Saved (Locked)!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color.Black),
+                    modifier = Modifier.weight(1.2f).height(44.dp).testTag("save_snapshot_preset_button")
+                ) {
+                    Text("📷 Save Snapshot", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
 
@@ -2553,7 +2566,8 @@ private fun computeComposeColor(
             val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
             val shiftedHue = (baseHue + Math.abs(hueOffset)) % 360f
             val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-            Color.hsv(finalHue, sat, segmentBrightness)
+            val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
+            Color.hsv(finalHue, adjustedSat, segmentBrightness)
         }
     }
 }
@@ -2566,7 +2580,7 @@ private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue
         (color.green * 255).roundToInt(),
         (color.blue * 255).roundToInt()
     ), hsv)
-    hsv[1] = sat
+    hsv[1] = sat * (0.3f + 0.7f * (brightnessVal * brightnessVal))
     val baseHue = hsv[0]
     val shiftedHue = if (hueOffset != 0L) {
         (baseHue + Math.abs(hueOffset)) % 360f

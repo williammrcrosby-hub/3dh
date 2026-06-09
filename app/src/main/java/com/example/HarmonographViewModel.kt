@@ -47,9 +47,31 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private var drawingJob: Job? = null
     private val random = Random()
 
+    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == "active_settings") {
+            loadActiveSettingsFromPrefs()
+        }
+    }
+
+    fun loadActiveSettingsFromPrefs() {
+        val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+        val savedJson = prefs.getString("active_settings", null)
+        if (savedJson != null) {
+            try {
+                val s = adapter.fromJson(savedJson)
+                if (s != null && s != _uiState.value) {
+                    _uiState.value = s
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
     init {
         // Load active settings from prefs on VM creation to ensure all settings persist and translate.
         val prefs = application.getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         val savedJson = prefs.getString("active_settings", null)
         if (savedJson != null) {
             try {
@@ -189,6 +211,34 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 )
             )
         }
+    }
+
+    /**
+     * Locks all lockable settings and saves as a snapshot preset
+     */
+    fun saveSnapshotPreset(customName: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val locked = _uiState.value.lockAllLockable()
+            viewModelScope.launch(Dispatchers.Main) {
+                _uiState.value = locked
+                saveSettingsToPrefs(locked)
+            }
+            val json = adapter.toJson(locked) ?: ""
+            val displayName = if (customName.isNotBlank()) customName else "Snapshot #${System.currentTimeMillis() % 10000}"
+            dao.insertPreset(
+                HarmonographPreset(
+                    name = displayName,
+                    isUserPreset = true,
+                    settingsJson = json
+                )
+            )
+        }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+        prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
     }
 
     /**

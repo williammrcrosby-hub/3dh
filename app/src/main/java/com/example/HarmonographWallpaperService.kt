@@ -10,6 +10,9 @@ import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import kotlin.math.*
 import java.util.Random
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class HarmonographWallpaperService : WallpaperService() {
 
@@ -110,6 +113,7 @@ class HarmonographWallpaperService : WallpaperService() {
         private var lastTwoFingerTapTime = 0L
         private var fingerDownTime = 0L
         private var isTwoFingersHeld = false
+        private var isThreeFingersHeld = false
 
         private val paint = Paint().apply {
             isAntiAlias = true
@@ -230,6 +234,36 @@ class HarmonographWallpaperService : WallpaperService() {
             }
         }
 
+        private fun saveSnapshotOnWallpaper() {
+            val context = this@HarmonographWallpaperService
+            val db = DatabaseProvider.getDatabase(context)
+            val dao = db.dao()
+            
+            val locked = settings.lockAllLockable()
+            settings = locked
+            saveSettingsToPrefs(locked)
+            
+            val json = adapter.toJson(locked) ?: ""
+            val displayName = "Wallpaper Snapshot #${System.currentTimeMillis() % 10000}"
+            
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                try {
+                    dao.insertPreset(
+                        HarmonographPreset(
+                            name = displayName,
+                            isUserPreset = true,
+                            settingsJson = json
+                        )
+                    )
+                    handler.post {
+                        android.widget.Toast.makeText(context, "Wallpaper Snapshot Saved!", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+        }
+
         override fun onTouchEvent(event: MotionEvent?) {
             if (event == null) return
             val action = event.actionMasked
@@ -241,13 +275,19 @@ class HarmonographWallpaperService : WallpaperService() {
                     lastY = event.y
                     fingerDownTime = System.currentTimeMillis()
                     isTwoFingersHeld = false
+                    isThreeFingersHeld = false
                 }
                 MotionEvent.ACTION_POINTER_DOWN -> {
                     if (pointerCount == 2) {
                         fingerDownTime = System.currentTimeMillis()
                         isTwoFingersHeld = true
+                        isThreeFingersHeld = false
                         lastX = event.getX(0)
                         lastY = event.getY(0)
+                    } else if (pointerCount == 3) {
+                        fingerDownTime = System.currentTimeMillis()
+                        isThreeFingersHeld = true
+                        isTwoFingersHeld = false
                     }
                 }
                 MotionEvent.ACTION_MOVE -> {
@@ -258,7 +298,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         touchBasePitch -= dy * 0.35f
                         lastX = event.getX(0)
                         lastY = event.getY(0)
-                    } else if (pointerCount == 1 && !isTwoFingersHeld) {
+                    } else if (pointerCount == 1 && !isTwoFingersHeld && !isThreeFingersHeld) {
                         val dx = event.x - lastX
                         val dy = event.y - lastY
                         touchBaseYaw += dx * 0.35f
@@ -268,7 +308,13 @@ class HarmonographWallpaperService : WallpaperService() {
                     }
                 }
                 MotionEvent.ACTION_POINTER_UP -> {
-                    if (pointerCount == 2 && isTwoFingersHeld) {
+                    if (pointerCount == 3 && isThreeFingersHeld) {
+                        val pressDuration = System.currentTimeMillis() - fingerDownTime
+                        if (pressDuration > 450) {
+                            saveSnapshotOnWallpaper()
+                        }
+                        isThreeFingersHeld = false
+                    } else if (pointerCount == 2 && isTwoFingersHeld) {
                         val pressDuration = System.currentTimeMillis() - fingerDownTime
                         val now = System.currentTimeMillis()
                         if (pressDuration > 450) {
@@ -289,6 +335,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
                 MotionEvent.ACTION_UP -> {
                     isTwoFingersHeld = false
+                    isThreeFingersHeld = false
                 }
             }
         }
@@ -596,14 +643,16 @@ class HarmonographWallpaperService : WallpaperService() {
                     
                     val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
                     val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
-                    Color.HSVToColor(floatArrayOf(finalHue, sat, segmentBrightness))
+                    val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
+                    Color.HSVToColor(floatArrayOf(finalHue, adjustedSat, segmentBrightness))
                 }
                 else -> {
                     // Rainbow Gradient Mode + optional Live hue rotation
                     val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
                     val shiftedHue = (baseHue + hueOffset) % 360f
                     val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-                    Color.HSVToColor(floatArrayOf(finalHue, sat, segmentBrightness))
+                    val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
+                    Color.HSVToColor(floatArrayOf(finalHue, adjustedSat, segmentBrightness))
                 }
             }
         }
@@ -641,7 +690,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 
                 val centerPt3D = if (shape.deployment == "progressive") {
                     // Offset center slightly along direction
-                    shape.center + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
+                    shape.center + (shape.uVector.cross(shape.wVector) * (conc * size * settings.periodicProgressiveDelay.current))
                 } else {
                     shape.center
                 }
@@ -745,7 +794,7 @@ class HarmonographWallpaperService : WallpaperService() {
         private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long, minHue: Float, maxHue: Float, brightnessVal: Float = 0.95f): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(color, hsv)
-            hsv[1] = sat
+            hsv[1] = sat * (0.3f + 0.7f * (brightnessVal * brightnessVal))
             val baseHue = hsv[0]
             val shiftedHue = if (hueOffset != 0L) {
                 (baseHue + hueOffset) % 360f

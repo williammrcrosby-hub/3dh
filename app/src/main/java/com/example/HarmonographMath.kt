@@ -43,7 +43,29 @@ data class CustomShapeData(
     val colorIndex: Int
 )
 
+private data class CameraCacheKey(
+    val yaw: Float,
+    val pitch: Float,
+    val targetIdx: Float,
+    val cameraDistance: Float,
+    val coasterDirectionFacing: Boolean,
+    val animTime: Long,
+    val coasterDeviationAngle: Float,
+    val coasterOrbitSpeed: Float,
+    val refPtsSize: Int,
+    val refPtsHash: Int
+)
+
+private data class CameraFrame(
+    val camPos: Point3D,
+    val sideDir: Point3D,
+    val upDir: Point3D,
+    val viewDir: Point3D
+)
+
 object HarmonographMath {
+
+    private val cameraCache = java.util.concurrent.ConcurrentHashMap<CameraCacheKey, CameraFrame>()
 
     @Volatile
     var lastCalculatedFitMultiplier = 1f
@@ -568,12 +590,13 @@ object HarmonographMath {
                 var maxAbsX = 0.01f
                 var maxAbsY = 0.01f
                 
+                // Lift sines/cosines out of map!
+                val cxX = cos(yawRad)
+                val sxX = sin(yawRad)
+                val cyY = cos(pitchRad)
+                val syY = sin(pitchRad)
+                
                 val rawProj = activePoints.map { pt ->
-                    val cxX = cos(yawRad)
-                    val sxX = sin(yawRad)
-                    val cyY = cos(pitchRad)
-                    val syY = sin(pitchRad)
-                    
                     val xRot1 = pt.x * cxX - pt.y * sxX
                     val yRot1 = pt.x * sxX + pt.y * cxX
                     val zRot1 = pt.z
@@ -618,12 +641,13 @@ object HarmonographMath {
                     )
                 }
             } else {
+                // Lift sines/cosines out of map!
+                val cxX = cos(yawRad)
+                val sxX = sin(yawRad)
+                val cyY = cos(pitchRad)
+                val syY = sin(pitchRad)
+                
                 activePoints.mapIndexed { idx, pt ->
-                    val cxX = cos(yawRad)
-                    val sxX = sin(yawRad)
-                    val cyY = cos(pitchRad)
-                    val syY = sin(pitchRad)
-                    
                     val xRot1 = pt.x * cxX - pt.y * sxX
                     val yRot1 = pt.x * sxX + pt.y * cxX
                     val zRot1 = pt.z
@@ -648,135 +672,160 @@ object HarmonographMath {
         } else {
             // Perspective 2: Roller coaster pen-riding!
             val refPts = referencePoints ?: points
-            
-            // Smoothly interpolate lookAtTarget based on cameraTargetIndex (floating-point parameter) or currentDrawProgress!
             val targetIdx = if (cameraTargetIndex >= 0f) cameraTargetIndex else currentDrawProgress
-            val idxInt = floor(targetIdx).toInt().coerceIn(0, refPts.size - 1)
-            val idxFrac = (targetIdx - idxInt).coerceIn(0f, 1f)
-            val lookAtTarget = if (idxFrac > 0.001f && idxInt < refPts.size - 1) {
-                val p1 = refPts[idxInt]
-                val p2 = refPts[idxInt + 1]
-                Point3D(
-                    p1.x + (p2.x - p1.x) * idxFrac,
-                    p1.y + (p2.y - p1.y) * idxFrac,
-                    p1.z + (p2.z - p1.z) * idxFrac
-                )
-            } else {
-                refPts[idxInt]
+            
+            val key = CameraCacheKey(
+                yaw = yaw,
+                pitch = pitch,
+                targetIdx = targetIdx,
+                cameraDistance = cameraDistance,
+                coasterDirectionFacing = coasterDirectionFacing,
+                animTime = animTime,
+                coasterDeviationAngle = coasterDeviationAngle,
+                coasterOrbitSpeed = coasterOrbitSpeed,
+                refPtsSize = refPts.size,
+                refPtsHash = refPts.firstOrNull()?.hashCode() ?: 0
+            )
+            
+            if (cameraCache.size > 50) {
+                cameraCache.clear()
             }
             
-            val dist = cameraDistance * 0.45f
-            
-            val camPos: Point3D
-            val sideDir: Point3D
-            val upDir: Point3D
-            val viewDir: Point3D
-            
-            if (coasterDirectionFacing) {
-                // Smooth helper function to interpolate point along the list path
-                fun getInterpolatedPoint(list: List<Point3D>, t: Float): Point3D {
-                    val idxInt = floor(t).toInt().coerceIn(0, list.size - 1)
-                    val idxFrac = (t - idxInt).coerceIn(0f, 1f)
-                    return if (idxFrac > 0.001f && idxInt < list.size - 1) {
-                        val p1 = list[idxInt]
-                        val p2 = list[idxInt + 1]
-                        Point3D(
-                            p1.x + (p2.x - p1.x) * idxFrac,
-                            p1.y + (p2.y - p1.y) * idxFrac,
-                            p1.z + (p2.z - p1.z) * idxFrac
-                        )
-                    } else {
-                        list[idxInt]
-                    }
+            val frame = cameraCache.getOrPut(key) {
+                // Smoothly interpolate lookAtTarget based on cameraTargetIndex (floating-point parameter) or currentDrawProgress!
+                val idxInt = floor(targetIdx).toInt().coerceIn(0, refPts.size - 1)
+                val idxFrac = (targetIdx - idxInt).coerceIn(0f, 1f)
+                val lookAtTargetLocal = if (idxFrac > 0.001f && idxInt < refPts.size - 1) {
+                    val p1 = refPts[idxInt]
+                    val p2 = refPts[idxInt + 1]
+                    Point3D(
+                        p1.x + (p2.x - p1.x) * idxFrac,
+                        p1.y + (p2.y - p1.y) * idxFrac,
+                        p1.z + (p2.z - p1.z) * idxFrac
+                    )
+                } else {
+                    refPts[idxInt]
                 }
-
-                // Symmetrically smooth tangent vector computed over a wider sliding window
-                val windowSize = 25f
-                val startT = (targetIdx - windowSize).coerceAtLeast(0f)
-                val endT = (targetIdx + windowSize).coerceAtMost((refPts.size - 1).toFloat())
                 
-                val pStart = getInterpolatedPoint(refPts, startT)
-                val pEnd = getInterpolatedPoint(refPts, endT)
+                val dist = cameraDistance * 0.45f
                 
-                val rawDiff = pEnd - pStart
-                val T = if (rawDiff.length() > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
+                val camPosLocal: Point3D
+                val sideDirLocal: Point3D
+                val upDirLocal: Point3D
+                val viewDirLocal: Point3D
                 
-                // Perfect stable Parallel Transport Frame tracked continuously starting from first node to targetIdxInt.
-                // This eliminates gimbal-lock flips and hard boundary jumps completely!
-                val targetIdxInt = targetIdx.toInt().coerceIn(0, refPts.size - 1)
-                var transportU = Point3D(0f, 1f, 0f)
-                var transportW = Point3D(0f, 0f, 1f)
-                if (refPts.size > 1) {
-                    val firstDiff = refPts[1] - refPts[0]
-                    val firstT = if (firstDiff.length() > 0.001f) firstDiff.normalized() else Point3D(1f, 0f, 0f)
-                    
-                    val dotX = abs(firstT.x)
-                    val dotY = abs(firstT.y)
-                    val dotZ = abs(firstT.z)
-                    val firstHelper = when {
-                        dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
-                        dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
-                        else -> Point3D(0f, 0f, 1f)
-                    }
-                    transportU = firstT.cross(firstHelper).normalized()
-                    transportW = firstT.cross(transportU).normalized()
-                    
-                    val stepSize = 1
-                    for (i in stepSize..targetIdxInt step stepSize) {
-                        val prevPt = refPts[i - stepSize]
-                        val currPt = refPts[i]
-                        val segmentDiff = currPt - prevPt
-                        val segmentT = if (segmentDiff.length() > 0.001f) segmentDiff.normalized() else Point3D(1f, 0f, 0f)
-                        
-                        val dotVal = transportU.x * segmentT.x + transportU.y * segmentT.y + transportU.z * segmentT.z
-                        val uProj = transportU - segmentT * dotVal
-                        if (uProj.length() > 0.001f) {
-                            transportU = uProj.normalized()
-                            transportW = segmentT.cross(transportU).normalized()
+                if (coasterDirectionFacing) {
+                    // Smooth helper function to interpolate point along the list path
+                    fun getInterpolatedPoint(list: List<Point3D>, t: Float): Point3D {
+                        val iInt = floor(t).toInt().coerceIn(0, list.size - 1)
+                        val iFrac = (t - iInt).coerceIn(0f, 1f)
+                        return if (iFrac > 0.001f && iInt < list.size - 1) {
+                            val p1 = list[iInt]
+                            val p2 = list[iInt + 1]
+                            Point3D(
+                                p1.x + (p2.x - p1.x) * iFrac,
+                                p1.y + (p2.y - p1.y) * iFrac,
+                                p1.z + (p2.z - p1.z) * iFrac
+                            )
+                        } else {
+                            list[iInt]
                         }
                     }
+
+                    // Symmetrically smooth tangent vector computed over a wider sliding window
+                    val windowSize = 25f
+                    val startT = (targetIdx - windowSize).coerceAtLeast(0f)
+                    val endT = (targetIdx + windowSize).coerceAtMost((refPts.size - 1).toFloat())
+                    
+                    val pStart = getInterpolatedPoint(refPts, startT)
+                    val pEnd = getInterpolatedPoint(refPts, endT)
+                    
+                    val rawDiff = pEnd - pStart
+                    val T = if (rawDiff.length() > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
+                    
+                    // Perfect stable Parallel Transport Frame tracked continuously starting from first node to targetIdxInt.
+                    val targetIdxInt = targetIdx.toInt().coerceIn(0, refPts.size - 1)
+                    var transportU = Point3D(0f, 1f, 0f)
+                    var transportW = Point3D(0f, 0f, 1f)
+                    if (refPts.size > 1) {
+                        val firstDiff = refPts[1] - refPts[0]
+                        val firstT = if (firstDiff.length() > 0.001f) firstDiff.normalized() else Point3D(1f, 0f, 0f)
+                        
+                        val dotX = abs(firstT.x)
+                        val dotY = abs(firstT.y)
+                        val dotZ = abs(firstT.z)
+                        val firstHelper = when {
+                            dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
+                            dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
+                            else -> Point3D(0f, 0f, 1f)
+                        }
+                        transportU = firstT.cross(firstHelper).normalized()
+                        transportW = firstT.cross(transportU).normalized()
+                        
+                        val stepSize = 1
+                        for (i in stepSize..targetIdxInt step stepSize) {
+                            val prevPt = refPts[i - stepSize]
+                            val currPt = refPts[i]
+                            val segmentDiff = currPt - prevPt
+                            val segmentT = if (segmentDiff.length() > 0.001f) segmentDiff.normalized() else Point3D(1f, 0f, 0f)
+                            
+                            val dotVal = transportU.x * segmentT.x + transportU.y * segmentT.y + transportU.z * segmentT.z
+                            val uProj = transportU - segmentT * dotVal
+                            if (uProj.length() > 0.001f) {
+                                transportU = uProj.normalized()
+                                transportW = segmentT.cross(transportU).normalized()
+                            }
+                        }
+                    }
+                    
+                    // Align the transported frame with our smoothed sliding tangent T
+                    val dotVal = transportU.x * T.x + transportU.y * T.y + transportU.z * T.z
+                    val uProj = transportU - T * dotVal
+                    val uVec = if (uProj.length() > 0.001f) uProj.normalized() else transportU
+                    val wVec = T.cross(uVec).normalized()
+                    
+                    // Slow continuous orbital orbit sways around transient axis
+                    val orbitDrift = sin(animTime * 0.000083f).toFloat() * 1.2f + cos(animTime * 0.000031f).toFloat() * 0.7f + sin(animTime * 0.00017f).toFloat() * 0.3f
+                    val swayAngle = (animTime * 0.00005f * coasterOrbitSpeed) * 2f * PI.toFloat() + 
+                                      sin(animTime * 0.0002f * coasterOrbitSpeed).toFloat() * 0.15f + orbitDrift
+                    
+                    val angleRad = Math.toRadians(coasterDeviationAngle.toDouble()).toFloat() // customizable deviation angle
+                    val cosAng = cos(angleRad)
+                    val sinAng = sin(angleRad)
+                    
+                    // Position camera in a beautiful offset cone behind the pen tip
+                    val offsetDir = T * (-cosAng) + (uVec * cos(swayAngle) + wVec * sin(swayAngle)) * sinAng
+                    camPosLocal = lookAtTargetLocal + offsetDir * dist
+                    
+                    viewDirLocal = (lookAtTargetLocal - camPosLocal).normalized()
+                    sideDirLocal = (uVec * (-sin(swayAngle)) + wVec * cos(swayAngle)).normalized()
+                    upDirLocal = sideDirLocal.cross(viewDirLocal).normalized()
+                } else {
+                    // Sphere-relative user controlled camera yaw & pitch
+                    val orbitDriftYaw = sin(animTime * 0.000073f).toFloat() * 18f + cos(animTime * 0.000029f).toFloat() * 10f + sin(animTime * 0.00013f).toFloat() * 4f
+                    val orbitDriftPitch = cos(animTime * 0.000067f).toFloat() * 12f + sin(animTime * 0.000023f).toFloat() * 7f + cos(animTime * 0.00011f).toFloat() * 3f
+                    
+                    val radYaw = Math.toRadians((yaw + orbitDriftYaw).toDouble()).toFloat()
+                    val radPitch = Math.toRadians((pitch + orbitDriftPitch).toDouble()).toFloat()
+                    
+                    val offsetX = dist * cos(radPitch) * sin(radYaw)
+                    val offsetY = -dist * cos(radPitch) * cos(radYaw)
+                    val offsetZ = dist * sin(radPitch)
+                    
+                    camPosLocal = lookAtTargetLocal + Point3D(offsetX, offsetY, offsetZ)
+                    
+                    sideDirLocal = Point3D(cos(radYaw), sin(radYaw), 0f)
+                    upDirLocal = Point3D(-sin(radPitch) * sin(radYaw), sin(radPitch) * cos(radYaw), cos(radPitch))
+                    viewDirLocal = Point3D(-cos(radPitch) * sin(radYaw), cos(radPitch) * cos(radYaw), -sin(radPitch))
                 }
                 
-                // Align the transported frame with our smoothed sliding tangent T
-                val dotVal = transportU.x * T.x + transportU.y * T.y + transportU.z * T.z
-                val uProj = transportU - T * dotVal
-                val uVec = if (uProj.length() > 0.001f) uProj.normalized() else transportU
-                val wVec = T.cross(uVec).normalized()
-                
-                // Slow continuous orbital orbit sways around tangent axis with smooth semi-periodic randomization sways
-                val orbitDrift = sin(animTime * 0.000083f).toFloat() * 1.2f + cos(animTime * 0.000031f).toFloat() * 0.7f + sin(animTime * 0.00017f).toFloat() * 0.3f
-                val swayAngle = (animTime * 0.00005f * coasterOrbitSpeed) * 2f * PI.toFloat() + 
-                                  sin(animTime * 0.0002f * coasterOrbitSpeed).toFloat() * 0.15f + orbitDrift
-                
-                val angleRad = Math.toRadians(coasterDeviationAngle.toDouble()).toFloat() // customizable deviation angle
-                val cosAng = cos(angleRad)
-                val sinAng = sin(angleRad)
-                
-                // Position camera in a beautiful offset cone behind the pen tip
-                val offsetDir = T * (-cosAng) + (uVec * cos(swayAngle) + wVec * sin(swayAngle)) * sinAng
-                camPos = lookAtTarget + offsetDir * dist
-                
-                viewDir = (lookAtTarget - camPos).normalized()
-                sideDir = (uVec * (-sin(swayAngle)) + wVec * cos(swayAngle)).normalized()
-                upDir = sideDir.cross(viewDir).normalized()
-            } else {
-                // Sphere-relative user controlled camera yaw & pitch with smooth semi-periodic sways
-                val orbitDriftYaw = sin(animTime * 0.000073f).toFloat() * 18f + cos(animTime * 0.000029f).toFloat() * 10f + sin(animTime * 0.00013f).toFloat() * 4f
-                val orbitDriftPitch = cos(animTime * 0.000067f).toFloat() * 12f + sin(animTime * 0.000023f).toFloat() * 7f + cos(animTime * 0.00011f).toFloat() * 3f
-                
-                val radYaw = Math.toRadians((yaw + orbitDriftYaw).toDouble()).toFloat()
-                val radPitch = Math.toRadians((pitch + orbitDriftPitch).toDouble()).toFloat()
-                
-                val offsetX = dist * cos(radPitch) * sin(radYaw)
-                val offsetY = -dist * cos(radPitch) * cos(radYaw)
-                val offsetZ = dist * sin(radPitch)
-                
-                camPos = lookAtTarget + Point3D(offsetX, offsetY, offsetZ)
-                
-                sideDir = Point3D(cos(radYaw), sin(radYaw), 0f)
-                upDir = Point3D(-sin(radPitch) * sin(radYaw), sin(radPitch) * cos(radYaw), cos(radPitch))
-                viewDir = Point3D(-cos(radPitch) * sin(radYaw), cos(radPitch) * cos(radYaw), -sin(radPitch))
+                CameraFrame(camPosLocal, sideDirLocal, upDirLocal, viewDirLocal)
             }
+            
+            val camPos = frame.camPos
+            val sideDir = frame.sideDir
+            val upDir = frame.upDir
+            val viewDir = frame.viewDir
             
             activePoints.mapIndexed { idx, pt ->
                 val rel = pt - camPos

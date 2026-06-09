@@ -251,11 +251,78 @@ data class HarmonographSettings(
     // Additional options
     val decayEnabled: BooleanParameter = BooleanParameter(true),
     val rationalFrequenciesEnabled: Boolean = false,
-    val lineThickness: FloatParameter = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f),
+    val lineThickness: FloatParameter = FloatParameter(3.5f, rangeMin = 0.5f, rangeMax = 12f),
     val coasterDirectionFacing: Boolean = true,
     val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
     val coasterOrbitSpeed: FloatParameter = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f)
 ) {
+    fun lockAllLockable(): HarmonographSettings {
+        return copy(
+            ampX = ampX.copy(locked = true),
+            ampY = ampY.copy(locked = true),
+            ampZ = ampZ.copy(locked = true),
+            
+            freqX = freqX.copy(locked = true),
+            freqY = freqY.copy(locked = true),
+            freqZ = freqZ.copy(locked = true),
+            
+            decayX = decayX.copy(locked = true),
+            decayY = decayY.copy(locked = true),
+            decayZ = decayZ.copy(locked = true),
+            
+            phaseX = phaseX.copy(locked = true),
+            phaseY = phaseY.copy(locked = true),
+            phaseZ = phaseZ.copy(locked = true),
+            
+            phaseSubX = phaseSubX.copy(locked = true),
+            phaseSubY = phaseSubY.copy(locked = true),
+            phaseSubZ = phaseSubZ.copy(locked = true),
+            
+            ampSubX = ampSubX.copy(locked = true),
+            ampSubY = ampSubY.copy(locked = true),
+            ampSubZ = ampSubZ.copy(locked = true),
+            
+            subXFreqFactor = subXFreqFactor.copy(locked = true),
+            subXFreqIsMultiply = subXFreqIsMultiply.copy(locked = true),
+            subYFreqFactor = subYFreqFactor.copy(locked = true),
+            subYFreqIsMultiply = subYFreqIsMultiply.copy(locked = true),
+            subZFreqFactor = subZFreqFactor.copy(locked = true),
+            subZFreqIsMultiply = subZFreqIsMultiply.copy(locked = true),
+            
+            saturation = saturation.copy(locked = true),
+            solidColorHue = solidColorHue.copy(locked = true),
+            gradientStartHue = gradientStartHue.copy(locked = true),
+            gradientEndHue = gradientEndHue.copy(locked = true),
+            
+            hueShiftSpeed = hueShiftSpeed.copy(locked = true),
+            hueShiftRange = hueShiftRange.copy(locked = true),
+            
+            rainbowHue = rainbowHue.copy(locked = true),
+            rainbowColorRange = rainbowColorRange.copy(locked = true),
+            spicyHue = spicyHue.copy(locked = true),
+            spicyColorRange = spicyColorRange.copy(locked = true),
+            brightness = brightness.copy(locked = true),
+            brightnessShiftSpeed = brightnessShiftSpeed.copy(locked = true),
+            
+            penCount = penCount.copy(locked = true),
+            penRotationEnabled = penRotationEnabled.copy(locked = true),
+            penRotationMultiplier = penRotationMultiplier.copy(locked = true),
+            penRotationIsMultiply = penRotationIsMultiply.copy(locked = true),
+            drawSpeedMinutes = drawSpeedMinutes.copy(locked = true),
+            
+            penOffset = penOffset.copy(locked = true),
+            periodicShapeSize = periodicShapeSize.copy(locked = true),
+            periodicProgressiveDelay = periodicProgressiveDelay.copy(locked = true),
+            periodicShapeFreqFactor = periodicShapeFreqFactor.copy(locked = true),
+            lineThickness = lineThickness.copy(locked = true),
+            cameraDistance = cameraDistance.copy(locked = true),
+            coasterDeviationAngle = coasterDeviationAngle.copy(locked = true),
+            coasterOrbitSpeed = coasterOrbitSpeed.copy(locked = true),
+            decayEnabled = decayEnabled.copy(locked = true),
+            gyroSensitivity = gyroSensitivity.copy(locked = true)
+        )
+    }
+
     fun roundToRational(v: Float): Float {
         val validRationals = listOf(
             1f/12f, 1f/11f, 1f/10f, 1f/9f, 1f/8f, 1f/7f, 1f/6f, 1f/5f, 1f/4f, 1f/3f, 1f/2f,
