@@ -151,7 +151,7 @@ object HarmonographMath {
         }
         
         // Dynamically compute adaptive dt: for higher frequencies, sample with a much finer steps to preserve smooth curves.
-        val dt = minOf(0.015f, 0.45f / maxActiveFreq)
+        val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
  
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         
@@ -341,7 +341,7 @@ object HarmonographMath {
         }
         
         // Dynamically compute adaptive dt to match the path point sampling perfectly
-        val dt = minOf(0.015f, 0.45f / maxActiveFreq)
+        val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
 
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         val shapesList = mutableListOf<CustomShapeData>()

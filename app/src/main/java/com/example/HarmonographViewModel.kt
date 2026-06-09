@@ -96,6 +96,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         drawingJob?.cancel()
         drawingJob = viewModelScope.launch(Dispatchers.Default) {
             var completionTimeMs = 0L
+            var lastSaveTime = 0L
             while (true) {
                 delay(16) // ~60fps ticker loop
                 
@@ -141,13 +142,37 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 } else {
                     completionTimeMs = 0L
                 }
+
+                val now = System.currentTimeMillis()
+                if (now - lastSaveTime > 200L) {
+                    lastSaveTime = now
+                    saveProgressAndStateToPrefs(progress, isPlay)
+                }
             }
+        }
+    }
+
+    private fun saveProgressAndStateToPrefs(progress: Float, isDrawing: Boolean) {
+        try {
+            val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+            if (prefs.getBoolean("app_active", false)) {
+                prefs.edit()
+                    .putFloat("draw_progress", progress)
+                    .putBoolean("is_drawing", isDrawing)
+                    .apply()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
     fun updateSettings(newSettings: HarmonographSettings) {
         _uiState.value = newSettings
         saveSettingsToPrefs(newSettings)
+    }
+
+    fun setDrawingState(isD: Boolean) {
+        _isDrawing.value = isD
     }
 
     fun togglePlayback() {
@@ -167,6 +192,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         var updated: HarmonographSettings? = null
         gyroYawOffset.value = 0f
         gyroPitchOffset.value = 0f
+        _isDrawing.value = true
         _uiState.update { current ->
             val u = current.randomizeAll(random)
             updated = u
@@ -194,6 +220,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     fun restartDrawing() {
         gyroYawOffset.value = 0f
         gyroPitchOffset.value = 0f
+        _isDrawing.value = true
         _currentDrawProgress.value = 0f
     }
 

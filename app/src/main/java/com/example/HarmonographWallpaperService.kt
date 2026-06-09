@@ -93,8 +93,8 @@ class HarmonographWallpaperService : WallpaperService() {
             if (event == null || event.sensor.type != android.hardware.Sensor.TYPE_GYROSCOPE) return
             if (settings.gyroEnabled) {
                 val sensitivity = settings.gyroSensitivity.current
-                val pyDelta = Math.toDegrees(event.values[0].toDouble()).toFloat() * 0.016f * sensitivity * 10f
-                val ywDelta = Math.toDegrees(event.values[1].toDouble()).toFloat() * 0.016f * sensitivity * 10f
+                val pyDelta = Math.toDegrees(event.values[0].toDouble()).toFloat() * 0.016f * sensitivity * 2.5f
+                val ywDelta = Math.toDegrees(event.values[1].toDouble()).toFloat() * 0.016f * sensitivity * 2.5f
                 gyroYawOffset -= ywDelta
                 gyroPitchOffset -= pyDelta
             }
@@ -128,32 +128,49 @@ class HarmonographWallpaperService : WallpaperService() {
             style = Paint.Style.FILL
         }
 
+        private var lastSaveTime = 0L
         private val runDrawingRunnable = object : Runnable {
             override fun run() {
                 drawFrame()
                 if (isVisible) {
-                    val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
-                    if (settings.drawSpeedInstant) {
-                        drawProgress = maxSteps
+                    val appActive = sharedPrefs?.getBoolean("app_active", false) ?: false
+                    val isPlay = if (appActive) {
+                        sharedPrefs?.getBoolean("is_drawing", true) ?: true
                     } else {
-                        val dt = 0.016f // step time
-                        val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
-                        drawProgress += stepsPerSec * dt
-                        if (drawProgress >= maxSteps) {
-                            if (settings.postCompletionAutoReset) {
-                                // Wait resets based on factor (e.g. 25% draw time)
-                                val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
-                                drawProgress = 0f
-                                randomizeUnlockedSettings()
-                                handler.postDelayed(this, postResetDelay)
-                                return
-                            } else if (settings.drawLengthLooping) {
-                                drawProgress = 0f
-                            } else {
-                                drawProgress = maxSteps
+                        true
+                    }
+
+                    if (isPlay) {
+                        val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
+                        if (settings.drawSpeedInstant) {
+                            drawProgress = maxSteps
+                        } else {
+                            val dt = 0.016f // step time
+                            val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
+                            drawProgress += stepsPerSec * dt
+                            if (drawProgress >= maxSteps) {
+                                if (settings.postCompletionAutoReset) {
+                                    val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                    drawProgress = 0f
+                                    randomizeUnlockedSettings()
+                                    handler.postDelayed(this, postResetDelay)
+                                    saveWallpaperProgressToPrefs()
+                                    return
+                                } else if (settings.drawLengthLooping) {
+                                    drawProgress = 0f
+                                } else {
+                                    drawProgress = maxSteps
+                                }
                             }
                         }
                     }
+
+                    val now = System.currentTimeMillis()
+                    if (!appActive && now - lastSaveTime > 200L) {
+                        lastSaveTime = now
+                        saveWallpaperProgressToPrefs()
+                    }
+
                     handler.postDelayed(this, 16) // ~60fps Limit
                 }
             }
@@ -193,6 +210,25 @@ class HarmonographWallpaperService : WallpaperService() {
         override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
             if (key == "active_settings") {
                 loadActiveSettings()
+            } else if (key == "draw_progress" || key == "is_drawing") {
+                loadProgressAndState()
+            }
+        }
+
+        private fun loadProgressAndState() {
+            val appActive = sharedPrefs?.getBoolean("app_active", false) ?: false
+            if (appActive) {
+                drawProgress = sharedPrefs?.getFloat("draw_progress", drawProgress) ?: drawProgress
+            }
+        }
+
+        private fun saveWallpaperProgressToPrefs() {
+            try {
+                sharedPrefs?.edit()
+                    ?.putFloat("draw_progress", drawProgress)
+                    ?.apply()
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
         }
 
@@ -616,32 +652,32 @@ class HarmonographWallpaperService : WallpaperService() {
             val minHue = settings.hueShiftRange.actualSelectedMin
             val maxHue = settings.hueShiftRange.actualSelectedMax
             
-            val bMin = settings.brightness.actualSelectedMin
-            val bMax = settings.brightness.actualSelectedMax
-            val segmentBrightness = if (settings.liveBrightnessShiftEnabled.current) {
-                val sweepMin = if (settings.brightness.rangeLocked) bMin else 0.4f
-                val sweepMax = if (settings.brightness.rangeLocked) bMax else 1.0f
-                val speed = settings.brightnessShiftSpeed.current
+            val csMin = settings.chromaticShift.actualSelectedMin
+            val csMax = settings.chromaticShift.actualSelectedMax
+            val segmentChromaticShift = if (settings.liveChromaticShiftEnabled.current) {
+                val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
+                val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
+                val speed = settings.chromaticShiftSpeed.current
                 val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
-                val liveB = sweepMin + cycleRatio * (sweepMax - sweepMin)
-                liveB.coerceIn(0.1f, 1.0f)
-            } else if (settings.brightness.rangeLocked && bMax > bMin) {
-                val bRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
-                bMin + bRand.nextFloat() * (bMax - bMin)
+                val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
+                liveCS.coerceIn(0f, 180f)
+            } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
+                val csRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
+                csMin + csRand.nextFloat() * (csMax - csMin)
             } else {
-                settings.brightness.current
+                settings.chromaticShift.current
             }
             
             return when (settings.styleMode) {
                 "solid" -> {
                     // Solid Color with slight opacity
-                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue, segmentBrightness)
+                    adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
                 }
                 "length" -> {
                     // Length Gradient along path
                     val ratio = idx.toFloat() / total.coerceAtLeast(1)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentBrightness)
+                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
                 }
                 "center" -> {
                     // True 3D density proximity from origin
@@ -652,7 +688,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     ).coerceAtLeast(10f)
                     val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
-                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentBrightness)
+                    adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
                 }
                 "spicy" -> {
                     val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
@@ -662,19 +698,18 @@ class HarmonographWallpaperService : WallpaperService() {
                     val hRange = settings.spicyColorRange.current
                     
                     val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
-                    val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
-                    val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
-                    val alpha = (255 * (0.1f + 0.9f * segmentBrightness)).toInt().coerceIn(0, 255)
-                    Color.HSVToColor(alpha, floatArrayOf(finalHue, adjustedSat, segmentBrightness))
+                    val finalHueVal = (rHue1 + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 500f)) % 360f
+                    val finalHue = mapHueIntoRange(finalHueVal, minHue, maxHue)
+                    val alpha = (255 * 0.85f).toInt().coerceIn(0, 255)
+                    Color.HSVToColor(alpha, floatArrayOf(finalHue, sat, 0.95f))
                 }
                 else -> {
                     // Rainbow Gradient Mode + optional Live hue rotation
                     val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
-                    val shiftedHue = (baseHue + hueOffset) % 360f
+                    val shiftedHue = (baseHue + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 500f)) % 360f
                     val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-                    val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
-                    val alpha = (255 * (0.1f + 0.9f * segmentBrightness)).toInt().coerceIn(0, 255)
-                    Color.HSVToColor(alpha, floatArrayOf(finalHue, adjustedSat, segmentBrightness))
+                    val alpha = (255 * 0.85f).toInt().coerceIn(0, 255)
+                    Color.HSVToColor(alpha, floatArrayOf(finalHue, sat, 0.95f))
                 }
             }
         }
@@ -813,20 +848,15 @@ class HarmonographWallpaperService : WallpaperService() {
             return Color.argb(a, r, g, b)
         }
 
-        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long, minHue: Float, maxHue: Float, brightnessVal: Float = 0.95f): Int {
+        private fun adjustSaturationAndHue(color: Int, sat: Float, hueOffset: Long, minHue: Float, maxHue: Float, chromaticShiftVal: Float, pt: ProjectedPoint): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(color, hsv)
-            hsv[1] = sat * (0.3f + 0.7f * (brightnessVal * brightnessVal))
+            hsv[1] = sat
             val baseHue = hsv[0]
-            val shiftedHue = if (hueOffset != 0L) {
-                (baseHue + hueOffset) % 360f
-            } else {
-                baseHue
-            }
+            val shiftedHue = (baseHue + Math.abs(hueOffset) + chromaticShiftVal * (pt.depth / 500f)) % 360f
             hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
-            hsv[2] = hsv[2] * brightnessVal
-            // Preserve the original alpha channel scaled proportionately for tonal darkness
-            val alpha = (Color.alpha(color) * (0.1f + 0.9f * brightnessVal)).toInt().coerceIn(0, 255)
+            hsv[2] = 0.95f
+            val alpha = Color.alpha(color)
             return Color.HSVToColor(alpha, hsv)
         }
     }

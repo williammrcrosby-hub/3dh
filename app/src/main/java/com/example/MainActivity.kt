@@ -48,6 +48,16 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
+        val prefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("app_active", true).apply()
+        
+        val proj = prefs.getFloat("draw_progress", 0f)
+        val isD = prefs.getBoolean("is_drawing", true)
+        viewModelInstance?.let { vm ->
+            vm.setDrawingState(isD)
+            vm.jumpToProgress(proj)
+        }
+
         gyroscope?.let {
             sensorManager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME)
         }
@@ -55,6 +65,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onPause() {
         super.onPause()
+        val prefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("app_active", false).apply()
         sensorManager.unregisterListener(this)
     }
 
@@ -64,8 +76,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
         val settings = vm.uiState.value
         if (settings.gyroEnabled) {
             val sensitivity = settings.gyroSensitivity.current
-            val pyDelta = Math.toDegrees(event.values[0].toDouble()).toFloat() * 0.016f * sensitivity * 10f
-            val ywDelta = Math.toDegrees(event.values[1].toDouble()).toFloat() * 0.016f * sensitivity * 10f
+            val pyDelta = Math.toDegrees(event.values[0].toDouble()).toFloat() * 0.016f * sensitivity * 2.5f
+            val ywDelta = Math.toDegrees(event.values[1].toDouble()).toFloat() * 0.016f * sensitivity * 2.5f
             vm.addGyroOffsets(-ywDelta, -pyDelta)
         }
     }

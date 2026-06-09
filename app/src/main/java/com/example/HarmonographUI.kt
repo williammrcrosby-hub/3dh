@@ -1740,68 +1740,68 @@ fun StyleAndPenConfigTab(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Line Brightness Config", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Chromatic Shift Config", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 
                 ParameterSliderRow(
-                    label = "Render Brightness",
-                    value = settings.brightness.current,
-                    minVal = settings.brightness.rangeMin,
-                    maxVal = settings.brightness.rangeMax,
-                    stepValue = 0.05f,
-                    formatString = "%.2f",
-                    isLocked = settings.brightness.locked,
-                    onLockToggle = { onUpdate(settings.copy(brightness = settings.brightness.copy(locked = it))) },
-                    isRangeLocked = settings.brightness.rangeLocked,
-                    onRangeLockToggle = { onUpdate(settings.copy(brightness = settings.brightness.withRangeLocked(it))) },
-                    selectedMin = settings.brightness.actualSelectedMin,
-                    selectedMax = settings.brightness.actualSelectedMax,
-                    onRangeChange = { min, max -> onUpdate(settings.copy(brightness = settings.brightness.withRanges(min, max))) },
-                    onValueChange = { onUpdate(settings.copy(brightness = settings.brightness.withValue(it))) },
-                    onRandomize = { onUpdate(settings.copy(brightness = settings.brightness.randomize(java.util.Random()))) }
+                    label = "Chromatic Shift",
+                    value = settings.chromaticShift.current,
+                    minVal = settings.chromaticShift.rangeMin,
+                    maxVal = settings.chromaticShift.rangeMax,
+                    stepValue = 1f,
+                    formatString = "%.0f°",
+                    isLocked = settings.chromaticShift.locked,
+                    onLockToggle = { onUpdate(settings.copy(chromaticShift = settings.chromaticShift.copy(locked = it))) },
+                    isRangeLocked = settings.chromaticShift.rangeLocked,
+                    onRangeLockToggle = { onUpdate(settings.copy(chromaticShift = settings.chromaticShift.withRangeLocked(it))) },
+                    selectedMin = settings.chromaticShift.actualSelectedMin,
+                    selectedMax = settings.chromaticShift.actualSelectedMax,
+                    onRangeChange = { min, max -> onUpdate(settings.copy(chromaticShift = settings.chromaticShift.withRanges(min, max))) },
+                    onValueChange = { onUpdate(settings.copy(chromaticShift = settings.chromaticShift.withValue(it))) },
+                    onRandomize = { onUpdate(settings.copy(chromaticShift = settings.chromaticShift.randomize(java.util.Random()))) }
                 )
                 
                 Spacer(modifier = Modifier.height(4.dp))
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Live Brightness Shift", color = Color.White, fontSize = 12.sp)
+                    Text("Live Chromatic Shift", color = Color.White, fontSize = 12.sp)
                     Spacer(modifier = Modifier.weight(1f))
                     
                     IconButton(
-                        onClick = { onUpdate(settings.copy(liveBrightnessShiftEnabled = settings.liveBrightnessShiftEnabled.copy(locked = !settings.liveBrightnessShiftEnabled.locked))) }
+                        onClick = { onUpdate(settings.copy(liveChromaticShiftEnabled = settings.liveChromaticShiftEnabled.copy(locked = !settings.liveChromaticShiftEnabled.locked))) }
                     ) {
                         Icon(
-                            imageVector = if (settings.liveBrightnessShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
-                            contentDescription = "Lock brightness shift",
-                            tint = if (settings.liveBrightnessShiftEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
+                            imageVector = if (settings.liveChromaticShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = "Lock chromatic shift",
+                            tint = if (settings.liveChromaticShiftEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     
                     Switch(
-                        checked = settings.liveBrightnessShiftEnabled.current,
-                        onCheckedChange = { onUpdate(settings.copy(liveBrightnessShiftEnabled = settings.liveBrightnessShiftEnabled.withValue(it))) },
+                        checked = settings.liveChromaticShiftEnabled.current,
+                        onCheckedChange = { onUpdate(settings.copy(liveChromaticShiftEnabled = settings.liveChromaticShiftEnabled.withValue(it))) },
                         modifier = Modifier.scale(0.8f)
                     )
                 }
                 
-                if (settings.liveBrightnessShiftEnabled.current) {
+                if (settings.liveChromaticShiftEnabled.current) {
                     ParameterSliderRow(
-                        label = "Brightness Shift Speed",
-                        value = settings.brightnessShiftSpeed.current,
-                        minVal = settings.brightnessShiftSpeed.rangeMin,
-                        maxVal = settings.brightnessShiftSpeed.rangeMax,
+                        label = "Chromatic Shift Speed",
+                        value = settings.chromaticShiftSpeed.current,
+                        minVal = settings.chromaticShiftSpeed.rangeMin,
+                        maxVal = settings.chromaticShiftSpeed.rangeMax,
                         stepValue = 0.1f,
                         formatString = "%.1fx",
-                        isLocked = settings.brightnessShiftSpeed.locked,
-                        onLockToggle = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.copy(locked = it))) },
-                        isRangeLocked = settings.brightnessShiftSpeed.rangeLocked,
-                        onRangeLockToggle = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.withRangeLocked(it))) },
-                        selectedMin = settings.brightnessShiftSpeed.actualSelectedMin,
-                        selectedMax = settings.brightnessShiftSpeed.actualSelectedMax,
-                        onRangeChange = { min, max -> onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.withRanges(min, max))) },
-                        onValueChange = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.withValue(it))) },
-                        onRandomize = { onUpdate(settings.copy(brightnessShiftSpeed = settings.brightnessShiftSpeed.randomize(java.util.Random()))) }
+                        isLocked = settings.chromaticShiftSpeed.locked,
+                        onLockToggle = { onUpdate(settings.copy(chromaticShiftSpeed = settings.chromaticShiftSpeed.copy(locked = it))) },
+                        isRangeLocked = settings.chromaticShiftSpeed.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(chromaticShiftSpeed = settings.chromaticShiftSpeed.withRangeLocked(it))) },
+                        selectedMin = settings.chromaticShiftSpeed.actualSelectedMin,
+                        selectedMax = settings.chromaticShiftSpeed.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(chromaticShiftSpeed = settings.chromaticShiftSpeed.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(chromaticShiftSpeed = settings.chromaticShiftSpeed.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(chromaticShiftSpeed = settings.chromaticShiftSpeed.randomize(java.util.Random()))) }
                     )
                 }
             }
@@ -2690,30 +2690,30 @@ private fun computeComposeColor(
     val minHue = settings.hueShiftRange.actualSelectedMin
     val maxHue = settings.hueShiftRange.actualSelectedMax
     
-    val bMin = settings.brightness.actualSelectedMin
-    val bMax = settings.brightness.actualSelectedMax
-    val segmentBrightness = if (settings.liveBrightnessShiftEnabled.current) {
-        val sweepMin = if (settings.brightness.rangeLocked) bMin else 0.4f
-        val sweepMax = if (settings.brightness.rangeLocked) bMax else 1.0f
-        val speed = settings.brightnessShiftSpeed.current
+    val csMin = settings.chromaticShift.actualSelectedMin
+    val csMax = settings.chromaticShift.actualSelectedMax
+    val segmentChromaticShift = if (settings.liveChromaticShiftEnabled.current) {
+        val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
+        val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
+        val speed = settings.chromaticShiftSpeed.current
         val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
-        val liveB = sweepMin + cycleRatio * (sweepMax - sweepMin)
-        liveB.coerceIn(0.1f, 1.0f)
-    } else if (settings.brightness.rangeLocked && bMax > bMin) {
-        val bRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
-        bMin + bRand.nextFloat() * (bMax - bMin)
+        val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
+        liveCS.coerceIn(0f, 180f)
+    } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
+        val csRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
+        csMin + csRand.nextFloat() * (csMax - csMin)
     } else {
-        settings.brightness.current
+        settings.chromaticShift.current
     }
 
     return when (settings.styleMode) {
         "solid" -> {
-            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentBrightness)
+            adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
         }
         "length" -> {
             val ratio = idx.toFloat() / total.coerceAtLeast(1)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentBrightness)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
         }
         "center" -> {
             val maxDist3D = sqrt(
@@ -2723,7 +2723,7 @@ private fun computeComposeColor(
             ).coerceAtLeast(10f)
             val ratio = (pt.dist3D / maxDist3D).coerceIn(0f, 1f)
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
-            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentBrightness)
+            adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt)
         }
         "spicy" -> {
             val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
@@ -2733,22 +2733,20 @@ private fun computeComposeColor(
             val hRange = settings.spicyColorRange.current
             
             val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
-            val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
-            val alphaVal = 0.1f + 0.9f * segmentBrightness
-            Color.hsv(finalHue, sat, segmentBrightness, alphaVal)
+            val finalHueVal = (rHue1 + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 500f)) % 360f
+            val finalHue = mapHueIntoRange(finalHueVal, minHue, maxHue)
+            Color.hsv(finalHue, sat, 0.95f, 0.85f)
         }
         else -> {
             val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
-            val shiftedHue = (baseHue + Math.abs(hueOffset)) % 360f
+            val shiftedHue = (baseHue + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 500f)) % 360f
             val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
-            val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
-            val alphaVal = 0.1f + 0.9f * segmentBrightness
-            Color.hsv(finalHue, adjustedSat, segmentBrightness, alphaVal)
+            Color.hsv(finalHue, sat, 0.95f, 0.85f)
         }
     }
 }
 
-private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f, brightnessVal: Float = 0.95f): Color {
+private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f, chromaticShiftVal: Float = 0f, pt: ProjectedPoint): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(
         (color.alpha * 255).roundToInt(),
@@ -2756,18 +2754,13 @@ private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue
         (color.green * 255).roundToInt(),
         (color.blue * 255).roundToInt()
     ), hsv)
-    hsv[1] = sat * (0.3f + 0.7f * (brightnessVal * brightnessVal))
+    hsv[1] = sat
     val baseHue = hsv[0]
-    val shiftedHue = if (hueOffset != 0L) {
-        (baseHue + Math.abs(hueOffset)) % 360f
-    } else {
-        baseHue
-    }
+    val shiftedHue = (baseHue + Math.abs(hueOffset) + chromaticShiftVal * (pt.depth / 500f)) % 360f
     hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
-    hsv[2] = hsv[2] * brightnessVal
-    val alphaInt = (color.alpha * 255 * (0.1f + 0.9f * brightnessVal)).roundToInt().coerceIn(0, 255)
-    val rawInt = android.graphics.Color.HSVToColor(alphaInt, hsv)
-    return Color(rawInt)
+    hsv[2] = 0.95f
+    val alphaInt = (color.alpha * 255).roundToInt().coerceIn(0, 255)
+    return Color(android.graphics.Color.HSVToColor(alphaInt, hsv))
 }
 
 private fun interpolateComposeColor(c1: Color, c2: Color, ratio: Float): Color {
