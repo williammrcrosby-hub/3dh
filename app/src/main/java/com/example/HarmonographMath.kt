@@ -28,7 +28,8 @@ data class ProjectedPoint(
     val depth: Float,
     val originalIndex: Int,
     val isTip: Boolean = false,
-    val dist3D: Float = 0f
+    val dist3D: Float = 0f,
+    val isBehindCamera: Boolean = false
 )
 
 data class CustomShapeData(
@@ -154,6 +155,72 @@ object HarmonographMath {
  
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
         
+        val px = Math.toRadians(settings.phaseX.current.toDouble()).toFloat()
+        val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
+        val pz = Math.toRadians(settings.phaseZ.current.toDouble()).toFloat()
+        
+        val fX = settings.activeFreqX
+        val fY = settings.activeFreqY
+        val fZ = settings.activeFreqZ
+        
+        val decEnabled = settings.decayEnabled.current
+        val decX = settings.decayX.current
+        val decY = settings.decayY.current
+        val decZ = settings.decayZ.current
+        
+        val aX = settings.ampX.current
+        val aY = settings.ampY.current
+        val aZ = settings.ampZ.current
+        
+        // sub X
+        val subXEnabled = settings.ampSubX.enabled && settings.ampSubX.current > 0f
+        val subXAmp = settings.ampSubX.current
+        val subXFreq = if (subXEnabled) {
+            val factor = settings.subXFreqFactor.current.toFloat()
+            if (settings.subXFreqIsMultiply.current) fX * factor else fX / factor
+        } else 0f
+        val subXP = if (subXEnabled) Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat() else 0f
+        
+        // sub Y
+        val subYEnabled = settings.ampSubY.enabled && settings.ampSubY.current > 0f
+        val subYAmp = settings.ampSubY.current
+        val subYFreq = if (subYEnabled) {
+            val factor = settings.subYFreqFactor.current.toFloat()
+            if (settings.subYFreqIsMultiply.current) fY * factor else fY / factor
+        } else 0f
+        val subYP = if (subYEnabled) Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat() else 0f
+        
+        // sub Z
+        val subZEnabled = settings.ampSubZ.enabled && settings.ampSubZ.current > 0f
+        val subZAmp = settings.ampSubZ.current
+        val subZFreq = if (subZEnabled) {
+            val factor = settings.subZFreqFactor.current.toFloat()
+            if (settings.subZFreqIsMultiply.current) fZ * factor else fZ / factor
+        } else 0f
+        val subZP = if (subZEnabled) Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat() else 0f
+
+        val fastCalculatePointAtStep = { stepIdx: Int ->
+            val tLocal = stepIdx * dt
+            val dFX = if (decEnabled) exp(-decX * tLocal) else 1f
+            val dFY = if (decEnabled) exp(-decY * tLocal) else 1f
+            val dFZ = if (decEnabled) exp(-decZ * tLocal) else 1f
+            
+            var xr = aX * dFX * sin(fX * tLocal + px)
+            var yr = aY * dFY * sin(fY * tLocal + py)
+            val zr = if (aZ > 0f) aZ * dFZ * sin(fZ * tLocal + pz) else 0f
+            
+            if (subXEnabled) {
+                xr += subXAmp * dFX * sin(subXFreq * tLocal + px + subXP)
+            }
+            if (subYEnabled) {
+                yr += subYAmp * dFY * sin(subYFreq * tLocal + py + subYP)
+            }
+            if (subZEnabled) {
+                xr += subZAmp * dFZ * sin(subZFreq * tLocal + pz + subZP)
+            }
+            Point3D(xr, yr, zr)
+        }
+        
         // Initialize lines for pen counts: 1 to 3
         val paths = List(settings.penCount.current) { mutableListOf<Point3D>() }
         
@@ -163,14 +230,14 @@ object HarmonographMath {
         var prevUVec: Point3D? = null
         
         for (k in 0 until totalSteps) {
-            val basePt = calculatePointAtStep(k, settings, dt)
+            val basePt = fastCalculatePointAtStep(k)
             val t = k * dt
             
             if (settings.penCount.current == 1) {
                 paths[0].add(basePt)
             } else {
                 // We need orthogonal plane to calculate offset vectors
-                val nextPt = calculatePointAtStep(k + 1, settings, dt)
+                val nextPt = fastCalculatePointAtStep(k + 1)
                 val dir = (nextPt - basePt).normalized()
                 
                 // Construct stable orthogonal vectors using parallel transport frame projection
@@ -835,9 +902,10 @@ object HarmonographMath {
                 val ry = rel.x * upDir.x + rel.y * upDir.y + rel.z * upDir.z
                 val rz = rel.x * viewDir.x + rel.y * viewDir.y + rel.z * viewDir.z
                 
+                val isBehind = rz < 2.0f
                 // Perspective division
-                val depth = rz.coerceAtLeast(0.1f)
-                val scale = dFocal / depth
+                val depthForProj = rz.coerceAtLeast(0.1f)
+                val scale = dFocal / depthForProj
                 
                 val u = screenWidth / 2f + rx * scale * 0.82f
                 val v = screenHeight / 2f - ry * scale * 0.82f
@@ -845,10 +913,11 @@ object HarmonographMath {
                 ProjectedPoint(
                     x = u,
                     y = v,
-                    depth = depth,
+                    depth = rz,
                     originalIndex = idx,
                     isTip = (idx == maxIndex && referencePoints == null),
-                    dist3D = pt.length()
+                    dist3D = pt.length(),
+                    isBehindCamera = isBehind
                 )
             }
         }

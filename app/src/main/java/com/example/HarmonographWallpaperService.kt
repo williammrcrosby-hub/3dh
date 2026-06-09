@@ -418,6 +418,25 @@ class HarmonographWallpaperService : WallpaperService() {
                     drawProgress
                 }
 
+                // Precalculate smooth center path as reference tracker for camera perspective
+                val centerPath = if (rawPaths.size > 1 && rawPaths.firstOrNull()?.isNotEmpty() == true) {
+                    val pSize = rawPaths[0].size
+                    List(pSize) { i ->
+                        var sx = 0f
+                        var sy = 0f
+                        var sz = 0f
+                        for (pIdx in rawPaths.indices) {
+                            val pt = rawPaths[pIdx][i]
+                            sx += pt.x
+                            sy += pt.y
+                            sz += pt.z
+                        }
+                        com.example.Point3D(sx / rawPaths.size, sy / rawPaths.size, sz / rawPaths.size)
+                    }
+                } else {
+                    rawPaths.firstOrNull() ?: emptyList()
+                }
+
                 // Project and gather line segments across all paths for unified depth sorting
                 val segmentsList = mutableListOf<WallpaperSegment>()
                 val tipsList = mutableListOf<Pair<ProjectedPoint, Int>>()
@@ -436,7 +455,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
-                        referencePoints = rawPaths.firstOrNull(),
+                        referencePoints = centerPath.ifEmpty { null },
                         cameraTargetIndex = cameraTargetIndex,
                         cameraDistance = settings.cameraDistance.current,
                         dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
@@ -453,6 +472,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     for (i in 0 until projPoints.size - 1) {
                         val p1 = projPoints[i]
                         val p2 = projPoints[i + 1]
+                        if (p1.isBehindCamera || p2.isBehindCamera) continue
                         
                         // Compute color styled dynamically
                         val segmentColor1 = computeDynamicColor(i, projPoints.size, p1, width, height, timeHueOffset)
@@ -598,7 +618,7 @@ class HarmonographWallpaperService : WallpaperService() {
             
             val bMin = settings.brightness.actualSelectedMin
             val bMax = settings.brightness.actualSelectedMax
-            val segmentBrightness = if (settings.liveBrightnessShiftEnabled) {
+            val segmentBrightness = if (settings.liveBrightnessShiftEnabled.current) {
                 val sweepMin = if (settings.brightness.rangeLocked) bMin else 0.4f
                 val sweepMax = if (settings.brightness.rangeLocked) bMax else 1.0f
                 val speed = settings.brightnessShiftSpeed.current
@@ -644,7 +664,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
                     val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
                     val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
-                    Color.HSVToColor(floatArrayOf(finalHue, adjustedSat, segmentBrightness))
+                    val alpha = (255 * (0.1f + 0.9f * segmentBrightness)).toInt().coerceIn(0, 255)
+                    Color.HSVToColor(alpha, floatArrayOf(finalHue, adjustedSat, segmentBrightness))
                 }
                 else -> {
                     // Rainbow Gradient Mode + optional Live hue rotation
@@ -652,7 +673,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     val shiftedHue = (baseHue + hueOffset) % 360f
                     val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
                     val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
-                    Color.HSVToColor(floatArrayOf(finalHue, adjustedSat, segmentBrightness))
+                    val alpha = (255 * (0.1f + 0.9f * segmentBrightness)).toInt().coerceIn(0, 255)
+                    Color.HSVToColor(alpha, floatArrayOf(finalHue, adjustedSat, segmentBrightness))
                 }
             }
         }
@@ -803,8 +825,8 @@ class HarmonographWallpaperService : WallpaperService() {
             }
             hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
             hsv[2] = hsv[2] * brightnessVal
-            // Preserve the original alpha channel if any
-            val alpha = Color.alpha(color)
+            // Preserve the original alpha channel scaled proportionately for tonal darkness
+            val alpha = (Color.alpha(color) * (0.1f + 0.9f * brightnessVal)).toInt().coerceIn(0, 255)
             return Color.HSVToColor(alpha, hsv)
         }
     }

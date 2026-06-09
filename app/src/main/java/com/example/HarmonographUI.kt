@@ -218,6 +218,25 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     drawProgress
                 }
 
+                // Precalculate smooth center path as reference tracker for camera perspective
+                val centerPath = if (paths.size > 1 && paths.firstOrNull()?.isNotEmpty() == true) {
+                    val pSize = paths[0].size
+                    List(pSize) { i ->
+                        var sx = 0f
+                        var sy = 0f
+                        var sz = 0f
+                        for (pIdx in paths.indices) {
+                            val pt = paths[pIdx][i]
+                            sx += pt.x
+                            sy += pt.y
+                            sz += pt.z
+                        }
+                        com.example.Point3D(sx / paths.size, sy / paths.size, sz / paths.size)
+                    }
+                } else {
+                    paths.firstOrNull() ?: emptyList()
+                }
+
                 // Project and gather line segments across all paths for unified depth sorting
                 val segmentsList = mutableListOf<ComposeSegment>()
                 val tipsList = mutableListOf<Pair<ProjectedPoint, Color>>()
@@ -234,7 +253,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         screenHeight = height,
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
-                        referencePoints = paths.firstOrNull(),
+                        referencePoints = centerPath.ifEmpty { null },
                         cameraTargetIndex = cameraTargetIndex,
                         cameraDistance = settings.cameraDistance.current,
                         dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
@@ -251,6 +270,10 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     for (i in 0 until projPoints.size - 1) {
                         val p1 = projPoints[i]
                         val p2 = projPoints[i + 1]
+                        
+                        if (p1.isBehindCamera || p2.isBehindCamera) {
+                            continue
+                        }
                         
                         val segmentColor = computeComposeColor(
                             settings = settings,
@@ -1691,6 +1714,32 @@ fun StyleAndPenConfigTab(
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Color Saturation Config", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                
+                ParameterSliderRow(
+                    label = "Base Saturation",
+                    value = settings.saturation.current,
+                    minVal = settings.saturation.rangeMin,
+                    maxVal = settings.saturation.rangeMax,
+                    stepValue = 0.05f,
+                    formatString = "%.2f",
+                    isLocked = settings.saturation.locked,
+                    onLockToggle = { onUpdate(settings.copy(saturation = settings.saturation.copy(locked = it))) },
+                    isRangeLocked = settings.saturation.rangeLocked,
+                    onRangeLockToggle = { onUpdate(settings.copy(saturation = settings.saturation.withRangeLocked(it))) },
+                    selectedMin = settings.saturation.actualSelectedMin,
+                    selectedMax = settings.saturation.actualSelectedMax,
+                    onRangeChange = { min, max -> onUpdate(settings.copy(saturation = settings.saturation.withRanges(min, max))) },
+                    onValueChange = { onUpdate(settings.copy(saturation = settings.saturation.withValue(it))) },
+                    onRandomize = { onUpdate(settings.copy(saturation = settings.saturation.randomize(java.util.Random()))) }
+                )
+            }
+        }
+
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Line Brightness Config", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                 }
                 
@@ -1717,14 +1766,26 @@ fun StyleAndPenConfigTab(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Live Brightness Shift", color = Color.White, fontSize = 12.sp)
                     Spacer(modifier = Modifier.weight(1f))
+                    
+                    IconButton(
+                        onClick = { onUpdate(settings.copy(liveBrightnessShiftEnabled = settings.liveBrightnessShiftEnabled.copy(locked = !settings.liveBrightnessShiftEnabled.locked))) }
+                    ) {
+                        Icon(
+                            imageVector = if (settings.liveBrightnessShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = "Lock brightness shift",
+                            tint = if (settings.liveBrightnessShiftEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    
                     Switch(
-                        checked = settings.liveBrightnessShiftEnabled,
-                        onCheckedChange = { onUpdate(settings.copy(liveBrightnessShiftEnabled = it)) },
+                        checked = settings.liveBrightnessShiftEnabled.current,
+                        onCheckedChange = { onUpdate(settings.copy(liveBrightnessShiftEnabled = settings.liveBrightnessShiftEnabled.withValue(it))) },
                         modifier = Modifier.scale(0.8f)
                     )
                 }
                 
-                if (settings.liveBrightnessShiftEnabled) {
+                if (settings.liveBrightnessShiftEnabled.current) {
                     ParameterSliderRow(
                         label = "Brightness Shift Speed",
                         value = settings.brightnessShiftSpeed.current,
@@ -2329,6 +2390,42 @@ fun CameraAndSetupTab(
         }
 
         item {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)), modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Gyroscopic Camera Control", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = settings.gyroEnabled,
+                            onCheckedChange = { onUpdate(settings.copy(gyroEnabled = it)) },
+                            modifier = Modifier.scale(0.7f).testTag("gyro_enabled_switch")
+                        )
+                    }
+
+                    if (settings.gyroEnabled) {
+                        ParameterSliderRow(
+                            label = "Gyro Sensitivity",
+                            value = settings.gyroSensitivity.current,
+                            minVal = settings.gyroSensitivity.rangeMin,
+                            maxVal = settings.gyroSensitivity.rangeMax,
+                            stepValue = 0.1f,
+                            formatString = "%.1fx",
+                            isLocked = settings.gyroSensitivity.locked,
+                            onLockToggle = { onUpdate(settings.copy(gyroSensitivity = settings.gyroSensitivity.copy(locked = it))) },
+                            isRangeLocked = settings.gyroSensitivity.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(gyroSensitivity = settings.gyroSensitivity.withRangeLocked(it))) },
+                            selectedMin = settings.gyroSensitivity.actualSelectedMin,
+                            selectedMax = settings.gyroSensitivity.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(gyroSensitivity = settings.gyroSensitivity.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(gyroSensitivity = settings.gyroSensitivity.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(gyroSensitivity = settings.gyroSensitivity.randomize(java.util.Random()))) }
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
             Text("DRAW TIMING LIMITS & SPEEDS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
         }
 
@@ -2405,6 +2502,10 @@ fun PresetsTab(
 ) {
     val context = LocalContext.current
     var customPresetName by remember { mutableStateOf("") }
+    
+    var presetToDelete by remember { mutableStateOf<HarmonographPreset?>(null) }
+    var presetToRename by remember { mutableStateOf<HarmonographPreset?>(null) }
+    var renameInputVal by remember { mutableStateOf("") }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
         Text("SAVED DRAWING PRESETS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
@@ -2483,7 +2584,14 @@ fun PresetsTab(
                         }
 
                         if (preset.isUserPreset) {
-                            IconButton(onClick = { viewModel.deletePreset(preset.id) }) {
+                            IconButton(onClick = { 
+                                presetToRename = preset
+                                renameInputVal = preset.name
+                            }) {
+                                Icon(Icons.Default.Edit, "Rename preset", tint = Color(0xFF00E5FF))
+                            }
+                            
+                            IconButton(onClick = { presetToDelete = preset }) {
                                 Icon(Icons.Default.Delete, "Delete preset", tint = Color(0xFFFF4081))
                             }
                         }
@@ -2491,6 +2599,72 @@ fun PresetsTab(
                 }
             }
         }
+    }
+
+    // Delete Confirmation Dialog
+    if (presetToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { presetToDelete = null },
+            title = { Text("Delete Preset?", color = Color.White) },
+            text = { Text("Are you sure you want to permanently delete \"${presetToDelete?.name}\"?", color = Color(0xFF94A3B8)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    presetToDelete?.let {
+                        viewModel.deletePreset(it.id)
+                    }
+                    presetToDelete = null
+                }) {
+                    Text("Delete", color = Color(0xFFFF4081))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { presetToDelete = null }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF0F172A)
+        )
+    }
+
+    // Rename Dialog
+    if (presetToRename != null) {
+        AlertDialog(
+            onDismissRequest = { presetToRename = null },
+            title = { Text("Rename Preset", color = Color.White) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Enter a new title for this preset:", color = Color(0xFF94A3B8), fontSize = 12.sp)
+                    OutlinedTextField(
+                        value = renameInputVal,
+                        onValueChange = { renameInputVal = it },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00E5FF),
+                            unfocusedBorderColor = Color.White,
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val p = presetToRename
+                    if (p != null && renameInputVal.isNotBlank()) {
+                        viewModel.renamePreset(p.id, renameInputVal, p.settingsJson)
+                    }
+                    presetToRename = null
+                }) {
+                    Text("Save", color = Color(0xFF00E5FF))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { presetToRename = null }) {
+                    Text("Cancel", color = Color.White)
+                }
+            },
+            containerColor = Color(0xFF0F172A)
+        )
     }
 }
 
@@ -2518,7 +2692,7 @@ private fun computeComposeColor(
     
     val bMin = settings.brightness.actualSelectedMin
     val bMax = settings.brightness.actualSelectedMax
-    val segmentBrightness = if (settings.liveBrightnessShiftEnabled) {
+    val segmentBrightness = if (settings.liveBrightnessShiftEnabled.current) {
         val sweepMin = if (settings.brightness.rangeLocked) bMin else 0.4f
         val sweepMax = if (settings.brightness.rangeLocked) bMax else 1.0f
         val speed = settings.brightnessShiftSpeed.current
@@ -2560,14 +2734,16 @@ private fun computeComposeColor(
             
             val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
             val finalHue = mapHueIntoRange((rHue1 + Math.abs(hueOffset)) % 360f, minHue, maxHue)
-            Color.hsv(finalHue, sat, segmentBrightness)
+            val alphaVal = 0.1f + 0.9f * segmentBrightness
+            Color.hsv(finalHue, sat, segmentBrightness, alphaVal)
         }
         else -> {
             val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
             val shiftedHue = (baseHue + Math.abs(hueOffset)) % 360f
             val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
             val adjustedSat = sat * (0.3f + 0.7f * (segmentBrightness * segmentBrightness))
-            Color.hsv(finalHue, adjustedSat, segmentBrightness)
+            val alphaVal = 0.1f + 0.9f * segmentBrightness
+            Color.hsv(finalHue, adjustedSat, segmentBrightness, alphaVal)
         }
     }
 }
@@ -2589,7 +2765,7 @@ private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue
     }
     hsv[0] = mapHueIntoRange(shiftedHue, minHue, maxHue)
     hsv[2] = hsv[2] * brightnessVal
-    val alphaInt = (color.alpha * 255).roundToInt()
+    val alphaInt = (color.alpha * 255 * (0.1f + 0.9f * brightnessVal)).roundToInt().coerceIn(0, 255)
     val rawInt = android.graphics.Color.HSVToColor(alphaInt, hsv)
     return Color(rawInt)
 }

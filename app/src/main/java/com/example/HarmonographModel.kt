@@ -203,7 +203,7 @@ data class HarmonographSettings(
     val spicyHue: FloatParameter = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f),
     val spicyColorRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
     val brightness: FloatParameter = FloatParameter(0.95f, rangeMin = 0.1f, rangeMax = 1.0f, locked = false),
-    val liveBrightnessShiftEnabled: Boolean = false,
+    val liveBrightnessShiftEnabled: BooleanParameter = BooleanParameter(false),
     val brightnessShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.0f, rangeMax = 5.0f),
     
     // Pen setups
@@ -302,6 +302,7 @@ data class HarmonographSettings(
             spicyHue = spicyHue.copy(locked = true),
             spicyColorRange = spicyColorRange.copy(locked = true),
             brightness = brightness.copy(locked = true),
+            liveBrightnessShiftEnabled = liveBrightnessShiftEnabled.copy(locked = true),
             brightnessShiftSpeed = brightnessShiftSpeed.copy(locked = true),
             
             penCount = penCount.copy(locked = true),
@@ -439,7 +440,7 @@ data class HarmonographSettings(
             spicyHue = spicyHue.randomize(random),
             spicyColorRange = spicyColorRange.randomize(random),
             brightness = brightness.randomize(random),
-            liveBrightnessShiftEnabled = random.nextBoolean(),
+            liveBrightnessShiftEnabled = liveBrightnessShiftEnabled.randomize(random),
             brightnessShiftSpeed = brightnessShiftSpeed.randomize(random),
             
             penCount = penCount.randomize(random),

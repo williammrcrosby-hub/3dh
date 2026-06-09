@@ -271,6 +271,22 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         }
     }
 
+    /**
+     * Rename user preset
+     */
+    fun renamePreset(id: Int, newName: String, settingsJson: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            dao.insertPreset(
+                HarmonographPreset(
+                    id = id,
+                    name = newName,
+                    isUserPreset = true,
+                    settingsJson = settingsJson
+                )
+            )
+        }
+    }
+
     private suspend fun insertDefaultPresets() {
         val presets = listOf(
             HarmonographPreset(
