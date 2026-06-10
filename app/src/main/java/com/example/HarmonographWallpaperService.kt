@@ -672,13 +672,16 @@ class HarmonographWallpaperService : WallpaperService() {
             val minHue = settings.hueShiftRange.actualSelectedMin
             val maxHue = settings.hueShiftRange.actualSelectedMax
             
+            // Prevent float precision loss of System.currentTimeMillis() by scaling down a modulo value
+            val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
+            
             val csMin = settings.chromaticShift.actualSelectedMin
             val csMax = settings.chromaticShift.actualSelectedMax
             val segmentChromaticShift = if (settings.liveChromaticShiftEnabled.current) {
                 val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
                 val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
                 val speed = settings.chromaticShiftSpeed.current
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
                 val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveCS.coerceIn(0f, 180f)
             } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
@@ -694,7 +697,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
                 val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
                 val speed = settings.liveAlphaShiftSpeed.current
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
                 val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveAlpha.coerceIn(0.01f, 1.0f)
             } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
@@ -762,7 +765,8 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMin = if (settings.monoScaleShift.rangeLocked) msMin else -1.0f
                 val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
                 val speed = settings.monoScaleLiveShiftSpeed.current
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+                val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
                 sweepMin + cycleRatio * (sweepMax - sweepMin)
             } else if (settings.monoScaleShift.rangeLocked) {
                 val msMin = settings.monoScaleShift.actualSelectedMin

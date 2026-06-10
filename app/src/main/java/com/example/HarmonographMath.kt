@@ -244,6 +244,8 @@ object HarmonographMath {
         
         // Stable parallel transport frame tracking to ensure zero jumpy or jagged flips!
         var prevUVec: Point3D? = null
+        var prevBasePt: Point3D? = null
+        var prevDir: Point3D? = null
         
         for (k in 0 until totalSteps) {
             val t = ts[k]
@@ -254,7 +256,25 @@ object HarmonographMath {
             } else {
                 // We need orthogonal plane to calculate offset vectors
                 val nextPt = fastCalculatePointAtT(ts[k + 1])
-                val dir = (nextPt - basePt).normalized()
+                val rawDir = (nextPt - basePt).normalized()
+                
+                val dir = if (prevDir != null && prevBasePt != null) {
+                    val actualPrevDir = (basePt - prevBasePt).normalized()
+                    val projDot = actualPrevDir.x * rawDir.x + actualPrevDir.y * rawDir.y + actualPrevDir.z * rawDir.z
+                    if (projDot < 0f) {
+                        actualPrevDir
+                    } else {
+                        Point3D(
+                            actualPrevDir.x * 0.75f + rawDir.x * 0.25f,
+                            actualPrevDir.y * 0.75f + rawDir.y * 0.25f,
+                            actualPrevDir.z * 0.75f + rawDir.z * 0.25f
+                        ).normalized()
+                    }
+                } else {
+                    rawDir
+                }
+                prevBasePt = basePt
+                prevDir = dir
                 
                 // Construct stable orthogonal vectors using parallel transport frame projection
                 val uVec: Point3D
@@ -830,8 +850,18 @@ object HarmonographMath {
                     
                     // Construct extremely stable and smooth local frame analytically (loop-free O(1) calculation)
                     val upRef = Point3D(0f, 0f, 1f)
+                    val upAlt = Point3D(0f, 1f, 0f)
                     val dotValT = abs(T.x * upRef.x + T.y * upRef.y + T.z * upRef.z)
-                    val finalUp = if (dotValT > 0.92f) Point3D(0f, 1f, 0f) else upRef
+                    
+                    // Smoothly blend the reference up vector to completely eliminate camera jumps near the poles
+                    val blend = ((dotValT - 0.75f) / 0.20f).coerceIn(0f, 1f)
+                    val smoothBlend = blend * blend * (3f - 2f * blend)
+                    val finalUp = Point3D(
+                        upRef.x * (1f - smoothBlend) + upAlt.x * smoothBlend,
+                        upRef.y * (1f - smoothBlend) + upAlt.y * smoothBlend,
+                        upRef.z * (1f - smoothBlend) + upAlt.z * smoothBlend
+                    ).normalized()
+                    
                     val uVec = T.cross(finalUp).normalized()
                     val wVec = T.cross(uVec).normalized()
                     

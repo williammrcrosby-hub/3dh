@@ -1914,6 +1914,94 @@ fun StyleAndPenConfigTab(
         }
 
         item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Monochromatic Value Shift Config",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.monoScaleEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(monoScaleEnabled = settings.monoScaleEnabled.copy(current = it))) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            ),
+                            modifier = Modifier.scale(0.8f)
+                        )
+                    }
+
+                    if (settings.monoScaleEnabled.current) {
+                        ParameterSliderRow(
+                            label = "Monochromatic Shift Bias",
+                            value = settings.monoScaleShift.current,
+                            minVal = settings.monoScaleShift.rangeMin,
+                            maxVal = settings.monoScaleShift.rangeMax,
+                            stepValue = 0.05f,
+                            formatString = "%.2f",
+                            isLocked = settings.monoScaleShift.locked,
+                            onLockToggle = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.copy(locked = it))) },
+                            isRangeLocked = settings.monoScaleShift.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.withRangeLocked(it))) },
+                            selectedMin = settings.monoScaleShift.actualSelectedMin,
+                            selectedMax = settings.monoScaleShift.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.randomize(java.util.Random()))) }
+                        )
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Active Live Value Oscillation", color = Color.White, fontSize = 12.sp)
+                            Spacer(modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = settings.monoScaleLiveShiftEnabled.current,
+                                onCheckedChange = { onUpdate(settings.copy(monoScaleLiveShiftEnabled = settings.monoScaleLiveShiftEnabled.copy(current = it))) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color(0xFF00E5FF),
+                                    checkedTrackColor = Color(0x6600E5FF)
+                                ),
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
+
+                        if (settings.monoScaleLiveShiftEnabled.current) {
+                            ParameterSliderRow(
+                                label = "Live Shifting Speed",
+                                value = settings.monoScaleLiveShiftSpeed.current,
+                                minVal = settings.monoScaleLiveShiftSpeed.rangeMin,
+                                maxVal = settings.monoScaleLiveShiftSpeed.rangeMax,
+                                stepValue = 0.1f,
+                                formatString = "%.1f Hz",
+                                isLocked = settings.monoScaleLiveShiftSpeed.locked,
+                                onLockToggle = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.copy(locked = it))) },
+                                isRangeLocked = settings.monoScaleLiveShiftSpeed.rangeLocked,
+                                onRangeLockToggle = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.withRangeLocked(it))) },
+                                selectedMin = settings.monoScaleLiveShiftSpeed.actualSelectedMin,
+                                selectedMax = settings.monoScaleLiveShiftSpeed.actualSelectedMax,
+                                onRangeChange = { min, max -> onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.withRanges(min, max))) },
+                                onValueChange = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.withValue(it))) },
+                                onRandomize = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.randomize(java.util.Random()))) }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             Text("PEN & LINE PARAMETERS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
         }
 
@@ -2090,6 +2178,42 @@ fun StyleAndPenConfigTab(
                         onValueChange = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.withValue(it))) },
                         onRandomize = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.randomize(java.util.Random()))) }
                     )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Live Opacity (Alpha) Shift", color = Color.White, fontSize = 12.sp)
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = settings.liveAlphaShiftEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(current = it))) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            ),
+                            modifier = Modifier.scale(0.8f)
+                        )
+                    }
+
+                    if (settings.liveAlphaShiftEnabled.current) {
+                        ParameterSliderRow(
+                            label = "Alpha Shift Speed",
+                            value = settings.liveAlphaShiftSpeed.current,
+                            minVal = settings.liveAlphaShiftSpeed.rangeMin,
+                            maxVal = settings.liveAlphaShiftSpeed.rangeMax,
+                            stepValue = 0.1f,
+                            formatString = "%.1f Hz",
+                            isLocked = settings.liveAlphaShiftSpeed.locked,
+                            onLockToggle = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.copy(locked = it))) },
+                            isRangeLocked = settings.liveAlphaShiftSpeed.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.withRangeLocked(it))) },
+                            selectedMin = settings.liveAlphaShiftSpeed.actualSelectedMin,
+                            selectedMax = settings.liveAlphaShiftSpeed.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.randomize(java.util.Random()))) }
+                        )
+                    }
                 }
             }
         }
@@ -3157,202 +3281,6 @@ fun PerformanceAndQualityTab(
                 }
             }
         }
-
-        // 6. Live Alpha (transparency) on off toggle, lock, range lock, and speed setting (plus transparency shift)
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "LIVE TRANSPARENCY (ALPHA) SHIFT",
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF00E5FF),
-                                fontSize = 11.sp
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Cyclically shift line segment opacity between the assigned lock parameters.",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 10.sp
-                            )
-                        }
-                        Switch(
-                            checked = settings.liveAlphaShiftEnabled.current,
-                            onCheckedChange = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(current = it))) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0x6600E5FF)
-                            )
-                        )
-                    }
-
-                    if (settings.liveAlphaShiftEnabled.current) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Lock/Freeze Current Opacity", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                            IconButton(
-                                onClick = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.copy(locked = !settings.liveAlphaShiftSpeed.locked))) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (settings.liveAlphaShiftSpeed.locked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                    contentDescription = "Lock/Freeze",
-                                    tint = if (settings.liveAlphaShiftSpeed.locked) Color(0xFF00E5FF) else Color.Gray,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Randomize Alpha Range Limit (RNG)", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                            IconButton(
-                                onClick = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.copy(rangeLocked = !settings.lineAlpha.rangeLocked))) },
-                                modifier = Modifier.size(32.dp)
-                            ) {
-                                Icon(
-                                    imageVector = if (settings.lineAlpha.rangeLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                    contentDescription = "Range Lock Limit",
-                                    tint = if (settings.lineAlpha.rangeLocked) Color(0xFF00E5FF) else Color.Gray,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Shift Velocity/Speed:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                            Text("${settings.liveAlphaShiftSpeed.current} Hz", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Slider(
-                            value = settings.liveAlphaShiftSpeed.current,
-                            onValueChange = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.copy(current = it))) },
-                            valueRange = 0.1f..5.0f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF00E5FF),
-                                activeTrackColor = Color(0xFF00E5FF)
-                            )
-                        )
-                    }
-                }
-            }
-        }
-
-        // 7. Monochromatic value scale shift
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "MONOCHROMATIC VALUE SHIFT",
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF00E5FF),
-                                fontSize = 11.sp
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "Shifts drawing color to a single tone value range (e.g., Red-pink to pure red to charcoal red).",
-                                color = Color(0xFF94A3B8),
-                                fontSize = 10.sp
-                            )
-                        }
-                        Switch(
-                            checked = settings.monoScaleEnabled.current,
-                            onCheckedChange = { onUpdate(settings.copy(monoScaleEnabled = settings.monoScaleEnabled.copy(current = it))) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0x6600E5FF)
-                            )
-                        )
-                    }
-
-                    if (settings.monoScaleEnabled.current) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Static Bias Value (Unchecked Shift):", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                            Text(String.format("%.2f", settings.monoScaleShift.current), color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Slider(
-                            value = settings.monoScaleShift.current,
-                            onValueChange = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.copy(current = it))) },
-                            valueRange = -1.0f..1.0f,
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF00E5FF),
-                                activeTrackColor = Color(0xFF00E5FF)
-                            )
-                        )
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Active Live Value Oscillation", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                            Switch(
-                                checked = settings.monoScaleLiveShiftEnabled.current,
-                                onCheckedChange = { onUpdate(settings.copy(monoScaleLiveShiftEnabled = settings.monoScaleLiveShiftEnabled.copy(current = it))) },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = Color(0xFF00E5FF),
-                                    checkedTrackColor = Color(0x6600E5FF)
-                                )
-                            )
-                        }
-
-                        if (settings.monoScaleLiveShiftEnabled.current) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Oscillation Lock Range Limit", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                IconButton(
-                                    onClick = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.copy(rangeLocked = !settings.monoScaleShift.rangeLocked))) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (settings.monoScaleShift.rangeLocked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                        contentDescription = "Range Lock Limit",
-                                        tint = if (settings.monoScaleShift.rangeLocked) Color(0xFF00E5FF) else Color.Gray,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Oscillation Lock Speed", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                IconButton(
-                                    onClick = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.copy(locked = !settings.monoScaleLiveShiftSpeed.locked))) },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (settings.monoScaleLiveShiftSpeed.locked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                        contentDescription = "Lock/Freeze",
-                                        tint = if (settings.monoScaleLiveShiftSpeed.locked) Color(0xFF00E5FF) else Color.Gray,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Live Shifting Oscillation Speed:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                                Text("${settings.monoScaleLiveShiftSpeed.current} Hz", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Slider(
-                                value = settings.monoScaleLiveShiftSpeed.current,
-                                onValueChange = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.copy(current = it))) },
-                                valueRange = 0.1f..4.0f,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = Color(0xFF00E5FF),
-                                    activeTrackColor = Color(0xFF00E5FF)
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 
@@ -3378,13 +3306,16 @@ private fun computeComposeColor(
     val minHue = settings.hueShiftRange.actualSelectedMin
     val maxHue = settings.hueShiftRange.actualSelectedMax
     
+    // Prevent float precision loss of System.currentTimeMillis() by scaling down a modulo value
+    val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
+
     val csMin = settings.chromaticShift.actualSelectedMin
     val csMax = settings.chromaticShift.actualSelectedMax
     val segmentChromaticShift = if (settings.liveChromaticShiftEnabled.current) {
         val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
         val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
         val speed = settings.chromaticShiftSpeed.current
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
         val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveCS.coerceIn(0f, 180f)
     } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
@@ -3400,7 +3331,7 @@ private fun computeComposeColor(
         val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
         val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
         val speed = settings.liveAlphaShiftSpeed.current
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
         val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveAlpha.coerceIn(0.01f, 1.0f)
     } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
@@ -3473,7 +3404,8 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
         val sweepMin = if (settings.monoScaleShift.rangeLocked) msMin else -1.0f
         val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
         val speed = settings.monoScaleLiveShiftSpeed.current
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+        val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
         sweepMin + cycleRatio * (sweepMax - sweepMin)
     } else if (settings.monoScaleShift.rangeLocked) {
         val msMin = settings.monoScaleShift.actualSelectedMin
