@@ -199,26 +199,42 @@ object HarmonographMath {
         } else 0f
         val subZP = if (subZEnabled) Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat() else 0f
 
-        val fastCalculatePointAtStep = { stepIdx: Int ->
-            val tLocal = stepIdx * dt
-            val dFX = if (decEnabled) exp(-decX * tLocal) else 1f
-            val dFY = if (decEnabled) exp(-decY * tLocal) else 1f
-            val dFZ = if (decEnabled) exp(-decZ * tLocal) else 1f
+        val fastCalculatePointAtT = { tVal: Float ->
+            val dFX = if (decEnabled) exp(-decX * tVal) else 1f
+            val dFY = if (decEnabled) exp(-decY * tVal) else 1f
+            val dFZ = if (decEnabled) exp(-decZ * tVal) else 1f
             
-            var xr = aX * dFX * sin(fX * tLocal + px)
-            var yr = aY * dFY * sin(fY * tLocal + py)
-            val zr = if (aZ > 0f) aZ * dFZ * sin(fZ * tLocal + pz) else 0f
+            var xr = aX * dFX * sin(fX * tVal + px)
+            var yr = aY * dFY * sin(fY * tVal + py)
+            val zr = if (aZ > 0f) aZ * dFZ * sin(fZ * tVal + pz) else 0f
             
             if (subXEnabled) {
-                xr += subXAmp * dFX * sin(subXFreq * tLocal + px + subXP)
+                xr += subXAmp * dFX * sin(subXFreq * tVal + px + subXP)
             }
             if (subYEnabled) {
-                yr += subYAmp * dFY * sin(subYFreq * tLocal + py + subYP)
+                yr += subYAmp * dFY * sin(subYFreq * tVal + py + subYP)
             }
             if (subZEnabled) {
-                xr += subZAmp * dFZ * sin(subZFreq * tLocal + pz + subZP)
+                xr += subZAmp * dFZ * sin(subZFreq * tVal + pz + subZP)
             }
             Point3D(xr, yr, zr)
+        }
+        
+        // Precalculate adaptive step times based on curve velocity
+        var tLocal = 0f
+        val ts = FloatArray(totalSteps + 2)
+        for (k in 0..totalSteps + 1) {
+            ts[k] = tLocal
+            val pt = fastCalculatePointAtT(tLocal)
+            val dtUsed = if (settings.perfVelocitySampling) {
+                val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
+                val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
+                val targetDt = (1.2f / estimatedSpeed.coerceAtLeast(10f)).coerceIn(0.002f, 0.04f)
+                targetDt
+            } else {
+                dt
+            }
+            tLocal += dtUsed
         }
         
         // Initialize lines for pen counts: 1 to 3
@@ -230,14 +246,14 @@ object HarmonographMath {
         var prevUVec: Point3D? = null
         
         for (k in 0 until totalSteps) {
-            val basePt = fastCalculatePointAtStep(k)
-            val t = k * dt
+            val t = ts[k]
+            val basePt = fastCalculatePointAtT(t)
             
             if (settings.penCount.current == 1) {
                 paths[0].add(basePt)
             } else {
                 // We need orthogonal plane to calculate offset vectors
-                val nextPt = fastCalculatePointAtStep(k + 1)
+                val nextPt = fastCalculatePointAtT(ts[k + 1])
                 val dir = (nextPt - basePt).normalized()
                 
                 // Construct stable orthogonal vectors using parallel transport frame projection
@@ -548,7 +564,8 @@ object HarmonographMath {
         animTime: Long = 0L,
         coasterDeviationAngle: Float = 25f,
         coasterOrbitSpeed: Float = 1.2f,
-        isPrimaryPath: Boolean = false
+        isPrimaryPath: Boolean = false,
+        tailLengthLimit: Int = -1
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -556,8 +573,9 @@ object HarmonographMath {
         val progressInt = floor(currentDrawProgress).toInt().coerceIn(0, points.size - 1)
         val progressFrac = (currentDrawProgress - progressInt).coerceIn(0f, 1f)
         
-        val activePoints = ArrayList<Point3D>(progressInt + 2)
-        for (i in 0..progressInt) {
+        val startIdx = if (tailLengthLimit > 0) (progressInt - tailLengthLimit).coerceAtLeast(0) else 0
+        val activePoints = ArrayList<Point3D>(progressInt - startIdx + 3)
+        for (i in startIdx..progressInt) {
             activePoints.add(points[i])
         }
         if (progressFrac > 0.001f && progressInt < points.size - 1) {
@@ -810,45 +828,11 @@ object HarmonographMath {
                     val rawDiff = pEnd - pStart
                     val T = if (rawDiff.length() > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
                     
-                    // Perfect stable Parallel Transport Frame tracked continuously starting from first node to targetIdxInt.
-                    val targetIdxInt = targetIdx.toInt().coerceIn(0, refPts.size - 1)
-                    var transportU = Point3D(0f, 1f, 0f)
-                    var transportW = Point3D(0f, 0f, 1f)
-                    if (refPts.size > 1) {
-                        val firstDiff = refPts[1] - refPts[0]
-                        val firstT = if (firstDiff.length() > 0.001f) firstDiff.normalized() else Point3D(1f, 0f, 0f)
-                        
-                        val dotX = abs(firstT.x)
-                        val dotY = abs(firstT.y)
-                        val dotZ = abs(firstT.z)
-                        val firstHelper = when {
-                            dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
-                            dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
-                            else -> Point3D(0f, 0f, 1f)
-                        }
-                        transportU = firstT.cross(firstHelper).normalized()
-                        transportW = firstT.cross(transportU).normalized()
-                        
-                        val stepSize = 1
-                        for (i in stepSize..targetIdxInt step stepSize) {
-                            val prevPt = refPts[i - stepSize]
-                            val currPt = refPts[i]
-                            val segmentDiff = currPt - prevPt
-                            val segmentT = if (segmentDiff.length() > 0.001f) segmentDiff.normalized() else Point3D(1f, 0f, 0f)
-                            
-                            val dotVal = transportU.x * segmentT.x + transportU.y * segmentT.y + transportU.z * segmentT.z
-                            val uProj = transportU - segmentT * dotVal
-                            if (uProj.length() > 0.001f) {
-                                transportU = uProj.normalized()
-                                transportW = segmentT.cross(transportU).normalized()
-                            }
-                        }
-                    }
-                    
-                    // Align the transported frame with our smoothed sliding tangent T
-                    val dotVal = transportU.x * T.x + transportU.y * T.y + transportU.z * T.z
-                    val uProj = transportU - T * dotVal
-                    val uVec = if (uProj.length() > 0.001f) uProj.normalized() else transportU
+                    // Construct extremely stable and smooth local frame analytically (loop-free O(1) calculation)
+                    val upRef = Point3D(0f, 0f, 1f)
+                    val dotValT = abs(T.x * upRef.x + T.y * upRef.y + T.z * upRef.z)
+                    val finalUp = if (dotValT > 0.92f) Point3D(0f, 1f, 0f) else upRef
+                    val uVec = T.cross(finalUp).normalized()
                     val wVec = T.cross(uVec).normalized()
                     
                     // Slow continuous orbital orbit sways around transient axis

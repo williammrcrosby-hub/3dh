@@ -258,7 +258,29 @@ data class HarmonographSettings(
     val lineAlpha: FloatParameter = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = false),
     val allowedStyleModes: String = "solid,length,center,spicy,rainbow",
     val allowedPerspectives: String = "1,2",
-    val allowedPresets: String = ""
+    val allowedPresets: String = "",
+    val enablePresetRotation: Boolean = true,
+
+    // Performance & Quality Options
+    val perfResolution: String = "native", // "native", "760", "480", "auto"
+    val perfVelocitySampling: Boolean = false,
+    val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
+    val perfRemoveTailEnabled: Boolean = true,
+    val perfTargetFps: IntParameter = IntParameter(20, rangeMin = 10, rangeMax = 60),
+
+    // Fast Draw sliding tail settings
+    val instantDrawLengthLimit: IntParameter = IntParameter(3000, rangeMin = 200, rangeMax = 15000),
+    val instantDrawLengthInfinite: BooleanParameter = BooleanParameter(false),
+
+    // Monochromatic Value Scale Option
+    val monoScaleEnabled: BooleanParameter = BooleanParameter(false),
+    val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f),
+    val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
+    val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 5.0f),
+
+    // Live Transparency (Alpha) Shift Option
+    val liveAlphaShiftEnabled: BooleanParameter = BooleanParameter(false),
+    val liveAlphaShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 5.0f)
 ) {
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {
         val currentList = allowedPresets.split(",").filter { it.isNotEmpty() }.toMutableList()
@@ -357,7 +379,11 @@ data class HarmonographSettings(
             coasterOrbitSpeed = coasterOrbitSpeed.copy(locked = true),
             decayEnabled = decayEnabled.copy(locked = true),
             gyroSensitivity = gyroSensitivity.copy(locked = true),
-            lineAlpha = lineAlpha.copy(locked = true)
+            lineAlpha = lineAlpha.copy(locked = true),
+            
+            monoScaleShift = monoScaleShift.copy(locked = true),
+            monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = true),
+            liveAlphaShiftSpeed = liveAlphaShiftSpeed.copy(locked = true)
         )
     }
 
@@ -504,7 +530,15 @@ data class HarmonographSettings(
             coasterOrbitSpeed = coasterOrbitSpeed.randomize(random),
             decayEnabled = decayEnabled.randomize(random),
             gyroSensitivity = gyroSensitivity.randomize(random),
-            lineAlpha = lineAlpha.randomize(random)
+            lineAlpha = lineAlpha.randomize(random),
+            
+            monoScaleEnabled = monoScaleEnabled.randomize(random),
+            monoScaleShift = monoScaleShift.randomize(random),
+            monoScaleLiveShiftEnabled = monoScaleLiveShiftEnabled.randomize(random),
+            monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.randomize(random),
+            
+            liveAlphaShiftEnabled = liveAlphaShiftEnabled.randomize(random),
+            liveAlphaShiftSpeed = liveAlphaShiftSpeed.randomize(random)
         )
     }
 

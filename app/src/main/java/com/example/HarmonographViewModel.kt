@@ -40,6 +40,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private val _isDrawing = MutableStateFlow(true)
     val isDrawing: StateFlow<Boolean> = _isDrawing.asStateFlow()
 
+    val currentFps = MutableStateFlow(60f)
+    fun updateFps(value: Float) {
+        currentFps.value = value
+    }
+
     val savedPresets: StateFlow<List<HarmonographPreset>> = dao.getAllPresets()
         .flowOn(Dispatchers.IO)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -107,23 +112,31 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
 
                 if (isPlay) {
                     if (settings.drawSpeedInstant) {
-                        _currentDrawProgress.value = maxSteps
-                        if (settings.postCompletionAutoReset) {
-                            if (completionTimeMs == 0L) {
-                                completionTimeMs = System.currentTimeMillis()
+                        completionTimeMs = 0L
+                        val limitSteps = if (settings.instantDrawLengthInfinite.current) maxSteps else settings.instantDrawLengthLimit.current.toFloat()
+                        if (progress < limitSteps) {
+                            val targetFpsVal = settings.perfTargetFps.current
+                            val increment = if (currentFps.value < targetFpsVal) {
+                                40f // Slow down to keep system from lagging/dropping frames
                             } else {
-                                val elapsed = System.currentTimeMillis() - completionTimeMs
-                                if (elapsed >= 150_000L) { // 2.5 minutes (150 seconds)
-                                    resetAndRandomize()
-                                    completionTimeMs = 0L
-                                }
+                                350f // Default rapid speed
                             }
+                            val nextVal = (progress + increment).coerceAtMost(maxSteps)
+                            _currentDrawProgress.value = nextVal
                         } else {
-                            completionTimeMs = 0L
+                            val totalDurationSec = settings.drawSpeedMinutes.current * 60f
+                            val stepsPerSec = maxSteps / totalDurationSec
+                            val stepsPerFrame = stepsPerSec * 0.016f
+                            
+                            val nextVal = progress + stepsPerFrame
+                            if (nextVal >= maxSteps) {
+                                _currentDrawProgress.value = limitSteps
+                            } else {
+                                _currentDrawProgress.value = nextVal
+                            }
                         }
                     } else {
                         completionTimeMs = 0L
-                        // Compute step increment per frame (~16ms)
                         val totalDurationSec = settings.drawSpeedMinutes.current * 60f
                         val stepsPerSec = maxSteps / totalDurationSec
                         val stepsPerFrame = stepsPerSec * 0.016f
@@ -132,7 +145,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         val newProgress = if (sumProgress > maxSteps) maxSteps else sumProgress
                         _currentDrawProgress.value = newProgress
                         
-                        // Handle auto reset when draw finishes
                         if (newProgress >= maxSteps && settings.postCompletionAutoReset) {
                             val waitSec = totalDurationSec * settings.postCompletionResetTimeFactor
                             delay((waitSec * 1000).toLong().coerceAtLeast(100L))
@@ -197,7 +209,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         val allowedKeys = current.allowedPresets.split(",").filter { it.isNotEmpty() }
         var baseSettings = current
 
-        if (allowedKeys.isNotEmpty()) {
+        if (current.enablePresetRotation && allowedKeys.isNotEmpty()) {
             val allPresets = savedPresets.value
             val valid = allPresets.filter { preset ->
                 val key = if (preset.isUserPreset) "u_${preset.id}" else "f_${preset.name}"

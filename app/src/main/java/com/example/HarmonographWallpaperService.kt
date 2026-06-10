@@ -519,7 +519,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         animTime = elapsedMs,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                        isPrimaryPath = (pIdx == 0)
+                        isPrimaryPath = (pIdx == 0),
+                        tailLengthLimit = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) settings.instantDrawLengthLimit.current else -1
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -689,14 +690,21 @@ class HarmonographWallpaperService : WallpaperService() {
 
             val alphaMin = settings.lineAlpha.actualSelectedMin
             val alphaMax = settings.lineAlpha.actualSelectedMax
-            val segmentAlpha = if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
+            val segmentAlpha = if (settings.liveAlphaShiftEnabled.current) {
+                val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
+                val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
+                val speed = settings.liveAlphaShiftSpeed.current
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+                val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
+                liveAlpha.coerceIn(0.01f, 1.0f)
+            } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
                 val alphaRand = java.util.Random(idx.toLong() * 97L + settings.hashCode().toLong())
                 alphaMin + alphaRand.nextFloat() * (alphaMax - alphaMin)
             } else {
                 settings.lineAlpha.current
             }
             
-            return when (settings.styleMode) {
+            val finalColor = when (settings.styleMode) {
                 "solid" -> {
                     adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
                 }
@@ -736,6 +744,47 @@ class HarmonographWallpaperService : WallpaperService() {
                     Color.HSVToColor(alpha, floatArrayOf(finalHue, sat, 0.95f))
                 }
             }
+
+            return if (settings.monoScaleEnabled.current) {
+                applyMonoScaleShiftToColorInt(finalColor, settings, idx)
+            } else {
+                finalColor
+            }
+        }
+
+        private fun applyMonoScaleShiftToColorInt(colorInt: Int, settings: HarmonographSettings, idx: Int): Int {
+            val hsv = FloatArray(3)
+            Color.colorToHSV(colorInt, hsv)
+            val baseSat = hsv[1]
+            val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
+                val msMin = settings.monoScaleShift.actualSelectedMin
+                val msMax = settings.monoScaleShift.actualSelectedMax
+                val sweepMin = if (settings.monoScaleShift.rangeLocked) msMin else -1.0f
+                val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
+                val speed = settings.monoScaleLiveShiftSpeed.current
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+                sweepMin + cycleRatio * (sweepMax - sweepMin)
+            } else if (settings.monoScaleShift.rangeLocked) {
+                val msMin = settings.monoScaleShift.actualSelectedMin
+                val msMax = settings.monoScaleShift.actualSelectedMax
+                val msRand = java.util.Random(idx.toLong() * 1237L + settings.hashCode().toLong())
+                msMin + msRand.nextFloat() * (msMax - msMin)
+            } else {
+                settings.monoScaleShift.current
+            }
+            
+            val shiftCoerced = shiftVal.coerceIn(-1.0f, 1.0f)
+            if (shiftCoerced < 0f) {
+                val ratio = (shiftCoerced + 1.0f).coerceIn(0f, 1f)
+                hsv[1] = (0.15f + ratio * (baseSat - 0.15f)).coerceIn(0.05f, 1.0f)
+                hsv[2] = 0.98f
+            } else {
+                val ratio = (1.0f - shiftCoerced).coerceIn(0f, 1f)
+                hsv[1] = baseSat
+                hsv[2] = (0.15f + ratio * (0.95f - 0.15f)).coerceIn(0.05f, 1.0f)
+            }
+            val alpha = Color.alpha(colorInt)
+            return Color.HSVToColor(alpha, hsv)
         }
 
         private fun drawOrthogonalShapeOnCanvas(

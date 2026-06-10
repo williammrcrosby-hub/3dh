@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -31,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.*
 import androidx.compose.ui.platform.LocalContext
@@ -78,9 +80,26 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     // Stateful high-performance animation frame timer
     var animTime by remember { mutableStateOf(0L) }
     LaunchedEffect(Unit) {
+        var lastTime = 0L
+        var frameCount = 0
+        var fpsAccumTime = 0L
         while (true) {
             withFrameMillis { time ->
                 animTime = time
+                if (lastTime > 0L) {
+                    val dtFrame = time - lastTime
+                    if (dtFrame > 0L) {
+                        frameCount++
+                        fpsAccumTime += dtFrame
+                        if (fpsAccumTime >= 500L) {
+                            val measuredFps = (frameCount * 1000f) / fpsAccumTime
+                            viewModel.updateFps(measuredFps.coerceAtLeast(1f))
+                            frameCount = 0
+                            fpsAccumTime = 0L
+                        }
+                    }
+                }
+                lastTime = time
             }
         }
     }
@@ -208,8 +227,18 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
 
             Canvas(modifier = Modifier.fillMaxSize().testTag("3d_harmonograph_canvas")) {
                 val drawLimit = drawProgress.roundToInt()
-                val width = size.width
-                val height = size.height
+                var width = size.width
+                var height = size.height
+                
+                val perfResolutionStr = settings.perfResolution
+                val targetRes = perfResolutionStr.toIntOrNull() ?: -1
+                val isScaled = targetRes > 0 && width.coerceAtLeast(height) > targetRes
+                val scaleFactorGlobal = if (isScaled) targetRes.toFloat() / width.coerceAtLeast(height) else 1f
+                
+                if (isScaled) {
+                    width *= scaleFactorGlobal
+                    height *= scaleFactorGlobal
+                }
 
                 val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
                     val durationMin = if (settings.drawSpeedInstant) 18.0f else (settings.drawSpeedMinutes.current * 7.0f).coerceAtLeast(15.0f)
@@ -266,7 +295,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         animTime = animTime,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                        isPrimaryPath = (pIdx == 0)
+                        isPrimaryPath = (pIdx == 0),
+                        tailLengthLimit = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) settings.instantDrawLengthLimit.current else -1
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -322,98 +352,105 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 // Sort all line segments back-to-front (descending by average depth)
                 segmentsList.sortByDescending { (it.p1.depth + it.p2.depth) / 2f }
 
-                // Draw depth-sorted segments
-                for (seg in segmentsList) {
-                    drawLine(
-                        color = seg.color,
-                        start = androidx.compose.ui.geometry.Offset(seg.p1.x, seg.p1.y),
-                        end = androidx.compose.ui.geometry.Offset(seg.p2.x, seg.p2.y),
-                        strokeWidth = seg.strokeWidth * scaleFactor
-                    )
-                }
+                withTransform({
+                    if (isScaled) {
+                        scale(1f / scaleFactorGlobal, 1f / scaleFactorGlobal, pivot = androidx.compose.ui.geometry.Offset.Zero)
+                    }
+                }) {
+                    // Draw depth-sorted segments
+                    for (seg in segmentsList) {
+                        drawLine(
+                            color = seg.color,
+                            start = androidx.compose.ui.geometry.Offset(seg.p1.x, seg.p1.y),
+                            end = androidx.compose.ui.geometry.Offset(seg.p2.x, seg.p2.y),
+                            strokeWidth = seg.strokeWidth * scaleFactor
+                        )
+                    }
 
-                // Render styled active pen tip markers
-                for ((tip, tipColor) in tipsList) {
-                    val s = settings.penTipSize * scaleFactor
-                    when (settings.penTipShape) {
-                        "square" -> {
-                            drawRect(
-                                color = tipColor,
-                                topLeft = androidx.compose.ui.geometry.Offset(tip.x - s, tip.y - s),
-                                size = androidx.compose.ui.geometry.Size(s * 2f, s * 2f)
-                            )
-                        }
-                        "diamond" -> {
-                            val path = Path().apply {
-                                moveTo(tip.x, tip.y - s)
-                                lineTo(tip.x + s, tip.y)
-                                lineTo(tip.x, tip.y + s)
-                                lineTo(tip.x - s, tip.y)
-                                close()
+                    // Render styled active pen tip markers
+                    for ((tip, tipColor) in tipsList) {
+                        val s = settings.penTipSize * scaleFactor
+                        when (settings.penTipShape) {
+                            "square" -> {
+                                drawRect(
+                                    color = tipColor,
+                                    topLeft = androidx.compose.ui.geometry.Offset(tip.x - s, tip.y - s),
+                                    size = androidx.compose.ui.geometry.Size(s * 2f, s * 2f)
+                                )
                             }
-                            drawPath(path = path, color = tipColor)
-                        }
-                        "cross" -> {
-                            drawLine(
-                                color = tipColor,
-                                start = androidx.compose.ui.geometry.Offset(tip.x - s, tip.y),
-                                end = androidx.compose.ui.geometry.Offset(tip.x + s, tip.y),
-                                strokeWidth = 3f * scaleFactor
-                            )
-                            drawLine(
-                                color = tipColor,
-                                start = androidx.compose.ui.geometry.Offset(tip.x, tip.y - s),
-                                end = androidx.compose.ui.geometry.Offset(tip.x, tip.y + s),
-                                strokeWidth = 3f * scaleFactor
-                            )
-                        }
-                        "star" -> {
-                            val path = Path()
-                            for (i in 0 until 10) {
-                                val angle = (i * PI / 5).toFloat()
-                                val r = if (i % 2 == 0) s else s * 0.4f
-                                val px = tip.x + r * cos(angle - PI.toFloat() / 2f)
-                                val py = tip.y + r * sin(angle - PI.toFloat() / 2f)
-                                if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                            "diamond" -> {
+                                val path = Path().apply {
+                                    moveTo(tip.x, tip.y - s)
+                                    lineTo(tip.x + s, tip.y)
+                                    lineTo(tip.x, tip.y + s)
+                                    lineTo(tip.x - s, tip.y)
+                                    close()
+                                }
+                                drawPath(path = path, color = tipColor)
                             }
-                            path.close()
-                            drawPath(path = path, color = tipColor)
-                        }
-                        else -> { // circle
-                            drawCircle(
-                                color = tipColor,
-                                radius = s,
-                                center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
-                            )
-                            drawCircle(
-                                color = tipColor.copy(alpha = 0.2f),
-                                radius = s * 2f,
-                                center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
-                            )
+                            "cross" -> {
+                                drawLine(
+                                    color = tipColor,
+                                    start = androidx.compose.ui.geometry.Offset(tip.x - s, tip.y),
+                                    end = androidx.compose.ui.geometry.Offset(tip.x + s, tip.y),
+                                    strokeWidth = 3f * scaleFactor
+                                )
+                                drawLine(
+                                    color = tipColor,
+                                    start = androidx.compose.ui.geometry.Offset(tip.x, tip.y - s),
+                                    end = androidx.compose.ui.geometry.Offset(tip.x, tip.y + s),
+                                    strokeWidth = 3f * scaleFactor
+                                )
+                            }
+                            "star" -> {
+                                val path = Path()
+                                val Math_PI = Math.PI.toFloat()
+                                for (i in 0 until 10) {
+                                    val angle = (i * Math_PI / 5f)
+                                    val r = if (i % 2 == 0) s else s * 0.4f
+                                    val px = tip.x + r * kotlin.math.cos(angle - Math_PI / 2f)
+                                    val py = tip.y + r * kotlin.math.sin(angle - Math_PI / 2f)
+                                    if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                                }
+                                path.close()
+                                drawPath(path = path, color = tipColor)
+                            }
+                            else -> { // circle
+                                drawCircle(
+                                    color = tipColor,
+                                    radius = s,
+                                    center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
+                                )
+                                drawCircle(
+                                    color = tipColor.copy(alpha = 0.2f),
+                                    radius = s * 2f,
+                                    center = androidx.compose.ui.geometry.Offset(tip.x, tip.y)
+                                )
+                            }
                         }
                     }
-                }
 
-                // Orthogonal secondary shapes drawing
-                for (shape in shapes) {
-                    if (shape.colorIndex > drawLimit) continue
-                    drawComposeOrthogonalShape(
-                        shape = shape,
-                        yawVal = animatedYaw,
-                        pitchVal = animatedPitch,
-                        perspective = settings.cameraPerspective,
-                        width = width,
-                        height = height,
-                        angularLock = settings.isAngularLockEnabled,
-                        angularLockAxis = settings.angularLockAxis,
-                        timeHueOffset = timeHueOffset,
-                        totalSteps = stepsCount,
-                        settings = settings,
-                        scaleFactor = scaleFactor,
-                        mainPathPoints = paths.firstOrNull() ?: emptyList(),
-                        cameraTargetIndex = cameraTargetIndex,
-                        animTime = animTime
-                    )
+                    // Orthogonal secondary shapes drawing
+                    for (shape in shapes) {
+                        if (shape.colorIndex > drawLimit) continue
+                        drawComposeOrthogonalShape(
+                            shape = shape,
+                            yawVal = animatedYaw,
+                            pitchVal = animatedPitch,
+                            perspective = settings.cameraPerspective,
+                            width = width,
+                            height = height,
+                            angularLock = settings.isAngularLockEnabled,
+                            angularLockAxis = settings.angularLockAxis,
+                            timeHueOffset = timeHueOffset,
+                            totalSteps = stepsCount,
+                            settings = settings,
+                            scaleFactor = scaleFactor,
+                            mainPathPoints = paths.firstOrNull() ?: emptyList(),
+                            cameraTargetIndex = cameraTargetIndex,
+                            animTime = animTime
+                        )
+                    }
                 }
             }
         }
@@ -497,111 +534,155 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             }
         }
 
-        // Drawing progress controllers
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = if (isPanelExpanded) 340.dp else 40.dp)
-                .fillMaxWidth(0.92f)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xCC0F172A))
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-        ) {
-            val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                IconButton(
-                    onClick = { viewModel.togglePlayback() },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF1E293B))
-                ) {
-                    Icon(
-                        imageVector = if (isDrawing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = "Play/Pause",
-                        tint = Color.White
-                    )
-                }
-
-                Slider(
-                    value = drawProgress,
-                    onValueChange = { viewModel.jumpToProgress(it) },
-                    valueRange = 0f..maxSteps,
-                    modifier = Modifier.weight(1f),
-                    colors = SliderDefaults.colors(
-                        thumbColor = Color(0xFF00E5FF),
-                        activeTrackColor = Color(0xFF00E5FF)
-                    )
-                )
-
-                Text(
-                    text = "${(drawProgress / maxSteps * 100).roundToInt()}%",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(36.dp),
-                    textAlign = TextAlign.End
-                )
-
-                IconButton(
-                    onClick = { isPanelExpanded = !isPanelExpanded },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF1E293B))
-                ) {
-                    Icon(
-                        imageVector = if (isPanelExpanded) Icons.Default.Close else Icons.Default.Settings,
-                        contentDescription = "Settings Panels",
-                        tint = if (isPanelExpanded) Color(0xFFFF4081) else Color.White
-                    )
-                }
-            }
-        }
-
-        // Expanded Control Panel Drawer
-        AnimatedVisibility(
-            visible = isPanelExpanded,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .height(320.dp)
-        ) {
-            Surface(
-                color = Color(0xFF1E293B), // Slate 800
-                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                tonalElevation = 8.dp,
-                modifier = Modifier.fillMaxSize().testTag("control_panel_drawer")
-            ) {
-                Column {
-                    TabRow(
-                        selectedTabIndex = activeTab,
-                        containerColor = Color(0xFF0F172A),
-                        contentColor = Color.White
-                    ) {
-                        Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) {
-                            Text("Oscillators", modifier = Modifier.padding(12.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Tab(selected = activeTab == 1, onClick = { activeTab = 1 }) {
-                            Text("Style & Pen", modifier = Modifier.padding(12.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) {
-                            Text("Camera & Setup", modifier = Modifier.padding(12.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) {
-                            Text("Presets", modifier = Modifier.padding(12.dp), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(16.dp)
-                    ) {
+         // Drawing progress controllers (Only shown when settings panel is collapsed)
+         if (!isPanelExpanded) {
+             Column(
+                 modifier = Modifier
+                     .align(Alignment.BottomCenter)
+                     .padding(bottom = 40.dp)
+                     .fillMaxWidth(0.92f)
+                     .clip(RoundedCornerShape(16.dp))
+                     .background(Color(0xCC0F172A))
+                     .padding(horizontal = 16.dp, vertical = 8.dp)
+             ) {
+                 val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
+                 Row(
+                     verticalAlignment = Alignment.CenterVertically,
+                     horizontalArrangement = Arrangement.spacedBy(12.dp)
+                 ) {
+                     IconButton(
+                         onClick = { viewModel.togglePlayback() },
+                         colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF1E293B))
+                     ) {
+                         Icon(
+                             imageVector = if (isDrawing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                             contentDescription = "Play/Pause",
+                             tint = Color.White
+                         )
+                     }
+ 
+                     Slider(
+                         value = drawProgress,
+                         onValueChange = { viewModel.jumpToProgress(it) },
+                         valueRange = 0f..maxSteps,
+                         modifier = Modifier.weight(1f),
+                         colors = SliderDefaults.colors(
+                             thumbColor = Color(0xFF00E5FF),
+                             activeTrackColor = Color(0xFF00E5FF)
+                         )
+                     )
+ 
+                     Text(
+                         text = "${(drawProgress / maxSteps * 100).roundToInt()}%",
+                         color = Color.White,
+                         fontSize = 12.sp,
+                         fontWeight = FontWeight.Bold,
+                         modifier = Modifier.width(36.dp),
+                         textAlign = TextAlign.End
+                     )
+ 
+                     IconButton(
+                         onClick = { isPanelExpanded = true },
+                         colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF1E293B)),
+                         modifier = Modifier.testTag("app_settings_button")
+                     ) {
+                         Icon(
+                             imageVector = Icons.Default.Settings,
+                             contentDescription = "Settings Panels",
+                             tint = Color.White
+                         )
+                     }
+                 }
+             }
+         }
+ 
+         // Expanded Control Panel Drawer (Full-Screen Sliding Layout)
+         AnimatedVisibility(
+             visible = isPanelExpanded,
+             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+             modifier = Modifier
+                 .align(Alignment.BottomCenter)
+                 .fillMaxWidth()
+                 .fillMaxHeight()
+         ) {
+             Surface(
+                 color = Color(0xFF1E293B), // Slate 800
+                 tonalElevation = 8.dp,
+                 modifier = Modifier
+                     .fillMaxSize()
+                     .statusBarsPadding()
+                     .navigationBarsPadding()
+                     .testTag("control_panel_drawer")
+             ) {
+                 Column {
+                     // Full-Screen Close and Title Header Bar
+                     Row(
+                         modifier = Modifier
+                             .fillMaxWidth()
+                             .background(Color(0xFF0F172A))
+                             .padding(horizontal = 16.dp, vertical = 12.dp),
+                         horizontalArrangement = Arrangement.SpaceBetween,
+                         verticalAlignment = Alignment.CenterVertically
+                     ) {
+                         Text(
+                             text = "HARMONOGRAPH CONFIGURATION",
+                             fontSize = 13.sp,
+                             fontWeight = FontWeight.Bold,
+                             color = Color(0xFF00E5FF),
+                             letterSpacing = 1.sp
+                         )
+                         IconButton(
+                             onClick = { isPanelExpanded = false },
+                             colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF1E293B))
+                         ) {
+                             Icon(
+                                  imageVector = Icons.Default.Close,
+                                  contentDescription = "Close Settings",
+                                  tint = Color(0xFFFF4081)
+                             )
+                         }
+                     }
+ 
+                     TabRow(
+                         selectedTabIndex = activeTab,
+                         containerColor = Color(0xFF0F172A),
+                         contentColor = Color.White,
+                         indicator = { tabPositions ->
+                             TabRowDefaults.SecondaryIndicator(
+                                 modifier = Modifier.tabIndicatorOffset(tabPositions[activeTab]),
+                                 color = Color(0xFF00E5FF)
+                             )
+                         }
+                     ) {
+                         Tab(selected = activeTab == 0, onClick = { activeTab = 0 }) {
+                             Text("Oscillators", modifier = Modifier.padding(vertical = 14.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                         }
+                         Tab(selected = activeTab == 1, onClick = { activeTab = 1 }) {
+                             Text("Style & Pen", modifier = Modifier.padding(vertical = 14.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                         }
+                         Tab(selected = activeTab == 2, onClick = { activeTab = 2 }) {
+                             Text("Camera", modifier = Modifier.padding(vertical = 14.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                         }
+                         Tab(selected = activeTab == 3, onClick = { activeTab = 3 }) {
+                             Text("Presets", modifier = Modifier.padding(vertical = 14.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                         }
+                         Tab(selected = activeTab == 4, onClick = { activeTab = 4 }) {
+                             Text("Perf & Quality", modifier = Modifier.padding(vertical = 14.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                         }
+                     }
+ 
+                     Box(
+                         modifier = Modifier
+                             .weight(1f)
+                             .padding(16.dp)
+                     ) {
                         when (activeTab) {
                             0 -> OscillatorConfigTab(settings = settings, onUpdate = { viewModel.updateSettings(it) })
                             1 -> StyleAndPenConfigTab(settings = settings, onUpdate = { viewModel.updateSettings(it) })
                             2 -> CameraAndSetupTab(settings = settings, onUpdate = { viewModel.updateSettings(it) })
                             3 -> PresetsTab(presets = presets, activeSettings = settings, viewModel = viewModel)
+                            4 -> PerformanceAndQualityTab(settings = settings, onUpdate = { viewModel.updateSettings(it) }, viewModel = viewModel)
                         }
                     }
                 }
@@ -2587,6 +2668,29 @@ fun PresetsTab(
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxSize()) {
         Text("SAVED DRAWING PRESETS", fontWeight = FontWeight.Bold, color = Color(0xFF00E5FF), fontSize = 12.sp)
         
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("AUTOMATIC PRESET ROTATION", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Auto cycle between chosen presets on screen sweeps", color = Color(0xFF94A3B8), fontSize = 10.sp)
+                }
+                Switch(
+                    checked = activeSettings.enablePresetRotation,
+                    onCheckedChange = { viewModel.updateSettings(activeSettings.copy(enablePresetRotation = it)) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = Color(0xFF00E5FF),
+                        checkedTrackColor = Color(0x6600E5FF)
+                    )
+                )
+            }
+        }
+        
         // Save current preset block
         Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedTextField(
@@ -2769,6 +2873,489 @@ fun PresetsTab(
     }
 }
 
+@Composable
+fun PerformanceAndQualityTab(
+    settings: HarmonographSettings,
+    onUpdate: (HarmonographSettings) -> Unit,
+    viewModel: HarmonographViewModel
+) {
+    val liveFpsState = viewModel.currentFps.collectAsStateWithLifecycle()
+    
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        // Real-Time Frame Rate FPS Status Metric Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "REAL-TIME FRAME PERFORMANCE",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00E5FF),
+                            fontSize = 11.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Live measuring of native canvas render latency",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 10.sp
+                        )
+                    }
+                    Text(
+                        text = "${liveFpsState.value.roundToInt()} FPS",
+                        color = if (liveFpsState.value >= 45f) Color(0xFF00E676) else if (liveFpsState.value >= 25f) Color(0xFFFFB300) else Color(0xFFFF1744),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // 1. Resolution Selection (480, 760, Native)
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "CANVAS DRAW RESOLUTION",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E5FF),
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "Low resolutions (480 or 760 max size) significantly increase frame rate on older or heavy multi-pen configurations.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(480, 760, -1).forEach { resOpt ->
+                            val isSel = if (resOpt == -1) settings.perfResolution == "native" else settings.perfResolution == resOpt.toString()
+                            val label = when (resOpt) {
+                                480 -> "480p Max"
+                                760 -> "760p Max"
+                                else -> "Native Full"
+                            }
+                            Button(
+                                onClick = { onUpdate(settings.copy(perfResolution = if (resOpt == -1) "native" else resOpt.toString())) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSel) Color(0xFF00E5FF) else Color(0xFF1E293B),
+                                    contentColor = if (isSel) Color.Black else Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f).height(36.dp)
+                            ) {
+                                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Velocity-Proportional Sampling & Segment Frequency Proportional to Velocity
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "VELOCITY-ADAPTIVE SAMPLING",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Dynamically adjusts segment density based on pen velocity to prevent jagged curves while maintaining high frame rate.",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp
+                            )
+                        }
+                        
+                        Switch(
+                            checked = settings.perfVelocitySampling,
+                            onCheckedChange = { onUpdate(settings.copy(perfVelocitySampling = it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3. Tail Removing at Target FPS Configuration
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                    text = "THROTTLE TAIL TO SAVE FPS",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00E5FF),
+                                    fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                    text = "Automatically drop historical tail segments if the physical frame rate drops below target threshold.",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 10.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.perfRemoveTailEnabled,
+                            onCheckedChange = { onUpdate(settings.copy(perfRemoveTailEnabled = it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            )
+                        )
+                    }
+
+                    if (settings.perfRemoveTailEnabled) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Target Frame Rate Threshold:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("${settings.perfTargetFps.current} FPS", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = settings.perfTargetFps.current.toFloat(),
+                            onValueChange = { onUpdate(settings.copy(perfTargetFps = settings.perfTargetFps.copy(current = it.roundToInt()))) },
+                            valueRange = 15f..60f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF00E5FF),
+                                activeTrackColor = Color(0xFF00E5FF)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 4. Live Shift Tick Rate slider (Tick Rate of Live Shifts)
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "LIVE SHIFT TICK RATE",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E5FF),
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "Throttling live color / angle cycles to a specific interval reduces frame processing load on low-tier hardware.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Cycle Calculation Interval:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                        Text(
+                            text = if (settings.perfLiveShiftTickRateMs.current <= 0) "Immediate (Full)" else "${settings.perfLiveShiftTickRateMs.current} ms",
+                            color = Color(0xFF00E5FF),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Slider(
+                        value = settings.perfLiveShiftTickRateMs.current.toFloat(),
+                        onValueChange = { onUpdate(settings.copy(perfLiveShiftTickRateMs = settings.perfLiveShiftTickRateMs.copy(current = it.roundToInt()))) },
+                        valueRange = 0f..100f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF00E5FF),
+                            activeTrackColor = Color(0xFF00E5FF)
+                        )
+                    )
+                }
+            }
+        }
+
+        // 5. Instant draw: length / Infinite setting
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "INSTANT DRAW WINDOWING",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E5FF),
+                        fontSize = 11.sp
+                    )
+                    Text(
+                        text = "Limits the historical path drawn during fast preview to a specific sliding window size.",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 10.sp
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Infinite Drawing Length", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = settings.instantDrawLengthInfinite.current,
+                            onCheckedChange = { isInf ->
+                                onUpdate(settings.copy(instantDrawLengthInfinite = settings.instantDrawLengthInfinite.copy(current = isInf)))
+                            },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            )
+                        )
+                    }
+                    if (!settings.instantDrawLengthInfinite.current) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Sliding Segment Window Limit:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("${settings.instantDrawLengthLimit.current} pts", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = settings.instantDrawLengthLimit.current.toFloat(),
+                            onValueChange = { onUpdate(settings.copy(instantDrawLengthLimit = settings.instantDrawLengthLimit.copy(current = it.roundToInt()))) },
+                            valueRange = 250f..2500f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF00E5FF),
+                                activeTrackColor = Color(0xFF00E5FF)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 6. Live Alpha (transparency) on off toggle, lock, range lock, and speed setting (plus transparency shift)
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "LIVE TRANSPARENCY (ALPHA) SHIFT",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Cyclically shift line segment opacity between the assigned lock parameters.",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.liveAlphaShiftEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(current = it))) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            )
+                        )
+                    }
+
+                    if (settings.liveAlphaShiftEnabled.current) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Lock/Freeze Current Opacity", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.copy(locked = !settings.liveAlphaShiftSpeed.locked))) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settings.liveAlphaShiftSpeed.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "Lock/Freeze",
+                                    tint = if (settings.liveAlphaShiftSpeed.locked) Color(0xFF00E5FF) else Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Randomize Alpha Range Limit (RNG)", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            IconButton(
+                                onClick = { onUpdate(settings.copy(lineAlpha = settings.lineAlpha.copy(rangeLocked = !settings.lineAlpha.rangeLocked))) },
+                                modifier = Modifier.size(32.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settings.lineAlpha.rangeLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "Range Lock Limit",
+                                    tint = if (settings.lineAlpha.rangeLocked) Color(0xFF00E5FF) else Color.Gray,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Shift Velocity/Speed:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("${settings.liveAlphaShiftSpeed.current} Hz", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = settings.liveAlphaShiftSpeed.current,
+                            onValueChange = { onUpdate(settings.copy(liveAlphaShiftSpeed = settings.liveAlphaShiftSpeed.copy(current = it))) },
+                            valueRange = 0.1f..5.0f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF00E5FF),
+                                activeTrackColor = Color(0xFF00E5FF)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 7. Monochromatic value scale shift
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "MONOCHROMATIC VALUE SHIFT",
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF00E5FF),
+                                fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Shifts drawing color to a single tone value range (e.g., Red-pink to pure red to charcoal red).",
+                                color = Color(0xFF94A3B8),
+                                fontSize = 10.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.monoScaleEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(monoScaleEnabled = settings.monoScaleEnabled.copy(current = it))) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
+                            )
+                        )
+                    }
+
+                    if (settings.monoScaleEnabled.current) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Static Bias Value (Unchecked Shift):", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text(String.format("%.2f", settings.monoScaleShift.current), color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = settings.monoScaleShift.current,
+                            onValueChange = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.copy(current = it))) },
+                            valueRange = -1.0f..1.0f,
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF00E5FF),
+                                activeTrackColor = Color(0xFF00E5FF)
+                            )
+                        )
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Active Live Value Oscillation", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = settings.monoScaleLiveShiftEnabled.current,
+                                onCheckedChange = { onUpdate(settings.copy(monoScaleLiveShiftEnabled = settings.monoScaleLiveShiftEnabled.copy(current = it))) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color(0xFF00E5FF),
+                                    checkedTrackColor = Color(0x6600E5FF)
+                                )
+                            )
+                        }
+
+                        if (settings.monoScaleLiveShiftEnabled.current) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Oscillation Lock Range Limit", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = { onUpdate(settings.copy(monoScaleShift = settings.monoScaleShift.copy(rangeLocked = !settings.monoScaleShift.rangeLocked))) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (settings.monoScaleShift.rangeLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                        contentDescription = "Range Lock Limit",
+                                        tint = if (settings.monoScaleShift.rangeLocked) Color(0xFF00E5FF) else Color.Gray,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Oscillation Lock Speed", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                IconButton(
+                                    onClick = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.copy(locked = !settings.monoScaleLiveShiftSpeed.locked))) },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (settings.monoScaleLiveShiftSpeed.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                        contentDescription = "Lock/Freeze",
+                                        tint = if (settings.monoScaleLiveShiftSpeed.locked) Color(0xFF00E5FF) else Color.Gray,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Live Shifting Oscillation Speed:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                                Text("${settings.monoScaleLiveShiftSpeed.current} Hz", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Slider(
+                                value = settings.monoScaleLiveShiftSpeed.current,
+                                onValueChange = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.copy(current = it))) },
+                                valueRange = 0.1f..4.0f,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = Color(0xFF00E5FF),
+                                    activeTrackColor = Color(0xFF00E5FF)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 private fun mapHueIntoRange(hue: Float, minHue: Float, maxHue: Float): Float {
     if (maxHue <= minHue) return minHue
     val range = maxHue - minHue
@@ -2809,14 +3396,21 @@ private fun computeComposeColor(
 
     val alphaMin = settings.lineAlpha.actualSelectedMin
     val alphaMax = settings.lineAlpha.actualSelectedMax
-    val segmentAlpha = if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
+    val segmentAlpha = if (settings.liveAlphaShiftEnabled.current) {
+        val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
+        val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
+        val speed = settings.liveAlphaShiftSpeed.current
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+        val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
+        liveAlpha.coerceIn(0.01f, 1.0f)
+    } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
         val alphaRand = java.util.Random(idx.toLong() * 97L + settings.hashCode().toLong())
         alphaMin + alphaRand.nextFloat() * (alphaMax - alphaMin)
     } else {
         settings.lineAlpha.current
     }
 
-    return when (settings.styleMode) {
+    val finalColor = when (settings.styleMode) {
         "solid" -> {
             adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
@@ -2854,6 +3448,55 @@ private fun computeComposeColor(
             Color.hsv(finalHue, sat, 0.95f, segmentAlpha)
         }
     }
+
+    return if (settings.monoScaleEnabled.current) {
+        applyMonoScaleShiftToComposeColor(finalColor, settings, idx)
+    } else {
+        finalColor
+    }
+}
+
+private fun applyMonoScaleShiftToComposeColor(color: Color, settings: HarmonographSettings, idx: Int): Color {
+    val hsv = FloatArray(3)
+    android.graphics.Color.colorToHSV(android.graphics.Color.argb(
+        255,
+        (color.red * 255).roundToInt(),
+        (color.green * 255).roundToInt(),
+        (color.blue * 255).roundToInt()
+    ), hsv)
+    
+    val baseSat = hsv[1]
+    
+    val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
+        val msMin = settings.monoScaleShift.actualSelectedMin
+        val msMax = settings.monoScaleShift.actualSelectedMax
+        val sweepMin = if (settings.monoScaleShift.rangeLocked) msMin else -1.0f
+        val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
+        val speed = settings.monoScaleLiveShiftSpeed.current
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(System.currentTimeMillis() * speed * 0.002f)
+        sweepMin + cycleRatio * (sweepMax - sweepMin)
+    } else if (settings.monoScaleShift.rangeLocked) {
+        val msMin = settings.monoScaleShift.actualSelectedMin
+        val msMax = settings.monoScaleShift.actualSelectedMax
+        val msRand = java.util.Random(idx.toLong() * 1237L + settings.hashCode().toLong())
+        msMin + msRand.nextFloat() * (msMax - msMin)
+    } else {
+        settings.monoScaleShift.current
+    }
+    
+    val shiftCoerced = shiftVal.coerceIn(-1.0f, 1.0f)
+    if (shiftCoerced < 0f) {
+        val ratio = (shiftCoerced + 1.0f).coerceIn(0f, 1f)
+        hsv[1] = (0.15f + ratio * (baseSat - 0.15f)).coerceIn(0.05f, 1.0f)
+        hsv[2] = 0.98f
+    } else {
+        val ratio = (1.0f - shiftCoerced).coerceIn(0f, 1f)
+        hsv[1] = baseSat
+        hsv[2] = (0.15f + ratio * (0.95f - 0.15f)).coerceIn(0.05f, 1.0f)
+    }
+    
+    val alphaInt = (color.alpha * 255).roundToInt().coerceIn(0, 255)
+    return Color(android.graphics.Color.HSVToColor(alphaInt, hsv))
 }
 
 private fun adjustComposeColor(color: Color, sat: Float, hueOffset: Long, minHue: Float = 0f, maxHue: Float = 360f, chromaticShiftVal: Float = 0f, pt: ProjectedPoint, alphaVal: Float = 0.85f): Color {
