@@ -135,6 +135,10 @@ class HarmonographWallpaperService : WallpaperService() {
         }
 
         private var lastSaveTime = 0L
+        private var wallpaperFrameCount = 0
+        private var wallpaperLastFpsTime = 0L
+        private var wallpaperCurrentFps = 60f
+        private var wallpaperDynamicTailLimit = -1
         private val runDrawingRunnable = object : Runnable {
             override fun run() {
                 drawFrame()
@@ -149,7 +153,25 @@ class HarmonographWallpaperService : WallpaperService() {
                     if (isPlay) {
                         val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
                         if (settings.drawSpeedInstant) {
-                            drawProgress = maxSteps
+                            if (drawProgress < maxSteps) {
+                                drawProgress = maxSteps
+                            } else {
+                                val dt = 0.016f // step time
+                                val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
+                                val nextVal = drawProgress + stepsPerSec * dt
+                                
+                                val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                                if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
+                                    val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                    drawProgress = 0f
+                                    randomizeUnlockedSettings()
+                                    handler.postDelayed(this, postResetDelay)
+                                    saveWallpaperProgressToPrefs()
+                                    return
+                                } else {
+                                    drawProgress = nextVal
+                                }
+                            }
                         } else {
                             val dt = 0.016f // step time
                             val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
@@ -253,6 +275,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         settings = s
                         if (needsReset) {
                             drawProgress = 0f // Restart drawing only if physical form parameters changed
+                            wallpaperDynamicTailLimit = -1
                         }
                         if (!settings.gyroEnabled) {
                             gyroYawOffset = 0f
@@ -269,6 +292,7 @@ class HarmonographWallpaperService : WallpaperService() {
         private fun randomizeUnlockedSettings() {
             val r = Random()
             settings = settings.randomizeAll(r)
+            wallpaperDynamicTailLimit = -1
             saveSettingsToPrefs(settings)
         }
 
@@ -407,12 +431,57 @@ class HarmonographWallpaperService : WallpaperService() {
             val holder = surfaceHolder
             val canvas = holder.lockCanvas() ?: return
             
+            val nowMs = System.currentTimeMillis()
+            if (wallpaperLastFpsTime == 0L) {
+                wallpaperLastFpsTime = nowMs
+            } else {
+                wallpaperFrameCount++
+                val elapsedMsFps = nowMs - wallpaperLastFpsTime
+                if (elapsedMsFps >= 500L) {
+                    wallpaperCurrentFps = (wallpaperFrameCount * 1000f) / elapsedMsFps
+                    wallpaperFrameCount = 0
+                    wallpaperLastFpsTime = nowMs
+                }
+            }
+
+            // Dynamic tail control for performance
+            if (settings.drawSpeedInstant) {
+                if (wallpaperDynamicTailLimit == -1) {
+                    wallpaperDynamicTailLimit = -2
+                } else if (wallpaperDynamicTailLimit == -2) {
+                    wallpaperDynamicTailLimit = settings.instantDrawLengthLimit.current
+                } else {
+                    if (settings.perfRemoveTailEnabled) {
+                        val targetFpsVal = settings.perfTargetFps.current
+                        if (wallpaperCurrentFps < targetFpsVal && wallpaperDynamicTailLimit > 200) {
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - 300).coerceAtLeast(200)
+                        } else if (wallpaperCurrentFps > targetFpsVal + 5 && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
+                        }
+                    }
+                }
+            } else {
+                wallpaperDynamicTailLimit = -1
+            }
+
+            var width = canvas.width.toFloat()
+            var height = canvas.height.toFloat()
+            
+            val perfResolutionStr = settings.perfResolution
+            val targetRes = perfResolutionStr.toIntOrNull() ?: -1
+            val isScaled = targetRes > 0 && width.coerceAtLeast(height) > targetRes
+            val scaleFactorGlobal = if (isScaled) targetRes.toFloat() / width.coerceAtLeast(height) else 1f
+
             try {
                 // Background Paint - Deep Space Aesthetic
                 canvas.drawColor(0xFF0F172A.toInt()) // Slate 900
                 
-                val width = canvas.width.toFloat()
-                val height = canvas.height.toFloat()
+                if (isScaled) {
+                    canvas.save()
+                    canvas.scale(1f / scaleFactorGlobal, 1f / scaleFactorGlobal)
+                    width *= scaleFactorGlobal
+                    height *= scaleFactorGlobal
+                }
 
                 // Calculate relative elapsed milliseconds smoothly using synchronized animTime
                 val elapsedMs = animTime
@@ -520,7 +589,9 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant && drawProgress > stepsCount && !settings.instantDrawLengthInfinite.current) settings.instantDrawLengthLimit.current else -1
+                        tailLengthLimit = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
+                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) -1 else wallpaperDynamicTailLimit
+                        } else -1
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -647,6 +718,11 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
             } finally {
+                if (isScaled) {
+                    try {
+                        canvas.restore()
+                    } catch (e: Exception) {}
+                }
                 holder.unlockCanvasAndPost(canvas)
             }
         }

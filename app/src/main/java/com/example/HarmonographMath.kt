@@ -562,6 +562,20 @@ object HarmonographMath {
             
             if (isPeak) {
                 val penCount = settings.penCount.current
+                val rotationAngle = if (settings.penRotationEnabled.current) {
+                    val factor = settings.penRotationMultiplier.current.toFloat()
+                    val rotSpeed = if (settings.penRotationIsMultiply.current) fastestBase * factor else fastestBase / factor
+                    rotSpeed * t
+                } else {
+                    0f
+                }
+                
+                // Base rotation direction vectors
+                val cosAng = cos(rotationAngle)
+                val sinAng = sin(rotationAngle)
+                val dirOffset = uVec * cosAng + wVec * sinAng
+                val dirOffsetOrth = uVec * (-sin(rotationAngle)) + wVec * cosAng
+
                 if (penCount == 1) {
                     shapesList.add(
                         CustomShapeData(
@@ -571,30 +585,16 @@ object HarmonographMath {
                             isSolid = settings.periodicShapeSolid,
                             concentric = settings.periodicShapeConcentric,
                             deployment = settings.periodicShapeDeployment,
-                            uVector = uVec,
-                            wVector = wVec,
+                            uVector = dirOffset,
+                            wVector = dirOffsetOrth,
                             colorIndex = k
                         )
                     )
                 } else {
-                    val rotationAngle = if (settings.penRotationEnabled.current) {
-                        val factor = settings.penRotationMultiplier.current.toFloat()
-                        val rotSpeed = if (settings.penRotationIsMultiply.current) fastestBase * factor else fastestBase / factor
-                        rotSpeed * t
-                    } else {
-                        0f
-                    }
-                    
-                    // Rotation offsets
-                    val cosAng = cos(rotationAngle)
-                    val sinAng = sin(rotationAngle)
-                    
-                    // Primary offset direction
-                    val dirOffset = uVec * cosAng + wVec * sinAng
-
                     if (penCount == 2) {
                         val p1 = basePt + dirOffset * settings.penOffset.current
                         val p2 = basePt - dirOffset * settings.penOffset.current
+                        
                         shapesList.add(
                             CustomShapeData(
                                 center = p1,
@@ -603,8 +603,8 @@ object HarmonographMath {
                                 isSolid = settings.periodicShapeSolid,
                                 concentric = settings.periodicShapeConcentric,
                                 deployment = settings.periodicShapeDeployment,
-                                uVector = uVec,
-                                wVector = wVec,
+                                uVector = dirOffset,
+                                wVector = dirOffsetOrth,
                                 colorIndex = k
                             )
                         )
@@ -616,17 +616,25 @@ object HarmonographMath {
                                 isSolid = settings.periodicShapeSolid,
                                 concentric = settings.periodicShapeConcentric,
                                 deployment = settings.periodicShapeDeployment,
-                                uVector = uVec,
-                                wVector = wVec,
+                                uVector = dirOffset * -1f,
+                                wVector = dirOffsetOrth * -1f,
                                 colorIndex = k
                             )
                         )
                     } else if (penCount == 3) {
-                        val dirOffset2 = uVec * cos(rotationAngle + 2f * PI.toFloat() / 3f) + wVec * sin(rotationAngle + 2f * PI.toFloat() / 3f)
-                        val dirOffset3 = uVec * cos(rotationAngle + 4f * PI.toFloat() / 3f) + wVec * sin(rotationAngle + 4f * PI.toFloat() / 3f)
+                        val rotationAngle2 = rotationAngle + 2f * PI.toFloat() / 3f
+                        val rotationAngle3 = rotationAngle + 4f * PI.toFloat() / 3f
+                        
+                        val dirOffset2 = uVec * cos(rotationAngle2) + wVec * sin(rotationAngle2)
+                        val dirOffsetOrth2 = uVec * (-sin(rotationAngle2)) + wVec * cos(rotationAngle2)
+                        
+                        val dirOffset3 = uVec * cos(rotationAngle3) + wVec * sin(rotationAngle3)
+                        val dirOffsetOrth3 = uVec * (-sin(rotationAngle3)) + wVec * cos(rotationAngle3)
+
                         val p1 = basePt + dirOffset * settings.penOffset.current
                         val p2 = basePt + dirOffset2 * settings.penOffset.current
                         val p3 = basePt + dirOffset3 * settings.penOffset.current
+                        
                         shapesList.add(
                             CustomShapeData(
                                 center = p1,
@@ -635,8 +643,8 @@ object HarmonographMath {
                                 isSolid = settings.periodicShapeSolid,
                                 concentric = settings.periodicShapeConcentric,
                                 deployment = settings.periodicShapeDeployment,
-                                uVector = uVec,
-                                wVector = wVec,
+                                uVector = dirOffset,
+                                wVector = dirOffsetOrth,
                                 colorIndex = k
                             )
                         )
@@ -648,8 +656,8 @@ object HarmonographMath {
                                 isSolid = settings.periodicShapeSolid,
                                 concentric = settings.periodicShapeConcentric,
                                 deployment = settings.periodicShapeDeployment,
-                                uVector = uVec,
-                                wVector = wVec,
+                                uVector = dirOffset2,
+                                wVector = dirOffsetOrth2,
                                 colorIndex = k
                             )
                         )
@@ -661,8 +669,8 @@ object HarmonographMath {
                                 isSolid = settings.periodicShapeSolid,
                                 concentric = settings.periodicShapeConcentric,
                                 deployment = settings.periodicShapeDeployment,
-                                uVector = uVec,
-                                wVector = wVec,
+                                uVector = dirOffset3,
+                                wVector = dirOffsetOrth3,
                                 colorIndex = k
                             )
                         )

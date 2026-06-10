@@ -65,6 +65,20 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     val drawProgress by viewModel.currentDrawProgress.collectAsStateWithLifecycle()
     val isDrawing by viewModel.isDrawing.collectAsStateWithLifecycle()
     val presets by viewModel.savedPresets.collectAsStateWithLifecycle()
+    val currentFps by viewModel.currentFps.collectAsStateWithLifecycle()
+
+    var dynamicTailLimit by remember(settings) { mutableStateOf(-1) }
+
+    LaunchedEffect(currentFps) {
+        if (settings.perfRemoveTailEnabled && settings.drawSpeedInstant) {
+            val targetFps = settings.perfTargetFps.current
+            if (currentFps < targetFps && dynamicTailLimit > 200) {
+                dynamicTailLimit = (dynamicTailLimit - 300).coerceAtLeast(200)
+            } else if (currentFps > targetFps + 5 && dynamicTailLimit < settings.instantDrawLengthLimit.current) {
+                dynamicTailLimit = (dynamicTailLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
+            }
+        }
+    }
 
     var isPanelExpanded by remember { mutableStateOf(true) }
     var activeTab by remember { mutableStateOf(0) } // 0: Oscillators, 1: Style & Pen, 2: Camera & Setup, 3: Presets
@@ -225,6 +239,16 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 0L
             }
 
+            if (settings.drawSpeedInstant) {
+                androidx.compose.runtime.SideEffect {
+                    if (dynamicTailLimit == -1) {
+                        dynamicTailLimit = -2
+                    } else if (dynamicTailLimit == -2) {
+                        dynamicTailLimit = settings.instantDrawLengthLimit.current
+                    }
+                }
+            }
+
             Canvas(modifier = Modifier.fillMaxSize().testTag("3d_harmonograph_canvas")) {
                 val drawLimit = drawProgress.roundToInt()
                 var width = size.width
@@ -296,7 +320,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant && drawProgress > stepsCount && !settings.instantDrawLengthInfinite.current) settings.instantDrawLengthLimit.current else -1
+                        tailLengthLimit = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
+                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) -1 else dynamicTailLimit
+                        } else -1
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -1975,6 +2001,18 @@ fun StyleAndPenConfigTab(
                                 ),
                                 modifier = Modifier.scale(0.8f)
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            IconButton(
+                                onClick = { onUpdate(settings.copy(monoScaleLiveShiftEnabled = settings.monoScaleLiveShiftEnabled.copy(locked = !settings.monoScaleLiveShiftEnabled.locked))) },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settings.monoScaleLiveShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "Lock Monochromatic Value Shift",
+                                    tint = if (settings.monoScaleLiveShiftEnabled.locked) Color(0xFFFF4081) else Color(0xFF64748B),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
 
                         if (settings.monoScaleLiveShiftEnabled.current) {
@@ -2193,6 +2231,18 @@ fun StyleAndPenConfigTab(
                             ),
                             modifier = Modifier.scale(0.8f)
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        IconButton(
+                            onClick = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(locked = !settings.liveAlphaShiftEnabled.locked))) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settings.liveAlphaShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = "Lock Alpha Shift",
+                                tint = if (settings.liveAlphaShiftEnabled.locked) Color(0xFFFF4081) else Color(0xFF64748B),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                     }
 
                     if (settings.liveAlphaShiftEnabled.current) {
@@ -2725,25 +2775,23 @@ fun CameraAndSetupTab(
                         }
                     }
 
-                    if (!settings.drawSpeedInstant) {
-                        ParameterSliderRow(
-                            label = "Draw Duration (minutes)",
-                            value = settings.drawSpeedMinutes.current,
-                            minVal = settings.drawSpeedMinutes.rangeMin,
-                            maxVal = settings.drawSpeedMinutes.rangeMax,
-                            stepValue = 0.5f,
-                            formatString = "%.1f min",
-                            isLocked = settings.drawSpeedMinutes.locked,
-                            onLockToggle = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.copy(locked = it))) },
-                            isRangeLocked = settings.drawSpeedMinutes.rangeLocked,
-                            onRangeLockToggle = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withRangeLocked(it))) },
-                            selectedMin = settings.drawSpeedMinutes.actualSelectedMin,
-                            selectedMax = settings.drawSpeedMinutes.actualSelectedMax,
-                            onRangeChange = { min, max -> onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withRanges(min, max))) },
-                            onValueChange = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withValue(it))) },
-                            onRandomize = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.randomize(java.util.Random()))) }
-                        )
-                    }
+                    ParameterSliderRow(
+                        label = "Draw Duration (minutes)",
+                        value = settings.drawSpeedMinutes.current,
+                        minVal = settings.drawSpeedMinutes.rangeMin,
+                        maxVal = settings.drawSpeedMinutes.rangeMax,
+                        stepValue = 0.5f,
+                        formatString = "%.1f min",
+                        isLocked = settings.drawSpeedMinutes.locked,
+                        onLockToggle = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.copy(locked = it))) },
+                        isRangeLocked = settings.drawSpeedMinutes.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withRangeLocked(it))) },
+                        selectedMin = settings.drawSpeedMinutes.actualSelectedMin,
+                        selectedMax = settings.drawSpeedMinutes.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(drawSpeedMinutes = settings.drawSpeedMinutes.randomize(java.util.Random()))) }
+                    )
                 }
             }
         }
