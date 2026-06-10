@@ -113,24 +113,21 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 if (isPlay) {
                     if (settings.drawSpeedInstant) {
                         completionTimeMs = 0L
-                        val limitSteps = if (settings.instantDrawLengthInfinite.current) maxSteps else settings.instantDrawLengthLimit.current.toFloat()
-                        if (progress < limitSteps) {
-                            val targetFpsVal = settings.perfTargetFps.current
-                            val increment = if (currentFps.value < targetFpsVal) {
-                                40f // Slow down to keep system from lagging/dropping frames
-                            } else {
-                                350f // Default rapid speed
-                            }
-                            val nextVal = (progress + increment).coerceAtMost(maxSteps)
-                            _currentDrawProgress.value = nextVal
+                        if (progress < maxSteps) {
+                            // Instantly jump to completed shape
+                            _currentDrawProgress.value = maxSteps
                         } else {
+                            // It is in phase 2: animate/slide along the path
                             val totalDurationSec = settings.drawSpeedMinutes.current * 60f
                             val stepsPerSec = maxSteps / totalDurationSec
                             val stepsPerFrame = stepsPerSec * 0.016f
                             
                             val nextVal = progress + stepsPerFrame
-                            if (nextVal >= maxSteps) {
-                                _currentDrawProgress.value = limitSteps
+                            
+                            // Check auto-reset if enabled
+                            val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                            if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
+                                resetAndRandomize()
                             } else {
                                 _currentDrawProgress.value = nextVal
                             }
@@ -441,7 +438,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         cameraAutoRotationEnabled = false,
                         coasterDirectionFacing = true,
                         coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
-                        coasterOrbitSpeed = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f)
+                        coasterOrbitSpeed = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
                     )
                 ) ?: ""
             ),
@@ -468,7 +465,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         cameraAutoRotationEnabled = false,
                         coasterDirectionFacing = true,
                         coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f, locked = true),
-                        coasterOrbitSpeed = FloatParameter(1.8f, rangeMin = 0.2f, rangeMax = 5.0f, locked = true),
+                        coasterOrbitSpeed = FloatParameter(0.7f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
                         penRotationEnabled = BooleanParameter(true, locked = true)
                     )

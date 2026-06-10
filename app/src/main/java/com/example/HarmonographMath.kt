@@ -229,7 +229,7 @@ object HarmonographMath {
             val dtUsed = if (settings.perfVelocitySampling) {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
-                val targetDt = (1.2f / estimatedSpeed.coerceAtLeast(10f)).coerceIn(0.002f, 0.04f)
+                val targetDt = (1.8f / estimatedSpeed.coerceAtLeast(6f)).coerceIn(0.0015f, 0.15f)
                 targetDt
             } else {
                 dt
@@ -359,7 +359,7 @@ object HarmonographMath {
         if (settings.periodicShape == "none") return emptyList()
         
         // Calculate max active frequency in the system to determine optimal dt
-        var maxActiveFreq = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
+        var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
             val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
@@ -380,9 +380,89 @@ object HarmonographMath {
         val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
 
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 15000)
+        
+        val fastCalculatePointAtT = { tVal: Float ->
+            val px = Math.toRadians(settings.phaseX.current.toDouble()).toFloat()
+            val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
+            val pz = Math.toRadians(settings.phaseZ.current.toDouble()).toFloat()
+            
+            val fX = settings.activeFreqX
+            val fY = settings.activeFreqY
+            val fZ = settings.activeFreqZ
+            
+            val decEnabled = settings.decayEnabled.current
+            val decX = settings.decayX.current
+            val decY = settings.decayY.current
+            val decZ = settings.decayZ.current
+            
+            val aX = settings.ampX.current
+            val aY = settings.ampY.current
+            val aZ = settings.ampZ.current
+            
+            val subXEnabled = settings.ampSubX.enabled && settings.ampSubX.current > 0f
+            val subXAmp = settings.ampSubX.current
+            val subXFreq = if (subXEnabled) {
+                val factor = settings.subXFreqFactor.current.toFloat()
+                if (settings.subXFreqIsMultiply.current) fX * factor else fX / factor
+            } else 0f
+            val subXP = if (subXEnabled) Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat() else 0f
+            
+            val subYEnabled = settings.ampSubY.enabled && settings.ampSubY.current > 0f
+            val subYAmp = settings.ampSubY.current
+            val subYFreq = if (subYEnabled) {
+                val factor = settings.subYFreqFactor.current.toFloat()
+                if (settings.subYFreqIsMultiply.current) fY * factor else fY / factor
+            } else 0f
+            val subYP = if (subYEnabled) Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat() else 0f
+            
+            val subZEnabled = settings.ampSubZ.enabled && settings.ampSubZ.current > 0f
+            val subZAmp = settings.ampSubZ.current
+            val subZFreq = if (subZEnabled) {
+                val factor = settings.subZFreqFactor.current.toFloat()
+                if (settings.subZFreqIsMultiply.current) fZ * factor else fZ / factor
+            } else 0f
+            val subZP = if (subZEnabled) Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat() else 0f
+            
+            val dFX = if (decEnabled) exp(-decX * tVal) else 1f
+            val dFY = if (decEnabled) exp(-decY * tVal) else 1f
+            val dFZ = if (decEnabled) exp(-decZ * tVal) else 1f
+            
+            var xr = aX * dFX * sin(fX * tVal + px)
+            var yr = aY * dFY * sin(fY * tVal + py)
+            val zr = if (aZ > 0f) aZ * dFZ * sin(fZ * tVal + pz) else 0f
+            
+            if (subXEnabled) {
+                xr += subXAmp * dFX * sin(subXFreq * tVal + px + subXP)
+            }
+            if (subYEnabled) {
+                yr += subYAmp * dFY * sin(subYFreq * tVal + py + subYP)
+            }
+            if (subZEnabled) {
+                xr += subZAmp * dFZ * sin(subZFreq * tVal + pz + subZP)
+            }
+            Point3D(xr, yr, zr)
+        }
+        
+        // Precalculate adaptive step times based on curve velocity
+        var tLocal = 0f
+        val ts = FloatArray(totalSteps + 2)
+        for (k in 0..totalSteps + 1) {
+            ts[k] = tLocal
+            val pt = fastCalculatePointAtT(tLocal)
+            val dtUsed = if (settings.perfVelocitySampling) {
+                val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
+                val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
+                val targetDt = (1.8f / estimatedSpeed.coerceAtLeast(6f)).coerceIn(0.0015f, 0.15f)
+                targetDt
+            } else {
+                dt
+            }
+            tLocal += dtUsed
+        }
+
         val shapesList = mutableListOf<CustomShapeData>()
         
-        val fastestBase = maxOf(settings.freqX.current, settings.freqY.current, settings.freqZ.current)
+        val fastestBase = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
         val factor = settings.periodicShapeFreqFactor.current.toFloat()
         val freqShape = if (settings.periodicShapeFreqIsMultiply) fastestBase * factor else fastestBase / factor
         
@@ -393,12 +473,32 @@ object HarmonographMath {
         
         // Stable parallel transport tracking for shape orientations
         var prevUVec: Point3D? = null
+        var prevBasePt: Point3D? = null
+        var prevDir: Point3D? = null
         
         for (k in 0 until totalSteps) {
-            val t = k * dt
-            val basePt = calculatePointAtStep(k, settings, dt)
-            val nextPt = calculatePointAtStep(k + 1, settings, dt)
-            val dir = (nextPt - basePt).normalized()
+            val t = ts[k]
+            val basePt = fastCalculatePointAtT(t)
+            val nextPt = fastCalculatePointAtT(ts[k + 1])
+            val rawDir = (nextPt - basePt).normalized()
+            
+            val dir = if (prevDir != null && prevBasePt != null) {
+                val actualPrevDir = (basePt - prevBasePt).normalized()
+                val projDot = actualPrevDir.x * rawDir.x + actualPrevDir.y * rawDir.y + actualPrevDir.z * rawDir.z
+                if (projDot < 0f) {
+                    actualPrevDir
+                } else {
+                    Point3D(
+                        actualPrevDir.x * 0.75f + rawDir.x * 0.25f,
+                        actualPrevDir.y * 0.75f + rawDir.y * 0.25f,
+                        actualPrevDir.z * 0.75f + rawDir.z * 0.25f
+                    ).normalized()
+                }
+            } else {
+                rawDir
+            }
+            prevBasePt = basePt
+            prevDir = dir
             
             // Stable parallel transport uVec calculation
             val uVec: Point3D
@@ -418,7 +518,20 @@ object HarmonographMath {
             } else {
                 val dot = prevUVec.x * dir.x + prevUVec.y * dir.y + prevUVec.z * dir.z
                 val uProj = prevUVec - dir * dot
-                val u = uProj.normalized()
+                val len = uProj.length()
+                val u = if (len > 0.001f) {
+                    uProj.normalized()
+                } else {
+                    val dotX = abs(dir.x)
+                    val dotY = abs(dir.y)
+                    val dotZ = abs(dir.z)
+                    val helper = when {
+                        dotX <= dotY && dotX <= dotZ -> Point3D(1f, 0f, 0f)
+                        dotY <= dotX && dotY <= dotZ -> Point3D(0f, 1f, 0f)
+                        else -> Point3D(0f, 0f, 1f)
+                    }
+                    dir.cross(helper).normalized()
+                }
                 uVec = u
                 wVec = dir.cross(u).normalized()
             }
@@ -446,10 +559,8 @@ object HarmonographMath {
             } else {
                 hasTriggeredThisPeak = false
             }
-            prevVal = currentVal
             
             if (isPeak) {
-                
                 val penCount = settings.penCount.current
                 if (penCount == 1) {
                     shapesList.add(
@@ -590,17 +701,25 @@ object HarmonographMath {
         if (points.isEmpty()) return emptyList()
         
         // Find fractional progress index and fractional parts to avoid "jumpy / choppy" front tip steps!
-        val progressInt = floor(currentDrawProgress).toInt().coerceIn(0, points.size - 1)
-        val progressFrac = (currentDrawProgress - progressInt).coerceIn(0f, 1f)
+        val progressCoerced = if (tailLengthLimit > 0) currentDrawProgress else currentDrawProgress.coerceIn(0f, (points.size - 1).toFloat())
+        val progressInt = floor(progressCoerced).toInt()
+        val progressFrac = (progressCoerced - progressInt).coerceIn(0f, 1f)
         
-        val startIdx = if (tailLengthLimit > 0) (progressInt - tailLengthLimit).coerceAtLeast(0) else 0
-        val activePoints = ArrayList<Point3D>(progressInt - startIdx + 3)
-        for (i in startIdx..progressInt) {
-            activePoints.add(points[i])
+        val startIdx = if (tailLengthLimit > 0 && progressCoerced > tailLengthLimit) {
+            progressInt - tailLengthLimit
+        } else {
+            0
         }
-        if (progressFrac > 0.001f && progressInt < points.size - 1) {
-            val p1 = points[progressInt]
-            val p2 = points[progressInt + 1]
+        val activePoints = ArrayList<Point3D>((progressInt - startIdx) + 3)
+        for (i in startIdx..progressInt) {
+            val idx = (i % points.size + points.size) % points.size
+            activePoints.add(points[idx])
+        }
+        if (progressFrac > 0.001f) {
+            val i1 = (progressInt % points.size + points.size) % points.size
+            val i2 = ((progressInt + 1) % points.size + points.size) % points.size
+            val p1 = points[i1]
+            val p2 = points[i2]
             val interpolated = Point3D(
                 p1.x + (p2.x - p1.x) * progressFrac,
                 p1.y + (p2.y - p1.y) * progressFrac,

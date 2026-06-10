@@ -241,8 +241,8 @@ data class HarmonographSettings(
     val cameraAutoRotationSpeed: Float = 0.3f,
     val isAngularLockEnabled: Boolean = false,
     val angularLockAxis: String = "Z", // "X", "Y", or "Z"
-    val gyroEnabled: Boolean = false,
-    val gyroSensitivity: FloatParameter = FloatParameter(0.5f, rangeMin = 0.1f, rangeMax = 2.0f),
+    val gyroEnabled: Boolean = true,
+    val gyroSensitivity: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 2.0f),
     
     // Resets
     val postCompletionAutoReset: Boolean = true,
@@ -254,7 +254,7 @@ data class HarmonographSettings(
     val lineThickness: FloatParameter = FloatParameter(3.5f, rangeMin = 0.5f, rangeMax = 12f),
     val coasterDirectionFacing: Boolean = true,
     val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
-    val coasterOrbitSpeed: FloatParameter = FloatParameter(1.2f, rangeMin = 0.2f, rangeMax = 5.0f),
+    val coasterOrbitSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
     val lineAlpha: FloatParameter = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = false),
     val allowedStyleModes: String = "solid,length,center,spicy,rainbow",
     val allowedPerspectives: String = "1,2",
