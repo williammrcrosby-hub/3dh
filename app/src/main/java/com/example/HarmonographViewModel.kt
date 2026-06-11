@@ -31,7 +31,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         .build()
     private val adapter = moshi.adapter(HarmonographSettings::class.java)
 
-    private val _uiState = MutableStateFlow(HarmonographSettings())
+    private val _uiState = MutableStateFlow(HarmonographSettings().normalize())
     val uiState: StateFlow<HarmonographSettings> = _uiState.asStateFlow()
 
     private val _currentDrawProgress = MutableStateFlow(0f)
@@ -63,7 +63,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         val savedJson = prefs.getString("active_settings", null)
         if (savedJson != null) {
             try {
-                val s = adapter.fromJson(savedJson)
+                val s = adapter.fromJson(savedJson)?.normalize()
                 if (s != null && s != _uiState.value) {
                     _uiState.value = s
                 }
@@ -80,7 +80,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         val savedJson = prefs.getString("active_settings", null)
         if (savedJson != null) {
             try {
-                val loaded = adapter.fromJson(savedJson)
+                val loaded = adapter.fromJson(savedJson)?.normalize()
                 if (loaded != null) {
                     _uiState.value = loaded
                 }
@@ -176,8 +176,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun updateSettings(newSettings: HarmonographSettings) {
-        _uiState.value = newSettings
-        saveSettingsToPrefs(newSettings)
+        val norm = newSettings.normalize()
+        _uiState.value = norm
+        saveSettingsToPrefs(norm)
     }
 
     fun setDrawingState(isD: Boolean) {
@@ -229,7 +230,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
             }
         }
 
-        val u = baseSettings.randomizeAll(random)
+        val u = baseSettings.randomizeAll(random).normalize()
         _uiState.value = u
         _currentDrawProgress.value = 0f
         saveSettingsToPrefs(u)
@@ -313,7 +314,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 // based on the preset's structural settings and lock constraints
                 gyroYawOffset.value = 0f
                 gyroPitchOffset.value = 0f
-                val randomizedSettings = settings.randomizeAll(random)
+                val randomizedSettings = settings.randomizeAll(random).normalize()
                 _uiState.value = randomizedSettings
                 _currentDrawProgress.value = 0f
                 saveSettingsToPrefs(randomizedSettings)
@@ -539,6 +540,47 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         monoScaleEnabled = BooleanParameter(true),
                         monoScaleLiveShiftEnabled = BooleanParameter(true),
                         monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Zen Lotus Bloom",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        styleMode = "spicy",
+                        spicyHue = FloatParameter(10f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        spicyColorRange = FloatParameter(80f, rangeMin = 0f, rangeMax = 360f, locked = true),
+                        periodicShape = "triangle",
+                        periodicShapeSize = FloatParameter(12f, rangeMin = 2f, rangeMax = 18f, locked = true),
+                        periodicShapeConcentric = 3,
+                        periodicShapeDeployment = "progressive",
+                        periodicProgressiveDelay = FloatParameter(0.5f, rangeMin = 0.25f, rangeMax = 1.5f, locked = true),
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
+                        penOffset = FloatParameter(15f, rangeMin = 2f, rangeMax = 30f, locked = true),
+                        ampX = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
+                        freqX = FloatParameter(2.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(3.75f, rangeMin = 0.1f, rangeMax = 12f)
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Psychedelic Vortex",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        styleMode = "rainbow",
+                        periodicShape = "star",
+                        periodicShapeSize = FloatParameter(14f, rangeMin = 2f, rangeMax = 18f, locked = true),
+                        periodicShapeConcentric = 2,
+                        periodicShapeDeployment = "progressive",
+                        penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
+                        penRotationEnabled = BooleanParameter(true, locked = true),
+                        penRotationMultiplier = IntParameter(4, rangeMin = 1, rangeMax = 8, locked = true),
+                        penOffset = FloatParameter(16f, rangeMin = 2f, rangeMax = 30f, locked = true),
+                        freqX = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(4.5f, rangeMin = 0.1f, rangeMax = 12f)
                     )
                 ) ?: ""
             )

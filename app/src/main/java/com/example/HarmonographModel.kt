@@ -276,16 +276,25 @@ data class HarmonographSettings(
 
     // Monochromatic Value Scale Option
     val monoScaleEnabled: BooleanParameter = BooleanParameter(false),
-    val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f),
+    val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
     val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
     val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
     val monoWaveEffectiveRange: FloatParameter = FloatParameter(200f, rangeMin = 20f, rangeMax = 1000f),
     val monoWaveRandomness: FloatParameter = FloatParameter(0.5f, rangeMin = 0f, rangeMax = 1.0f),
-
+    
     // Live Transparency (Alpha) Shift Option
     val liveAlphaShiftEnabled: BooleanParameter = BooleanParameter(false, locked = true),
     val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
 ) {
+    fun normalize(): HarmonographSettings {
+        return this.copy(
+            xyzFreqMultiplier = xyzFreqMultiplier.copy(current = 2.0f, locked = true),
+            gyroSensitivity = gyroSensitivity.copy(current = 1.0f, locked = true),
+            lineAlpha = lineAlpha.copy(current = 1.0f, locked = true),
+            liveAlphaShiftEnabled = liveAlphaShiftEnabled.copy(current = false, locked = true)
+        )
+    }
+
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {
         val currentList = allowedPresets.split(",").filter { it.isNotEmpty() }.toMutableList()
         if (currentList.contains(presetNameOrId)) {

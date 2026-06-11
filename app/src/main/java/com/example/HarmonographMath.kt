@@ -41,7 +41,8 @@ data class CustomShapeData(
     val deployment: String,
     val uVector: Point3D,
     val wVector: Point3D,
-    val colorIndex: Int
+    val colorIndex: Int,
+    val penIndex: Int = 0
 )
 
 private data class CameraCacheKey(
@@ -606,7 +607,8 @@ object HarmonographMath {
                                 deployment = settings.periodicShapeDeployment,
                                 uVector = dirOffset,
                                 wVector = dirOffsetOrth,
-                                colorIndex = k
+                                colorIndex = k,
+                                penIndex = 0
                             )
                         )
                         shapesList.add(
@@ -619,7 +621,8 @@ object HarmonographMath {
                                 deployment = settings.periodicShapeDeployment,
                                 uVector = dirOffset * -1f,
                                 wVector = dirOffsetOrth * -1f,
-                                colorIndex = k
+                                colorIndex = k,
+                                penIndex = 1
                             )
                         )
                     } else if (penCount == 3) {
@@ -646,7 +649,8 @@ object HarmonographMath {
                                 deployment = settings.periodicShapeDeployment,
                                 uVector = dirOffset,
                                 wVector = dirOffsetOrth,
-                                colorIndex = k
+                                colorIndex = k,
+                                penIndex = 0
                             )
                         )
                         shapesList.add(
@@ -659,7 +663,8 @@ object HarmonographMath {
                                 deployment = settings.periodicShapeDeployment,
                                 uVector = dirOffset2,
                                 wVector = dirOffsetOrth2,
-                                colorIndex = k
+                                colorIndex = k,
+                                penIndex = 1
                             )
                         )
                         shapesList.add(
@@ -672,7 +677,8 @@ object HarmonographMath {
                                 deployment = settings.periodicShapeDeployment,
                                 uVector = dirOffset3,
                                 wVector = dirOffsetOrth3,
-                                colorIndex = k
+                                colorIndex = k,
+                                penIndex = 2
                             )
                         )
                     }

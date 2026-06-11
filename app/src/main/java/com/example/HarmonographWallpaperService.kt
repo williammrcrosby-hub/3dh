@@ -269,7 +269,7 @@ class HarmonographWallpaperService : WallpaperService() {
             val json = sharedPrefs?.getString("active_settings", null)
             if (json != null) {
                 try {
-                    val s = adapter.fromJson(json)
+                    val s = adapter.fromJson(json)?.normalize()
                     if (s != null) {
                         val needsReset = !settings.isDrawingFormEquivalent(s)
                         settings = s
@@ -291,14 +291,15 @@ class HarmonographWallpaperService : WallpaperService() {
 
         private fun randomizeUnlockedSettings() {
             val r = Random()
-            settings = settings.randomizeAll(r)
+            settings = settings.randomizeAll(r).normalize()
             wallpaperDynamicTailLimit = -1
             saveSettingsToPrefs(settings)
         }
 
         private fun saveSettingsToPrefs(settings: HarmonographSettings) {
             try {
-                val json = adapter.toJson(settings)
+                val normalizedSettings = settings.normalize()
+                val json = adapter.toJson(normalizedSettings)
                 sharedPrefs?.edit()?.putString("active_settings", json)?.apply()
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -310,7 +311,7 @@ class HarmonographWallpaperService : WallpaperService() {
             val db = DatabaseProvider.getDatabase(context)
             val dao = db.dao()
             
-            val locked = settings.lockAllLockable()
+            val locked = settings.lockAllLockable().normalize()
             settings = locked
             saveSettingsToPrefs(locked)
             
@@ -741,7 +742,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     drawOrthogonalShapeOnCanvas(
                         canvas, shape, activeYaw, activePitch, settings.cameraPerspective,
                         width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
-                        timeHueOffset, stepsCount, rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex,
+                        timeHueOffset, stepsCount, rawPaths.getOrNull(shape.penIndex) ?: rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex,
                         elapsedMs, drawProgress
                     )
                 }
@@ -867,8 +868,8 @@ class HarmonographWallpaperService : WallpaperService() {
             val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
                 val msMin = settings.monoScaleShift.actualSelectedMin
                 val msMax = settings.monoScaleShift.actualSelectedMax
-                val sweepMin = if (settings.monoScaleShift.rangeLocked) msMin else -1.0f
-                val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
+                val sweepMin = msMin
+                val sweepMax = msMax
                 val speed = settings.monoScaleLiveShiftSpeed.current
                 val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
                 val effectiveRange = settings.monoWaveEffectiveRange.current.coerceAtLeast(1f)

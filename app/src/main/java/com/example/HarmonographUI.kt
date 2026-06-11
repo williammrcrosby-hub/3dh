@@ -91,6 +91,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
 
     // Floating Phase/Oscillation Info overlay toggle
     var showTelemetryOverlay by remember { mutableStateOf(true) }
+    var showHelpDialog by remember { mutableStateOf(false) }
 
     // Stateful high-performance animation frame timer
     var animTime by remember { mutableStateOf(0L) }
@@ -502,7 +503,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             totalSteps = stepsCount,
                             settings = settings,
                             scaleFactor = scaleFactor,
-                            mainPathPoints = paths.firstOrNull() ?: emptyList(),
+                            mainPathPoints = paths.getOrNull(shape.penIndex) ?: paths.firstOrNull() ?: emptyList(),
                             cameraTargetIndex = cameraTargetIndex,
                             animTime = animTime,
                             drawProgress = drawProgress
@@ -589,6 +590,22 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     tint = Color.White
                 )
             }
+
+            IconButton(
+                onClick = { showHelpDialog = true },
+                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B)),
+                modifier = Modifier.testTag("app_help_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Help,
+                    contentDescription = "Show Help Guide",
+                    tint = Color(0xFF00E5FF)
+                )
+            }
+        }
+
+        if (showHelpDialog) {
+            HelpContentDialog(onDismiss = { showHelpDialog = false })
         }
 
          // Drawing progress controllers (Only shown when settings panel is collapsed)
@@ -3560,8 +3577,8 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
         val msMin = settings.monoScaleShift.actualSelectedMin
         val msMax = settings.monoScaleShift.actualSelectedMax
-        val sweepMin = if (settings.monoScaleShift.rangeLocked) msMin else -1.0f
-        val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
+        val sweepMin = msMin
+        val sweepMax = msMax
         val speed = settings.monoScaleLiveShiftSpeed.current
         val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
         val effectiveRange = settings.monoWaveEffectiveRange.current.coerceAtLeast(1f)
@@ -3783,3 +3800,155 @@ private fun DrawScope.drawComposeOrthogonalShape(
         }
     }
 }
+
+@Composable
+fun HelpContentDialog(onDismiss: () -> Unit) {
+    var selectedTab by remember { mutableStateOf(0) }
+    
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Help,
+                    contentDescription = "Help Icon",
+                    tint = Color(0xFF00E5FF),
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Harmonograph Guide",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 450.dp)) {
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.Transparent,
+                    contentColor = Color.White,
+                    indicator = { tabPositions ->
+                        TabRowDefaults.SecondaryIndicator(
+                            modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                            color = Color(0xFF00E5FF)
+                        )
+                    }
+                ) {
+                    Tab(
+                        selected = selectedTab == 0,
+                        onClick = { selectedTab = 0 },
+                        text = { Text("Beginner Guide", fontSize = 14.sp) }
+                    )
+                    Tab(
+                        selected = selectedTab == 1,
+                        onClick = { selectedTab = 1 },
+                        text = { Text("Advanced Settings", fontSize = 14.sp) }
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(12.dp))
+                
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    if (selectedTab == 0) {
+                        item {
+                            HelpSectionTitle("Welcome to Harmonograph")
+                            HelpBodyText("A beautiful simulation of a mechanical harmonograph drawing machine. Complex, harmonious geometries emerge when 3 perpendicular swinging pendulums deposit line traces.")
+                        }
+                        item {
+                            HelpSectionTitle("Drawing & Controls")
+                            HelpBulletPoint("Play/Pause", "Use the main play/pause button to watch the geometric equations render. In standard mode, the coordinate line decays gradually simulating mechanical friction.")
+                            HelpBulletPoint("Speed Control", "Switch from timed rendering (up to 10 minutes) or toggle 'Instant Draw' to immediately render all points. Infinite sliders dynamically slice trailing tails.")
+                            HelpBulletPoint("First Pen Options", "Adjust amplitudes and basic frequencies of X and Y axes to produce immediate, beautiful curves.")
+                        }
+                        item {
+                            HelpSectionTitle("Picking Presets")
+                            HelpBulletPoint("Standard Factory Presets", "Tap any card in the Presets panel to instantly load beautifully balanced geometries like classic spirographs or decaying orbits.")
+                            HelpBulletPoint("Preset Rotation", "Enable automatic preset rotation to cycle through allowed designs automatically upon each full draw completion.")
+                            HelpBulletPoint("User Presets", "Save your balanced creations to the database under personalized custom titles which can be renamed or deleted.")
+                        }
+                        item {
+                            HelpSectionTitle("Live Wallpapers")
+                            HelpBulletPoint("Interactive Backgrounds", "Tap the Wallpaper icon on top to open your system's live wallpaper selection. The background stays animated, responds to physical gyro tilts, and renders smoothly.")
+                        }
+                    } else {
+                        item {
+                            HelpSectionTitle("Advanced Settings")
+                            HelpBodyText("Familiarize yourself with the complex, non-linear mathematics and interactive settings of the app.")
+                        }
+                        item {
+                            HelpSectionTitle("Advanced Mathematics")
+                            HelpBulletPoint("The Z-Axis & Sub-pens", "A third independent mathematical pendulum adds simulated depth (Z amplitude). Parallel or Rotational multi-pen sublayers (up to 3 pens) shift the centers outward producing incredible complex symmetry.")
+                            HelpBulletPoint("Rational Frequencies", "Force pendulum speed ratios into pure integers or fractions (e.g., 2:3, 3:4). This constructs closed curves that align into pristine symmetric loops instead of infinite overlapping tangles.")
+                        }
+                        item {
+                            HelpSectionTitle("Shifting & Dynamics")
+                            HelpBulletPoint("Gyro Sensitivity", "Enabling physical gyroscope inputs allows device pitch and roll angles to tilt the 3D grid, creating active kinetic layouts. Sensitive values are optimized at 1.0.")
+                            HelpBulletPoint("Monochromatic Wave Shift", "Shifts line parameters dynamically between selected lower and upper limits. A traveler wave combined with dual interference noise shapes the value curve, producing gorgeous dynamic breathing transitions.")
+                            HelpBulletPoint("Live Alpha Shifts", "Allows transparency of lines to cycle from peak to bottom. Alpha shifts are locked off by default to maintain consistent geometric intensity.")
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00E5FF), contentColor = Color.Black)
+            ) {
+                Text("Got It")
+            }
+        },
+        containerColor = Color(0xFF1E293B),
+        titleContentColor = Color.White,
+        textContentColor = Color.LightGray
+    )
+}
+
+@Composable
+fun HelpSectionTitle(title: String) {
+    Text(
+        text = title,
+        color = Color(0xFF00E5FF),
+        fontSize = 15.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(bottom = 4.dp)
+    )
+}
+
+@Composable
+fun HelpBodyText(text: String) {
+    Text(
+        text = text,
+        color = Color(0xFFE2E8F0),
+        fontSize = 12.sp,
+        lineHeight = 16.sp
+    )
+}
+
+@Composable
+fun HelpBulletPoint(boldLead: String, bodyText: String) {
+    Row(modifier = Modifier.padding(start = 6.dp, top = 2.dp, bottom = 2.dp)) {
+        Text("• ", color = Color(0xFFFF4081), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        Column {
+            Text(
+                text = boldLead,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = bodyText,
+                color = Color(0xFF94A3B8),
+                fontSize = 11.sp,
+                lineHeight = 14.sp
+            )
+        }
+    }
+}
+
