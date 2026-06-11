@@ -1,49 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-    
-    <!-- Stylized 3D Harmonograph infinite swirl mapping inside the safe zone -->
-    <path
-        android:pathData="M 34,54 C 34,40 44,28 54,28 C 64,28 74,40 74,54 C 74,68 64,80 54,80 C 44,80 34,68 34,54 Z
-                          M 28,54 C 28,34 40,22 54,22 C 68,22 80,34 80,54 C 80,74 68,86 54,86 C 40,86 28,74 28,54 Z
-                          M 42,54 C 42,46 48,34 54,34 C 60,34 66,46 66,54 C 66,62 60,74 54,74 C 48,74 42,62 42,54 Z"
-        android:strokeWidth="2.2"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000">
-        <aapt:attr name="android:strokeColor">
-            <gradient
-                android:startX="28"
-                android:startY="28"
-                android:endX="80"
-                android:endY="80"
-                android:type="linear">
-                <item android:color="#FF00E5FF" android:offset="0.0"/>
-                <item android:color="#FFFF4081" android:offset="0.5"/>
-                <item android:color="#FF9D00FF" android:offset="1.0"/>
-            </gradient>
-        </aapt:attr>
-    </path>
-    
-    <!-- Minimalist futuristic drawing pen indicator -->
-    <path
-        android:pathData="M 54,24 L 54,16 M 52,16 L 56,16"
-        android:strokeWidth="2"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round" />
-    <path
-        android:pathData="M 54,54 L 78,30"
-        android:strokeWidth="1.5"
-        android:strokeColor="#80FFFFFF"
-        android:strokeLineCap="round" />
-        
-    <!-- A small sparkling drawing node star -->
-    <path
-        android:pathData="M 78,30 L 78,24 M 78,30 L 78,36 M 78,30 L 72,30 M 78,30 L 84,30"
-        android:strokeWidth="1"
-        android:strokeColor="#FFFFFFFF"
-        android:strokeLineCap="round" />
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:width="66dp"
+        android:height="66dp"
+        android:drawable="@drawable/img_app_icon_1781163673298"
+        android:gravity="center" />
+</layer-list>

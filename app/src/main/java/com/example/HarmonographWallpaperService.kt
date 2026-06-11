@@ -701,9 +701,18 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 // Periodic shapes orthogonal details
+                val wallpaperTailLimitVal = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
+                    if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) -1 else wallpaperDynamicTailLimit
+                } else -1
+                val wallpaperShapesStartIdx = if (wallpaperTailLimitVal > 0 && drawProgress > wallpaperTailLimitVal) {
+                    drawProgress.toInt() - wallpaperTailLimitVal
+                } else {
+                    0
+                }
+
                 for (shape in rawShapes) {
                     val kIndex = shape.colorIndex
-                    if (kIndex > drawProgress.roundToInt()) continue
+                    if (kIndex > drawProgress.roundToInt() || kIndex < wallpaperShapesStartIdx) continue
                     
                     // Project shape center and outer coordinates
                     val stepsCount = settings.drawLengthSteps
@@ -773,7 +782,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
                 val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
                 val speed = settings.liveAlphaShiftSpeed.current
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * (speed * 0.2f) * timeSec)
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
                 val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveAlpha.coerceIn(0.01f, 1.0f)
             } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
@@ -842,7 +851,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
                 val speed = settings.monoScaleLiveShiftSpeed.current
                 val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * (speed * 0.2f) * timeSec)
+                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
                 sweepMin + cycleRatio * (sweepMax - sweepMin)
             } else if (settings.monoScaleShift.rangeLocked) {
                 val msMin = settings.monoScaleShift.actualSelectedMin

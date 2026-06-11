@@ -276,11 +276,11 @@ data class HarmonographSettings(
     val monoScaleEnabled: BooleanParameter = BooleanParameter(false),
     val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f),
     val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
-    val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 5.0f),
+    val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
 
     // Live Transparency (Alpha) Shift Option
     val liveAlphaShiftEnabled: BooleanParameter = BooleanParameter(false),
-    val liveAlphaShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 5.0f)
+    val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
 ) {
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {
         val currentList = allowedPresets.split(",").filter { it.isNotEmpty() }.toMutableList()

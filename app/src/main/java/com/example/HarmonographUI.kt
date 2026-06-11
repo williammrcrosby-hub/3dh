@@ -457,8 +457,17 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     }
 
                     // Orthogonal secondary shapes drawing
+                    val tailLimitVal = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
+                        if (dynamicTailLimit == -1 || dynamicTailLimit == -2) -1 else dynamicTailLimit
+                    } else -1
+                    val shapesStartIdx = if (tailLimitVal > 0 && drawProgress > tailLimitVal) {
+                        drawProgress.toInt() - tailLimitVal
+                    } else {
+                        0
+                    }
+
                     for (shape in shapes) {
-                        if (shape.colorIndex > drawLimit) continue
+                        if (shape.colorIndex > drawLimit || shape.colorIndex < shapesStartIdx) continue
                         drawComposeOrthogonalShape(
                             shape = shape,
                             yawVal = animatedYaw,
@@ -3379,7 +3388,7 @@ private fun computeComposeColor(
         val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
         val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
         val speed = settings.liveAlphaShiftSpeed.current
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * (speed * 0.2f) * timeSec)
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
         val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveAlpha.coerceIn(0.01f, 1.0f)
     } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
@@ -3453,7 +3462,7 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
         val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
         val speed = settings.monoScaleLiveShiftSpeed.current
         val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * (speed * 0.2f) * timeSec)
+        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
         sweepMin + cycleRatio * (sweepMax - sweepMin)
     } else if (settings.monoScaleShift.rangeLocked) {
         val msMin = settings.monoScaleShift.actualSelectedMin

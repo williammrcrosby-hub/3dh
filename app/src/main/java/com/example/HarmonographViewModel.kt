@@ -523,6 +523,26 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penRotationMultiplier = IntParameter(6, rangeMin = 1, rangeMax = 8, locked = true)
                     )
                 ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Quantum Mono Wave",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        ampX = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
+                        ampZ = FloatParameter(100f, rangeMin = 0f, rangeMax = 250f),
+                        freqX = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(2.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        styleMode = "solid", 
+                        solidColorHue = FloatParameter(200f, rangeMin = 0f, rangeMax = 360f),
+                        monoScaleEnabled = BooleanParameter(true),
+                        monoScaleLiveShiftEnabled = BooleanParameter(true),
+                        monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        liveAlphaShiftEnabled = BooleanParameter(true),
+                        liveAlphaShiftSpeed = FloatParameter(0.3f, rangeMin = 0.05f, rangeMax = 1.0f)
+                    )
+                ) ?: ""
             )
         )
         for (p in presets) {
