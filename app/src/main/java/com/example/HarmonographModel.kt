@@ -243,7 +243,7 @@ data class HarmonographSettings(
     val isAngularLockEnabled: Boolean = false,
     val angularLockAxis: String = "Z", // "X", "Y", or "Z"
     val gyroEnabled: Boolean = true,
-    val gyroSensitivity: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 2.0f),
+    val gyroSensitivity: FloatParameter = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 2.0f, locked = true),
     
     // Resets
     val postCompletionAutoReset: Boolean = true,
@@ -256,7 +256,7 @@ data class HarmonographSettings(
     val coasterDirectionFacing: Boolean = true,
     val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
     val coasterOrbitSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
-    val lineAlpha: FloatParameter = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = false),
+    val lineAlpha: FloatParameter = FloatParameter(1.0f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
     val allowedStyleModes: String = "solid,length,center,spicy,rainbow",
     val allowedPerspectives: String = "1,2",
     val allowedPresets: String = "",
@@ -279,9 +279,11 @@ data class HarmonographSettings(
     val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f),
     val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
     val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
+    val monoWaveEffectiveRange: FloatParameter = FloatParameter(200f, rangeMin = 20f, rangeMax = 1000f),
+    val monoWaveRandomness: FloatParameter = FloatParameter(0.5f, rangeMin = 0f, rangeMax = 1.0f),
 
     // Live Transparency (Alpha) Shift Option
-    val liveAlphaShiftEnabled: BooleanParameter = BooleanParameter(false),
+    val liveAlphaShiftEnabled: BooleanParameter = BooleanParameter(false, locked = true),
     val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
 ) {
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {
@@ -387,6 +389,8 @@ data class HarmonographSettings(
             
             monoScaleShift = monoScaleShift.copy(locked = true),
             monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = true),
+            monoWaveEffectiveRange = monoWaveEffectiveRange.copy(locked = true),
+            monoWaveRandomness = monoWaveRandomness.copy(locked = true),
             liveAlphaShiftSpeed = liveAlphaShiftSpeed.copy(locked = true)
         )
     }
@@ -542,6 +546,8 @@ data class HarmonographSettings(
             monoScaleShift = monoScaleShift.randomize(random),
             monoScaleLiveShiftEnabled = monoScaleLiveShiftEnabled.randomize(random),
             monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.randomize(random),
+            monoWaveEffectiveRange = monoWaveEffectiveRange.randomize(random),
+            monoWaveRandomness = monoWaveRandomness.randomize(random),
             
             liveAlphaShiftEnabled = liveAlphaShiftEnabled.randomize(random),
             liveAlphaShiftSpeed = liveAlphaShiftSpeed.randomize(random)

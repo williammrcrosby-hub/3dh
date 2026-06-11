@@ -538,9 +538,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         solidColorHue = FloatParameter(200f, rangeMin = 0f, rangeMax = 360f),
                         monoScaleEnabled = BooleanParameter(true),
                         monoScaleLiveShiftEnabled = BooleanParameter(true),
-                        monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f),
-                        liveAlphaShiftEnabled = BooleanParameter(true),
-                        liveAlphaShiftSpeed = FloatParameter(0.3f, rangeMin = 0.05f, rangeMax = 1.0f)
+                        monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f)
                     )
                 ) ?: ""
             )
@@ -559,7 +557,7 @@ object DatabaseProvider {
                 context.applicationContext,
                 AppDatabase::class.java,
                 "harmonograph_db"
-            ).fallbackToDestructiveMigration().build()
+            ).fallbackToDestructiveMigration(true).build()
             instance = db
             db
         }

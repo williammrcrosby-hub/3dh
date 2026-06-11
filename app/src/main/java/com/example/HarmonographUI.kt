@@ -2038,7 +2038,7 @@ fun StyleAndPenConfigTab(
                         Spacer(modifier = Modifier.height(4.dp))
 
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Active Live Value Oscillation", color = Color.White, fontSize = 12.sp)
+                            Text("Active Live Value Wave Shift", color = Color.White, fontSize = 12.sp)
                             Spacer(modifier = Modifier.weight(1f))
                             Switch(
                                 checked = settings.monoScaleLiveShiftEnabled.current,
@@ -2080,6 +2080,46 @@ fun StyleAndPenConfigTab(
                                 onRangeChange = { min, max -> onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.withRanges(min, max))) },
                                 onValueChange = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.withValue(it))) },
                                 onRandomize = { onUpdate(settings.copy(monoScaleLiveShiftSpeed = settings.monoScaleLiveShiftSpeed.randomize(java.util.Random()))) }
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            ParameterSliderRow(
+                                label = "Live Wave Effective Range",
+                                value = settings.monoWaveEffectiveRange.current,
+                                minVal = settings.monoWaveEffectiveRange.rangeMin,
+                                maxVal = settings.monoWaveEffectiveRange.rangeMax,
+                                stepValue = 10f,
+                                formatString = "%.0f segments",
+                                isLocked = settings.monoWaveEffectiveRange.locked,
+                                onLockToggle = { onUpdate(settings.copy(monoWaveEffectiveRange = settings.monoWaveEffectiveRange.copy(locked = it))) },
+                                isRangeLocked = settings.monoWaveEffectiveRange.rangeLocked,
+                                onRangeLockToggle = { onUpdate(settings.copy(monoWaveEffectiveRange = settings.monoWaveEffectiveRange.withRangeLocked(it))) },
+                                selectedMin = settings.monoWaveEffectiveRange.actualSelectedMin,
+                                selectedMax = settings.monoWaveEffectiveRange.actualSelectedMax,
+                                onRangeChange = { min, max -> onUpdate(settings.copy(monoWaveEffectiveRange = settings.monoWaveEffectiveRange.withRanges(min, max))) },
+                                onValueChange = { onUpdate(settings.copy(monoWaveEffectiveRange = settings.monoWaveEffectiveRange.withValue(it))) },
+                                onRandomize = { onUpdate(settings.copy(monoWaveEffectiveRange = settings.monoWaveEffectiveRange.randomize(java.util.Random()))) }
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            ParameterSliderRow(
+                                label = "Live Wave Randomness",
+                                value = settings.monoWaveRandomness.current,
+                                minVal = settings.monoWaveRandomness.rangeMin,
+                                maxVal = settings.monoWaveRandomness.rangeMax,
+                                stepValue = 0.05f,
+                                formatString = "%.2f",
+                                isLocked = settings.monoWaveRandomness.locked,
+                                onLockToggle = { onUpdate(settings.copy(monoWaveRandomness = settings.monoWaveRandomness.copy(locked = it))) },
+                                isRangeLocked = settings.monoWaveRandomness.rangeLocked,
+                                onRangeLockToggle = { onUpdate(settings.copy(monoWaveRandomness = settings.monoWaveRandomness.withRangeLocked(it))) },
+                                selectedMin = settings.monoWaveRandomness.actualSelectedMin,
+                                selectedMax = settings.monoWaveRandomness.actualSelectedMax,
+                                onRangeChange = { min, max -> onUpdate(settings.copy(monoWaveRandomness = settings.monoWaveRandomness.withRanges(min, max))) },
+                                onValueChange = { onUpdate(settings.copy(monoWaveRandomness = settings.monoWaveRandomness.withValue(it))) },
+                                onRandomize = { onUpdate(settings.copy(monoWaveRandomness = settings.monoWaveRandomness.randomize(java.util.Random()))) }
                             )
                         }
                     }
@@ -2270,27 +2310,22 @@ fun StyleAndPenConfigTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Live Opacity (Alpha) Shift", color = Color.White, fontSize = 12.sp)
                         Spacer(modifier = Modifier.weight(1f))
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Locked Off",
+                            tint = Color(0xFFFF4081),
+                            modifier = Modifier.size(20.dp).padding(end = 4.dp)
+                        )
                         Switch(
-                            checked = settings.liveAlphaShiftEnabled.current,
-                            onCheckedChange = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(current = it))) },
+                            checked = false,
+                            onCheckedChange = null,
+                            enabled = false,
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0x6600E5FF)
+                                disabledUncheckedThumbColor = Color(0xFF64748B).copy(alpha = 0.6f),
+                                disabledUncheckedTrackColor = Color(0xFF1E293B).copy(alpha = 0.4f)
                             ),
                             modifier = Modifier.scale(0.8f)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        IconButton(
-                            onClick = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(locked = !settings.liveAlphaShiftEnabled.locked))) },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (settings.liveAlphaShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
-                                contentDescription = "Lock Alpha Shift",
-                                tint = if (settings.liveAlphaShiftEnabled.locked) Color(0xFFFF4081) else Color(0xFF64748B),
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
                     }
 
                     if (settings.liveAlphaShiftEnabled.current) {
@@ -3215,14 +3250,23 @@ fun PerformanceAndQualityTab(
                             )
                         }
                         
-                        Switch(
-                            checked = settings.perfVelocitySampling,
-                            onCheckedChange = { onUpdate(settings.copy(perfVelocitySampling = it)) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0x6600E5FF)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = "Locked Active",
+                                tint = Color(0xFFFF4081),
+                                modifier = Modifier.size(20.dp).padding(end = 4.dp)
                             )
-                        )
+                            Switch(
+                                checked = true,
+                                onCheckedChange = null,
+                                enabled = false,
+                                colors = SwitchDefaults.colors(
+                                    disabledCheckedThumbColor = Color(0xFF00E5FF).copy(alpha = 0.6f),
+                                    disabledCheckedTrackColor = Color(0x6600E5FF).copy(alpha = 0.4f)
+                                )
+                            )
+                        }
                     }
                     if (settings.perfVelocitySampling) {
                         HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
@@ -3520,7 +3564,17 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
         val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
         val speed = settings.monoScaleLiveShiftSpeed.current
         val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
+        val effectiveRange = settings.monoWaveEffectiveRange.current.coerceAtLeast(1f)
+        val randomness = settings.monoWaveRandomness.current
+        
+        // Traveling base wave
+        val waveBase = kotlin.math.sin((idx.toFloat() / effectiveRange) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
+        // Secondary interference waves
+        val waveNoise1 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
+        val waveNoise2 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
+        
+        val combinedWave = (1f - randomness) * waveBase + randomness * (0.6f * waveNoise1 + 0.4f * waveNoise2)
+        val cycleRatio = 0.5f + 0.5f * combinedWave
         sweepMin + cycleRatio * (sweepMax - sweepMin)
     } else if (settings.monoScaleShift.rangeLocked) {
         val msMin = settings.monoScaleShift.actualSelectedMin
@@ -3631,10 +3685,18 @@ private fun DrawScope.drawComposeOrthogonalShape(
         val scaleF = 1f + (concentricLevels - 1 - conc) * 0.5f
         val size = baseSize * scaleF
         
-        val centerPt3D = if (shape.deployment == "progressive") {
-            shape.center + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
+        val targetStep = (shape.colorIndex + conc * delayInSteps).roundToInt()
+        val baseCenter = if (mainPathPoints.isNotEmpty()) {
+            val idxCoerced = targetStep.coerceIn(mainPathPoints.indices)
+            mainPathPoints[idxCoerced]
         } else {
             shape.center
+        }
+
+        val centerPt3D = if (shape.deployment == "progressive") {
+            baseCenter + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
+        } else {
+            baseCenter
         }
 
         val shape3DPoints = mutableListOf<Point3D>()

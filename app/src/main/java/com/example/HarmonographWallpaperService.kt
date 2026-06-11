@@ -871,7 +871,17 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMax = if (settings.monoScaleShift.rangeLocked) msMax else 1.0f
                 val speed = settings.monoScaleLiveShiftSpeed.current
                 val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
+                val effectiveRange = settings.monoWaveEffectiveRange.current.coerceAtLeast(1f)
+                val randomness = settings.monoWaveRandomness.current
+                
+                // Traveling base wave
+                val waveBase = kotlin.math.sin((idx.toFloat() / effectiveRange) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
+                // Secondary interference waves
+                val waveNoise1 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
+                val waveNoise2 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
+                
+                val combinedWave = (1f - randomness) * waveBase + randomness * (0.6f * waveNoise1 + 0.4f * waveNoise2)
+                val cycleRatio = 0.5f + 0.5f * combinedWave
                 sweepMin + cycleRatio * (sweepMax - sweepMin)
             } else if (settings.monoScaleShift.rangeLocked) {
                 val msMin = settings.monoScaleShift.actualSelectedMin
@@ -935,11 +945,18 @@ class HarmonographWallpaperService : WallpaperService() {
                 val scaleFactor = 1f + (concentricLevels - 1 - conc) * 0.5f
                 val size = baseSize * scaleFactor
                 
-                val centerPt3D = if (shape.deployment == "progressive") {
-                    // Offset center slightly along direction
-                    shape.center + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
+                val targetStep = (shape.colorIndex + conc * delayInSteps).roundToInt()
+                val baseCenter = if (mainPathPoints.isNotEmpty()) {
+                    val idxCoerced = targetStep.coerceIn(mainPathPoints.indices)
+                    mainPathPoints[idxCoerced]
                 } else {
                     shape.center
+                }
+
+                val centerPt3D = if (shape.deployment == "progressive") {
+                    baseCenter + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
+                } else {
+                    baseCenter
                 }
                 
                 val shape3DPoints = mutableListOf<Point3D>()
