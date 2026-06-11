@@ -72,10 +72,11 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     LaunchedEffect(currentFps) {
         if (settings.perfRemoveTailEnabled && settings.drawSpeedInstant) {
             val targetFps = settings.perfTargetFps.current
-            if (currentFps < targetFps && dynamicTailLimit > 200) {
-                dynamicTailLimit = (dynamicTailLimit - 300).coerceAtLeast(200)
-            } else if (currentFps > targetFps + 5 && dynamicTailLimit < settings.instantDrawLengthLimit.current) {
-                dynamicTailLimit = (dynamicTailLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
+            val currentLimit = if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+            if (currentFps < targetFps && currentLimit > 200) {
+                dynamicTailLimit = (currentLimit - 100).coerceAtLeast(200)
+            } else if (currentFps > targetFps + 5 && currentLimit < settings.instantDrawLengthLimit.current) {
+                dynamicTailLimit = (currentLimit + 30).coerceAtMost(settings.instantDrawLengthLimit.current)
             }
         }
     }
@@ -320,9 +321,19 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
-                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) -1 else dynamicTailLimit
-                        } else -1
+                        tailLengthLimit = if (settings.drawSpeedInstant) {
+                            if (settings.perfRemoveTailEnabled) {
+                                if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                            } else {
+                                if (settings.instantDrawLengthInfinite.current) {
+                                    -1
+                                } else {
+                                    if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                                }
+                            }
+                        } else {
+                            -1
+                        }
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -457,9 +468,19 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     }
 
                     // Orthogonal secondary shapes drawing
-                    val tailLimitVal = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
-                        if (dynamicTailLimit == -1 || dynamicTailLimit == -2) -1 else dynamicTailLimit
-                    } else -1
+                    val tailLimitVal = if (settings.drawSpeedInstant) {
+                        if (settings.perfRemoveTailEnabled) {
+                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                        } else {
+                            if (settings.instantDrawLengthInfinite.current) {
+                                -1
+                            } else {
+                                if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                            }
+                        }
+                    } else {
+                        -1
+                    }
                     val shapesStartIdx = if (tailLimitVal > 0 && drawProgress > tailLimitVal) {
                         drawProgress.toInt() - tailLimitVal
                     } else {
@@ -483,7 +504,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             scaleFactor = scaleFactor,
                             mainPathPoints = paths.firstOrNull() ?: emptyList(),
                             cameraTargetIndex = cameraTargetIndex,
-                            animTime = animTime
+                            animTime = animTime,
+                            drawProgress = drawProgress
                         )
                     }
                 }
@@ -779,6 +801,23 @@ fun OscillatorConfigTab(
                             modifier = Modifier.scale(0.75f).testTag("rational_frequencies_switch")
                         )
                     }
+                    
+                    ParameterSliderRow(
+                        label = "XYZ Frequency Multiplier",
+                        value = settings.xyzFreqMultiplier.current,
+                        minVal = settings.xyzFreqMultiplier.rangeMin,
+                        maxVal = settings.xyzFreqMultiplier.rangeMax,
+                        stepValue = 0.1f,
+                        isLocked = settings.xyzFreqMultiplier.locked,
+                        onLockToggle = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.copy(locked = it))) },
+                        isRangeLocked = settings.xyzFreqMultiplier.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withRangeLocked(it))) },
+                        selectedMin = settings.xyzFreqMultiplier.actualSelectedMin,
+                        selectedMax = settings.xyzFreqMultiplier.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.randomize(java.util.Random()))) }
+                    )
                 }
             }
         }
@@ -3185,6 +3224,25 @@ fun PerformanceAndQualityTab(
                             )
                         )
                     }
+                    if (settings.perfVelocitySampling) {
+                        HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                        ParameterSliderRow(
+                            label = "Sampling Segment Length Modifier",
+                            value = settings.perfVelocityModifier.current,
+                            minVal = settings.perfVelocityModifier.rangeMin,
+                            maxVal = settings.perfVelocityModifier.rangeMax,
+                            stepValue = 0.1f,
+                            isLocked = settings.perfVelocityModifier.locked,
+                            onLockToggle = { onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.copy(locked = it))) },
+                            isRangeLocked = settings.perfVelocityModifier.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.withRangeLocked(it))) },
+                            selectedMin = settings.perfVelocityModifier.actualSelectedMin,
+                            selectedMax = settings.perfVelocityModifier.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.randomize(java.util.Random()))) }
+                        )
+                    }
                 }
             }
         }
@@ -3528,7 +3586,8 @@ private fun drawComposeOrthogonalShape(
     scaleFactor: Float,
     mainPathPoints: List<Point3D> = emptyList(),
     cameraTargetIndex: Float = -1f,
-    animTime: Long = 0L
+    animTime: Long = 0L,
+    drawProgress: Float = 0f
 ) {
     // Standard DrawScope cannot be accessed outside draw extension function.
 }
@@ -3548,7 +3607,8 @@ private fun DrawScope.drawComposeOrthogonalShape(
     scaleFactor: Float,
     mainPathPoints: List<Point3D> = emptyList(),
     cameraTargetIndex: Float = -1f,
-    animTime: Long = 0L
+    animTime: Long = 0L,
+    drawProgress: Float
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -3559,8 +3619,16 @@ private fun DrawScope.drawComposeOrthogonalShape(
         else -> 10 // Star
     }
 
+    val virtualDurationSec = if (settings.drawSpeedInstant) 120f else settings.drawSpeedMinutes.current * 60f
+    val stepsPerSec = totalSteps.toFloat() / virtualDurationSec.coerceAtLeast(1f)
+    val delayInSteps = settings.periodicProgressiveDelay.current * stepsPerSec
+
     for (conc in 0 until concentricLevels) {
-        val scaleF = 1f + conc * 0.5f
+        val requiredProgress = shape.colorIndex + conc * delayInSteps
+        if (drawProgress < requiredProgress) continue
+
+        // scale factor ranges from largest (outer) to smallest (inner)
+        val scaleF = 1f + (concentricLevels - 1 - conc) * 0.5f
         val size = baseSize * scaleF
         
         val centerPt3D = if (shape.deployment == "progressive") {

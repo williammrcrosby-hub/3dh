@@ -133,7 +133,8 @@ object HarmonographMath {
         dtDefault: Float = 0.015f
     ): List<List<Point3D>> {
         // Calculate max active frequency in the system to determine optimal dt
-        var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
+        val mult = settings.xyzFreqMultiplier.current
+        var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
             val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
@@ -159,9 +160,9 @@ object HarmonographMath {
         val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
         val pz = Math.toRadians(settings.phaseZ.current.toDouble()).toFloat()
         
-        val fX = settings.activeFreqX
-        val fY = settings.activeFreqY
-        val fZ = settings.activeFreqZ
+        val fX = settings.activeFreqX * mult
+        val fY = settings.activeFreqY * mult
+        val fZ = settings.activeFreqZ * mult
         
         val decEnabled = settings.decayEnabled.current
         val decX = settings.decayX.current
@@ -230,7 +231,7 @@ object HarmonographMath {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
                 val targetDt = (1.8f / estimatedSpeed.coerceAtLeast(6f)).coerceIn(0.0015f, 0.15f)
-                targetDt
+                targetDt * settings.perfVelocityModifier.current
             } else {
                 dt
             }
@@ -453,7 +454,7 @@ object HarmonographMath {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
                 val targetDt = (1.8f / estimatedSpeed.coerceAtLeast(6f)).coerceIn(0.0015f, 0.15f)
-                targetDt
+                targetDt * settings.perfVelocityModifier.current
             } else {
                 dt
             }
@@ -709,25 +710,28 @@ object HarmonographMath {
         if (points.isEmpty()) return emptyList()
         
         // Find fractional progress index and fractional parts to avoid "jumpy / choppy" front tip steps!
-        val progressCoerced = if (tailLengthLimit > 0) currentDrawProgress else currentDrawProgress.coerceIn(0f, (points.size - 1).toFloat())
+        val progressCoerced = if (tailLengthLimit > 0) {
+            currentDrawProgress.coerceAtMost((points.size - 1).toFloat())
+        } else {
+            currentDrawProgress.coerceIn(0f, (points.size - 1).toFloat())
+        }
         val progressInt = floor(progressCoerced).toInt()
         val progressFrac = (progressCoerced - progressInt).coerceIn(0f, 1f)
         
-        val startIdx = if (tailLengthLimit > 0 && progressCoerced > tailLengthLimit) {
-            progressInt - tailLengthLimit
+        val startIdx = if (tailLengthLimit > 0 && currentDrawProgress > tailLengthLimit) {
+            floor(currentDrawProgress).toInt() - tailLengthLimit
         } else {
             0
         }
-        val activePoints = ArrayList<Point3D>((progressInt - startIdx) + 3)
+        val activePoints = ArrayList<Point3D>((progressInt - startIdx).coerceAtLeast(0) + 3)
         for (i in startIdx..progressInt) {
-            val idx = (i % points.size + points.size) % points.size
-            activePoints.add(points[idx])
+            if (i in points.indices) {
+                activePoints.add(points[i])
+            }
         }
-        if (progressFrac > 0.001f) {
-            val i1 = (progressInt % points.size + points.size) % points.size
-            val i2 = ((progressInt + 1) % points.size + points.size) % points.size
-            val p1 = points[i1]
-            val p2 = points[i2]
+        if (progressFrac > 0.001f && progressInt >= 0 && progressInt < points.size - 1) {
+            val p1 = points[progressInt]
+            val p2 = points[progressInt + 1]
             val interpolated = Point3D(
                 p1.x + (p2.x - p1.x) * progressFrac,
                 p1.y + (p2.y - p1.y) * progressFrac,

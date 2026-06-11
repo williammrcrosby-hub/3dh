@@ -454,9 +454,9 @@ class HarmonographWallpaperService : WallpaperService() {
                     if (settings.perfRemoveTailEnabled) {
                         val targetFpsVal = settings.perfTargetFps.current
                         if (wallpaperCurrentFps < targetFpsVal && wallpaperDynamicTailLimit > 200) {
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - 300).coerceAtLeast(200)
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - 100).coerceAtLeast(200)
                         } else if (wallpaperCurrentFps > targetFpsVal + 5 && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 30).coerceAtMost(settings.instantDrawLengthLimit.current)
                         }
                     }
                 }
@@ -589,9 +589,19 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
-                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) -1 else wallpaperDynamicTailLimit
-                        } else -1
+                        tailLengthLimit = if (settings.drawSpeedInstant) {
+                            if (settings.perfRemoveTailEnabled) {
+                                if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                            } else {
+                                if (settings.instantDrawLengthInfinite.current) {
+                                    -1
+                                } else {
+                                    if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                                }
+                            }
+                        } else {
+                            -1
+                        }
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -701,9 +711,19 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 // Periodic shapes orthogonal details
-                val wallpaperTailLimitVal = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
-                    if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) -1 else wallpaperDynamicTailLimit
-                } else -1
+                val wallpaperTailLimitVal = if (settings.drawSpeedInstant) {
+                    if (settings.perfRemoveTailEnabled) {
+                        if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                    } else {
+                        if (settings.instantDrawLengthInfinite.current) {
+                            -1
+                        } else {
+                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                        }
+                    }
+                } else {
+                    -1
+                }
                 val wallpaperShapesStartIdx = if (wallpaperTailLimitVal > 0 && drawProgress > wallpaperTailLimitVal) {
                     drawProgress.toInt() - wallpaperTailLimitVal
                 } else {
@@ -722,7 +742,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         canvas, shape, activeYaw, activePitch, settings.cameraPerspective,
                         width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
                         timeHueOffset, stepsCount, rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex,
-                        elapsedMs
+                        elapsedMs, drawProgress
                     )
                 }
 
@@ -890,7 +910,8 @@ class HarmonographWallpaperService : WallpaperService() {
             totalSteps: Int,
             mainPathPoints: List<Point3D> = emptyList(),
             cameraTargetIndex: Float = -1f,
-            animTime: Long = 0L
+            animTime: Long = 0L,
+            drawProgress: Float
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -902,14 +923,21 @@ class HarmonographWallpaperService : WallpaperService() {
                 else -> 10 // Star
             }
 
+            val virtualDurationSec = if (settings.drawSpeedInstant) 120f else settings.drawSpeedMinutes.current * 60f
+            val stepsPerSec = totalSteps.toFloat() / virtualDurationSec.coerceAtLeast(1f)
+            val delayInSteps = settings.periodicProgressiveDelay.current * stepsPerSec
+
             for (conc in 0 until concentricLevels) {
-                // Stacked vs progressive concentric layouts
-                val scaleFactor = 1f + conc * 0.5f
+                val requiredProgress = shape.colorIndex + conc * delayInSteps
+                if (drawProgress < requiredProgress) continue
+
+                // Stacked vs progressive concentric layouts (outermost largest first)
+                val scaleFactor = 1f + (concentricLevels - 1 - conc) * 0.5f
                 val size = baseSize * scaleFactor
                 
                 val centerPt3D = if (shape.deployment == "progressive") {
                     // Offset center slightly along direction
-                    shape.center + (shape.uVector.cross(shape.wVector) * (conc * size * settings.periodicProgressiveDelay.current))
+                    shape.center + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
                 } else {
                     shape.center
                 }

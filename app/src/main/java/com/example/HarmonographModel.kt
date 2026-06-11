@@ -151,6 +151,7 @@ data class HarmonographSettings(
     val freqX: FloatParameter = FloatParameter(1.001f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqY: FloatParameter = FloatParameter(1.503f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqZ: FloatParameter = FloatParameter(2.002f, rangeMin = 1f/12f, rangeMax = 12f),
+    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 10.0f),
     
     val decayX: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
     val decayY: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
@@ -263,7 +264,8 @@ data class HarmonographSettings(
 
     // Performance & Quality Options
     val perfResolution: String = "native", // "native", "760", "480", "auto"
-    val perfVelocitySampling: Boolean = false,
+    val perfVelocitySampling: Boolean = true,
+    val perfVelocityModifier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 5.0f),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
     val perfTargetFps: IntParameter = IntParameter(20, rangeMin = 10, rangeMax = 60),
@@ -323,6 +325,7 @@ data class HarmonographSettings(
             freqX = freqX.copy(locked = true),
             freqY = freqY.copy(locked = true),
             freqZ = freqZ.copy(locked = true),
+            xyzFreqMultiplier = xyzFreqMultiplier.copy(locked = true),
             
             decayX = decayX.copy(locked = true),
             decayY = decayY.copy(locked = true),
@@ -380,6 +383,7 @@ data class HarmonographSettings(
             decayEnabled = decayEnabled.copy(locked = true),
             gyroSensitivity = gyroSensitivity.copy(locked = true),
             lineAlpha = lineAlpha.copy(locked = true),
+            perfVelocityModifier = perfVelocityModifier.copy(locked = true),
             
             monoScaleShift = monoScaleShift.copy(locked = true),
             monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = true),
@@ -531,6 +535,8 @@ data class HarmonographSettings(
             decayEnabled = decayEnabled.randomize(random),
             gyroSensitivity = gyroSensitivity.randomize(random),
             lineAlpha = lineAlpha.randomize(random),
+            xyzFreqMultiplier = xyzFreqMultiplier.randomize(random),
+            perfVelocityModifier = perfVelocityModifier.randomize(random),
             
             monoScaleEnabled = monoScaleEnabled.randomize(random),
             monoScaleShift = monoScaleShift.randomize(random),
