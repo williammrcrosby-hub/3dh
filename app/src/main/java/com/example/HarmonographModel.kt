@@ -205,7 +205,7 @@ data class HarmonographSettings(
     val spicyColorRange: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
     val chromaticShift: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 360f, locked = false),
     val liveChromaticShiftEnabled: BooleanParameter = BooleanParameter(false),
-    val chromaticShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.0f, rangeMax = 5.0f),
+    val chromaticShiftSpeed: FloatParameter = FloatParameter(1.0f, rangeMin = 0.0f, rangeMax = 1.0f),
     
     // Pen setups
     val penCount: IntParameter = IntParameter(1, rangeMin = 1, rangeMax = 3),
@@ -265,7 +265,7 @@ data class HarmonographSettings(
     // Performance & Quality Options
     val perfResolution: String = "native", // "native", "760", "480", "auto"
     val perfVelocitySampling: Boolean = true,
-    val perfVelocityModifier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 5.0f),
+    val perfVelocityModifier: FloatParameter = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 5.0f, locked = true),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
     val perfTargetFps: IntParameter = IntParameter(20, rangeMin = 10, rangeMax = 60),
@@ -276,7 +276,7 @@ data class HarmonographSettings(
 
     // Monochromatic Value Scale Option
     val monoScaleEnabled: BooleanParameter = BooleanParameter(false),
-    val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
+    val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
     val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
     val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
     val monoWaveEffectiveRange: FloatParameter = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),

@@ -107,7 +107,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     if (dtFrame > 0L) {
                         frameCount++
                         fpsAccumTime += dtFrame
-                        if (fpsAccumTime >= 300L) {
+                        if (fpsAccumTime >= 50L) {
                             val measuredFps = (frameCount * 1000f) / fpsAccumTime
                             viewModel.updateFps(measuredFps.coerceAtLeast(1f))
                             frameCount = 0
@@ -3043,7 +3043,7 @@ fun PresetsTab(
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
                     modifier = Modifier.fillMaxWidth(),
-                    border = if (isPresetRot) BorderStroke(1.dp, Color(0xFFFF4081)) else null
+                    border = if (isPresetRot) BorderStroke(1.5.dp, Color.Red) else null
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -3069,12 +3069,12 @@ fun PresetsTab(
                                 Text(preset.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                                 if (isPresetRot) {
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("🎲", fontSize = 10.sp, color = Color(0xFFFF4081))
+                                    Text("🎲", fontSize = 10.sp, color = Color.Red)
                                 }
                             }
                             Text(
                                 if (preset.isUserPreset) "My Custom Preset" else "Factory Standard Preset",
-                                color = if (isPresetRot) Color(0xFFFF4081) else Color(0xFF94A3B8),
+                                color = if (isPresetRot) Color.Red else Color(0xFF94A3B8),
                                 fontSize = 10.sp
                             )
                         }
@@ -3598,7 +3598,7 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
         val sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
         val sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
-        val speed = settings.monoScaleLiveShiftSpeed.current
+        val speed = settings.monoScaleLiveShiftSpeed.current / 3f
         val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
         val wavelength = 200f
         val randomness = settings.monoWaveRandomness.current
@@ -3884,25 +3884,23 @@ fun HelpContentDialog(onDismiss: () -> Unit) {
                     if (selectedTab == 0) {
                         item {
                             HelpSectionTitle("Welcome to Harmonograph")
-                            HelpBodyText("A beautiful simulation of a mechanical harmonograph drawing machine. Complex, harmonious geometries emerge when 3 perpendicular swinging pendulums deposit line traces.")
+                            HelpBodyText("A beautiful simulation of a mechanical harmonograph drawing machine. Complex, harmonious geometries emerge when 3 perpendicular swinging pendulums deposit line traces. Note: each reset randomizes most non-locked settings or randomizes them within selected ranges.")
                         }
                         item {
                             HelpSectionTitle("Drawing & Controls")
                             HelpBulletPoint("Play/Pause", "Use the main play/pause button to watch the geometric equations render. In standard mode, the coordinate line decays gradually simulating mechanical friction.")
-                            HelpBulletPoint("Speed Control", "Switch from timed rendering (up to 10 minutes) or toggle 'Instant Draw' to immediately render all points. Infinite sliders dynamically slice trailing tails.")
                             HelpBulletPoint("First Pen Options", "Adjust amplitudes and basic frequencies of X and Y axes to produce immediate, beautiful curves.")
-                            HelpBulletPoint("Interactive Touch Gestures", "• Orbit: Drag a single finger across the canvas to manually rotate the 3D grid.\n• Zoom: Pinch with two fingers to adjust camera distance.\n• Pan / Rotate: Use two fingers to drag and reposition or twist the model.\n• Fast Reset: Double-tap the canvas to snap back to default front-facing coordinates.\n• Desktop/Emulator: Left-click and drag to orbit; mousewheel to zoom.")
+                            HelpBulletPoint("Interactive Touch Gestures", "• Orbit: Drag a single finger across the canvas to manually rotate the 3D grid.\n• Fast Reset: 2 finger double tap on wallpaper to reset active parameters.\n• Change perspective: 2 finger tap and hold on wallpaper\n• Create snapshot: 3 finger tap and hold in wallpaper")
                         }
                         item {
                             HelpSectionTitle("Picking Presets")
                             HelpBulletPoint("Standard Factory Presets", "Tap any card in the Presets panel to instantly load beautifully balanced geometries like classic spirographs or decaying orbits.")
-                            HelpBulletPoint("Preset Rotation & Allowed Checkboxes", "Tap the circular checkbox indicator on the top-right of any preset card to select which designs are allowed to be cycled during automatic preset rotation updates.")
+                            HelpBulletPoint("Preset Rotation & Selection", "Presets that are active in automatic rotation have red borders. Tap and hold any preset option card to toggle its active status.")
                             HelpBulletPoint("User Presets", "Save your balanced creations to the database under personalized custom titles which can be renamed or deleted.")
                         }
                         item {
                             HelpSectionTitle("Live Wallpapers")
                             HelpBulletPoint("Interactive Backgrounds", "Tap the Wallpaper icon on top to open your system's live wallpaper selection. The background stays animated, responds to physical gyro tilts, and renders smoothly.")
-                            HelpBulletPoint("Direct Touch Ripples", "Tapping the active home screen live wallpaper background registers touch impacts, generating interactive, expanding color ripples around your fingertips.")
                             HelpBulletPoint("Battery Optimization", "The service is highly optimized to pause calculations and paint requests when the screen is turned off or covered by another application.")
                         }
                     } else {
@@ -3915,11 +3913,12 @@ fun HelpContentDialog(onDismiss: () -> Unit) {
                             HelpBulletPoint("Friction & Decay Rates", "Adjust decay coefficients (decay X, Y, Z) to configure simulated atmospheric and friction resistance. Higher values lead to rapid inward spiraling decay curves; lower values project dense overlapping designs.")
                             HelpBulletPoint("The Z-Axis & Sub-pens", "A third independent mathematical pendulum adds simulated depth (Z amplitude). Parallel or Rotational multi-pen sublayers (up to 3 pens) shift the centers outward producing incredible complex symmetry.")
                             HelpBulletPoint("Rational Frequencies", "Force pendulum speed ratios into pure integers or fractions (e.g., 2:3, 3:4). This constructs closed curves that align into pristine symmetric loops instead of infinite overlapping tangles.")
+                            HelpBulletPoint("XYZ Frequency Scale Factor", "Allows scaling of X, Y, and Z frequencies together, directly controlling the density and texture of the overall geometry.")
                         }
                         item {
                             HelpSectionTitle("Shifting & Dynamics")
-                            HelpBulletPoint("Gyro Sensitivity", "Enabling physical gyroscope inputs allows device pitch and roll angles to tilt the 3D grid, creating active kinetic layouts. Sensitive values are optimized at 1.0.")
-                            HelpBulletPoint("Monochromatic Wave Shift", "Shifts line parameters dynamically between selected lower and upper limits. A traveling base phase wave combined with dual-frequency non-linear interference waves propagates value shifts smoothly down the length of the drawing.")
+                            HelpBulletPoint("Gyro Sensitivity", "Enabling physical gyroscope inputs allows device pitch and roll angles to tilt the 3D grid, creating active kinetic layouts. Sensitive values are optimized at 1.0 (soft locked).")
+                            HelpBulletPoint("Monochromatic Wave Shift", "Shifts line parameters dynamically between selected lower and upper limits. A traveling base phase wave combination propagates value shifts smoothly down the length of the drawing at ⅓ rate.")
                             HelpBulletPoint("Live Shift Value Range", "Allows you to select a specific minimum and maximum range for the monochromatic live shift values, restricting oscillations precisely.")
                             HelpBulletPoint("Live Alpha Shifts", "Allows transparency of lines to cycle from peak to bottom. Alpha shifts are locked off by default to maintain consistent geometric intensity.")
                         }

@@ -458,7 +458,7 @@ class HarmonographWallpaperService : WallpaperService() {
             } else {
                 wallpaperFrameCount++
                 val elapsedMsFps = nowMs - wallpaperLastFpsTime
-                if (elapsedMsFps >= 300L) {
+                if (elapsedMsFps >= 50L) {
                     wallpaperCurrentFps = (wallpaperFrameCount * 1000f) / elapsedMsFps
                     wallpaperFrameCount = 0
                     wallpaperLastFpsTime = nowMs
@@ -896,7 +896,7 @@ class HarmonographWallpaperService : WallpaperService() {
             val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
                 val sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
                 val sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
-                val speed = settings.monoScaleLiveShiftSpeed.current
+                val speed = settings.monoScaleLiveShiftSpeed.current / 3f
                 val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
                 val wavelength = 200f
                 val randomness = settings.monoWaveRandomness.current
