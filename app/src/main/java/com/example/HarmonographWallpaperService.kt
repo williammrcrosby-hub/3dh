@@ -954,13 +954,6 @@ class HarmonographWallpaperService : WallpaperService() {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
             
-            // Build shape geometries in 3D
-            val vertices = when (shape.shapeType) {
-                "circle" -> 16
-                "triangle" -> 3
-                else -> 10 // Star
-            }
-
             val virtualDurationSec = if (settings.drawSpeedInstant) 120f else settings.drawSpeedMinutes.current * 60f
             val stepsPerSec = totalSteps.toFloat() / virtualDurationSec.coerceAtLeast(1f)
             val delayInSteps = settings.periodicProgressiveDelay.current * stepsPerSec
@@ -981,48 +974,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     shape.center
                 }
 
-                // Center on curves fix: do NOT add progressive offset, keep perfectly centered
                 val centerPt3D = baseCenter
-                
-                val shape3DPoints = mutableListOf<Point3D>()
-                for (v in 0 until vertices) {
-                    val angle = (2f * PI * v / vertices).toFloat()
-                    val r = if (shape.shapeType == "star" && v % 2 != 0) {
-                        size / 2.5f
-                    } else {
-                        size
-                    }
-                    
-                    val offsetVec = shape.uVector * cos(angle) * r + shape.wVector * sin(angle) * r
-                    shape3DPoints.add(centerPt3D + offsetVec)
-                }
-                // close polygon path
-                if (shape3DPoints.isNotEmpty()) {
-                    shape3DPoints.add(shape3DPoints[0])
-                }
-                
-                // Project shape points
-                val projPts = HarmonographMath.project3DTo2D(
-                    points = shape3DPoints,
-                    yaw = yawVal,
-                    pitch = pitchVal,
-                    perspective = perspective,
-                    currentDrawProgress = shape3DPoints.size.toFloat(),
-                    screenWidth = width,
-                    screenHeight = height,
-                    angularLock = angularLock,
-                    angularLockAxis = angularLockAxis,
-                    referencePoints = centerPathPoints.ifEmpty { null },
-                    cameraTargetIndex = cameraTargetIndex,
-                    cameraDistance = settings.cameraDistance.current,
-                    dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
-                    coasterDirectionFacing = settings.coasterDirectionFacing,
-                    animTime = animTime,
-                    coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                    coasterOrbitSpeed = settings.coasterOrbitSpeed.current
-                )
-                
-                if (projPts.size < 2) continue
                 
                 // Obtain center screen pos for color compute
                 val centerProj = HarmonographMath.project3DTo2D(
@@ -1048,21 +1000,108 @@ class HarmonographWallpaperService : WallpaperService() {
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
                 val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset)
                 
-                if (shape.isSolid) {
-                    val polyPath = Path()
-                    polyPath.moveTo(projPts[0].x, projPts[0].y)
-                    for (ptIdx in 1 until projPts.size) {
-                        polyPath.lineTo(projPts[ptIdx].x, projPts[ptIdx].y)
+                if (shape.shapeType == "cross") {
+                    val p1 = centerPt3D + shape.uVector * size
+                    val p2 = centerPt3D - shape.uVector * size
+                    val p3 = centerPt3D + shape.wVector * size
+                    val p4 = centerPt3D - shape.wVector * size
+
+                    val projPts = HarmonographMath.project3DTo2D(
+                        points = listOf(p1, p2, p3, p4),
+                        yaw = yawVal,
+                        pitch = pitchVal,
+                        perspective = perspective,
+                        currentDrawProgress = 4f,
+                        screenWidth = width,
+                        screenHeight = height,
+                        angularLock = angularLock,
+                        angularLockAxis = angularLockAxis,
+                        referencePoints = centerPathPoints.ifEmpty { null },
+                        cameraTargetIndex = cameraTargetIndex,
+                        cameraDistance = settings.cameraDistance.current,
+                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                        coasterDirectionFacing = settings.coasterDirectionFacing,
+                        animTime = animTime,
+                        coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                    )
+
+                    if (projPts.size == 4) {
+                        val pr1 = projPts[0]
+                        val pr2 = projPts[1]
+                        val pr3 = projPts[2]
+                        val pr4 = projPts[3]
+                        
+                        val avgDepth1 = (pr1.depth + pr2.depth) / 2f
+                        val avgDepth2 = (pr3.depth + pr4.depth) / 2f
+
+                        drawList.add(WPInstruction.Line(avgDepth1, pr1, pr2, shapeColor, shapeColor, 1.5f))
+                        drawList.add(WPInstruction.Line(avgDepth2, pr3, pr4, shapeColor, shapeColor, 1.5f))
                     }
-                    polyPath.close()
-                    val avgDepth = projPts.map { it.depth }.average().toFloat()
-                    drawList.add(WPInstruction.PathFill(avgDepth, polyPath, shapeColor, 150))
                 } else {
-                    for (ptIdx in 0 until projPts.size - 1) {
-                        val p1 = projPts[ptIdx]
-                        val p2 = projPts[ptIdx + 1]
-                        val avgDepth = (p1.depth + p2.depth) / 2f
-                        drawList.add(WPInstruction.Line(avgDepth, p1, p2, shapeColor, shapeColor, 1.5f))
+                    val vertices = when (shape.shapeType) {
+                        "triangle" -> 3
+                        "square" -> 4
+                        "diamond" -> 4
+                        "star" -> 10
+                        else -> 16 // "circle"
+                    }
+
+                    val shape3DPoints = mutableListOf<Point3D>()
+                    for (v in 0 until vertices) {
+                        val baseAngle = (2f * PI * v / vertices).toFloat()
+                        val angle = if (shape.shapeType == "square") baseAngle + (PI / 4f).toFloat() else baseAngle
+                        val r = if (shape.shapeType == "star" && v % 2 != 0) {
+                            size / 2.5f
+                        } else {
+                            size
+                        }
+                        
+                        val offsetVec = shape.uVector * cos(angle) * r + shape.wVector * sin(angle) * r
+                        shape3DPoints.add(centerPt3D + offsetVec)
+                    }
+                    if (shape3DPoints.isNotEmpty()) {
+                        shape3DPoints.add(shape3DPoints[0])
+                    }
+
+                    val projPts = HarmonographMath.project3DTo2D(
+                        points = shape3DPoints,
+                        yaw = yawVal,
+                        pitch = pitchVal,
+                        perspective = perspective,
+                        currentDrawProgress = shape3DPoints.size.toFloat(),
+                        screenWidth = width,
+                        screenHeight = height,
+                        angularLock = angularLock,
+                        angularLockAxis = angularLockAxis,
+                        referencePoints = centerPathPoints.ifEmpty { null },
+                        cameraTargetIndex = cameraTargetIndex,
+                        cameraDistance = settings.cameraDistance.current,
+                        dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                        coasterDirectionFacing = settings.coasterDirectionFacing,
+                        animTime = animTime,
+                        coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                    )
+
+                    if (projPts.size >= 2) {
+                        if (shape.isSolid) {
+                            val polyPath = Path()
+                            polyPath.moveTo(projPts[0].x, projPts[0].y)
+                            for (ptIdx in 1 until projPts.size) {
+                                polyPath.lineTo(projPts[ptIdx].x, projPts[ptIdx].y)
+                            }
+                            polyPath.close()
+                            val avgDepth = projPts.map { it.depth }.average().toFloat()
+                            drawList.add(WPInstruction.PathFill(avgDepth, polyPath, shapeColor, 150))
+                        } else {
+                            for (ptIdx in 0 until projPts.size - 1) {
+                                val p1 = projPts[ptIdx]
+                                val p2 = projPts[ptIdx + 1]
+                                val avgDepth = (p1.depth + p2.depth) / 2f
+                                drawList.add(WPInstruction.Line(avgDepth, p1, p2, shapeColor, shapeColor, 1.5f))
+                            }
+                        }
                     }
                 }
             }

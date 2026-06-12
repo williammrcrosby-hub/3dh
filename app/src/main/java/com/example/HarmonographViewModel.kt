@@ -362,9 +362,12 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(0f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        decayX = FloatParameter(0.0005f, rangeMin = 0f, rangeMax = 0.01f),
-                        decayY = FloatParameter(0.0005f, rangeMin = 0f, rangeMax = 0.01f),
-                        styleMode = "length"
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        decayX = FloatParameter(0.0004f, rangeMin = 0f, rangeMax = 0.01f),
+                        decayY = FloatParameter(0.0004f, rangeMin = 0f, rangeMax = 0.01f),
+                        styleMode = "length",
+                        penTipShape = "circle",
+                        penTipSize = 7f
                     )
                 ) ?: ""
             ),
@@ -375,16 +378,21 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     HarmonographSettings(
                         ampX = FloatParameter(150f, rangeMin = 10f, rangeMax = 250f),
                         ampY = FloatParameter(150f, rangeMin = 10f, rangeMax = 250f),
-                        ampZ = FloatParameter(120f, rangeMin = 0f, rangeMax = 250f),
+                        ampZ = FloatParameter(130f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(2.25f, rangeMin = 0.1f, rangeMax = 12f),
                         freqZ = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.2f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
                         decayX = FloatParameter(0.001f, rangeMin = 0f, rangeMax = 0.01f),
                         decayY = FloatParameter(0.001f, rangeMin = 0f, rangeMax = 0.01f),
                         decayZ = FloatParameter(0.001f, rangeMin = 0f, rangeMax = 0.01f),
                         styleMode = "rainbow",
                         cameraPerspective = 1,
-                        cameraAutoRotationEnabled = true
+                        cameraAutoRotationEnabled = true,
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3),
+                        penOffset = FloatParameter(10f, rangeMin = 2f, rangeMax = 30f),
+                        penTipShape = "diamond",
+                        penTipSize = 8f
                     )
                 ) ?: ""
             ),
@@ -398,10 +406,13 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(80f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
-                        decayX = FloatParameter(0.004f, rangeMin = 0f, rangeMax = 0.01f),
-                        decayY = FloatParameter(0.004f, rangeMin = 0f, rangeMax = 0.01f),
-                        ampSubX = FloatParameter(30f, rangeMin = 0f, rangeMax = 80f),
-                        styleMode = "center"
+                        xyzFreqMultiplier = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        decayX = FloatParameter(0.0035f, rangeMin = 0f, rangeMax = 0.01f),
+                        decayY = FloatParameter(0.0035f, rangeMin = 0f, rangeMax = 0.01f),
+                        ampSubX = FloatParameter(35f, rangeMin = 0f, rangeMax = 80f),
+                        styleMode = "center",
+                        penTipShape = "diamond",
+                        penTipSize = 9f
                     )
                 ) ?: ""
             ),
@@ -415,11 +426,16 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(90f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(4.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
                         penCount = IntParameter(3, rangeMin = 1, rangeMax = 3),
                         penOffset = FloatParameter(18f, rangeMin = 2f, rangeMax = 30f),
                         penRotationEnabled = BooleanParameter(true),
                         penRotationMultiplier = IntParameter(5, rangeMin = 1, rangeMax = 8),
-                        styleMode = "rainbow"
+                        styleMode = "rainbow",
+                        liveChromaticShiftEnabled = BooleanParameter(true),
+                        chromaticShiftSpeed = FloatParameter(0.8f, rangeMin = 0.0f, rangeMax = 1.0f),
+                        penTipShape = "star",
+                        penTipSize = 10f
                     )
                 ) ?: ""
             ),
@@ -430,16 +446,19 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     HarmonographSettings(
                         ampX = FloatParameter(130f, rangeMin = 10f, rangeMax = 250f),
                         ampY = FloatParameter(130f, rangeMin = 10f, rangeMax = 250f),
-                        ampZ = FloatParameter(90f, rangeMin = 0f, rangeMax = 250f),
+                        ampZ = FloatParameter(95f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(1.33f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqZ = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
                         styleMode = "rainbow",
                         cameraPerspective = 2,
                         cameraAutoRotationEnabled = false,
                         coasterDirectionFacing = true,
                         coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
-                        coasterOrbitSpeed = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
+                        coasterOrbitSpeed = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        penTipShape = "circle",
+                        penTipSize = 8f
                     )
                 ) ?: ""
             ),
@@ -452,7 +471,12 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
                         gradientStartHue = FloatParameter(200f, rangeMin = 0f, rangeMax = 360f, locked = true),
                         gradientEndHue = FloatParameter(320f, rangeMin = 0f, rangeMax = 360f, locked = true),
-                        penOffset = FloatParameter(14f, rangeMin = 2f, rangeMax = 30f, rangeLocked = true, selectedMin = 10f, selectedMax = 20f)
+                        penOffset = FloatParameter(14f, rangeMin = 2f, rangeMax = 30f, rangeLocked = true, selectedMin = 10f, selectedMax = 20f),
+                        periodicShape = "circle",
+                        periodicShapeSize = FloatParameter(8f, rangeMin = 2f, rangeMax = 18f),
+                        periodicShapeConcentric = 2,
+                        penTipShape = "square",
+                        penTipSize = 10f
                     )
                 ) ?: ""
             ),
@@ -468,7 +492,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f, locked = true),
                         coasterOrbitSpeed = FloatParameter(0.7f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
-                        penRotationEnabled = BooleanParameter(true, locked = true)
+                        penRotationEnabled = BooleanParameter(true, locked = true),
+                        liveChromaticShiftEnabled = BooleanParameter(true),
+                        penTipShape = "diamond",
+                        penTipSize = 9f
                     )
                 ) ?: ""
             ),
@@ -478,10 +505,16 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 settingsJson = adapter.toJson(
                     HarmonographSettings(
                         periodicShape = "star",
-                        periodicShapeSize = FloatParameter(8f, rangeMin = 2f, rangeMax = 18f, locked = true),
-                        periodicShapeFreqFactor = IntParameter(4, rangeMin = 1, rangeMax = 8, locked = true),
-                        styleMode = "rainbow",
-                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true)
+                        periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f, locked = true),
+                        periodicShapeFreqFactor = IntParameter(5, rangeMin = 1, rangeMax = 8, locked = true),
+                        periodicShapeConcentric = 2,
+                        periodicShapeDeployment = "progressive",
+                        styleMode = "spicy",
+                        spicyHue = FloatParameter(280f, rangeMin = 0f, rangeMax = 360f),
+                        spicyColorRange = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
+                        penTipShape = "star",
+                        penTipSize = 10f
                     )
                 ) ?: ""
             ),
@@ -494,7 +527,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         spicyHue = FloatParameter(120f, rangeMin = 0f, rangeMax = 360f, locked = true),
                         spicyColorRange = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f, locked = true),
                         penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
-                        penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f, locked = true)
+                        penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f, locked = true),
+                        gyroEnabled = true,
+                        penTipShape = "cross",
+                        penTipSize = 8f
                     )
                 ) ?: ""
             ),
@@ -507,7 +543,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f, locked = true),
                         gyroEnabled = true,
                         rationalFrequenciesEnabled = true,
-                        penCount = IntParameter(1, rangeMin = 1, rangeMax = 3, locked = true)
+                        penCount = IntParameter(1, rangeMin = 1, rangeMax = 3, locked = true),
+                        dynamicCameraZoomEnabled = true,
+                        penTipShape = "star",
+                        penTipSize = 9f
                     )
                 ) ?: ""
             ),
@@ -521,7 +560,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         rainbowColorRange = FloatParameter(270f, rangeMin = 0f, rangeMax = 360f, locked = true),
                         penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
                         penRotationEnabled = BooleanParameter(true, locked = true),
-                        penRotationMultiplier = IntParameter(6, rangeMin = 1, rangeMax = 8, locked = true)
+                        penRotationMultiplier = IntParameter(6, rangeMin = 1, rangeMax = 8, locked = true),
+                        liveChromaticShiftEnabled = BooleanParameter(true),
+                        chromaticShiftSpeed = FloatParameter(0.5f, rangeMin = 0.0f, rangeMax = 1.0f),
+                        penTipShape = "diamond",
+                        penTipSize = 8f
                     )
                 ) ?: ""
             ),
@@ -540,7 +583,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         monoScaleEnabled = BooleanParameter(true),
                         monoScaleLiveShiftEnabled = BooleanParameter(true),
                         monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f),
-                        monoWaveEffectiveRange = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -0.8f, selectedMax = 0.8f)
+                        monoWaveEffectiveRange = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -0.8f, selectedMax = 0.8f),
+                        penTipShape = "circle",
+                        penTipSize = 8f
                     )
                 ) ?: ""
             ),
@@ -562,7 +607,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampX = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
                         ampY = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
                         freqX = FloatParameter(2.5f, rangeMin = 0.1f, rangeMax = 12f),
-                        freqY = FloatParameter(3.75f, rangeMin = 0.1f, rangeMax = 12f)
+                        freqY = FloatParameter(3.75f, rangeMin = 0.1f, rangeMax = 12f),
+                        penTipShape = "diamond",
+                        penTipSize = 9f
                     )
                 ) ?: ""
             ),
@@ -581,7 +628,137 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penRotationMultiplier = IntParameter(4, rangeMin = 1, rangeMax = 8, locked = true),
                         penOffset = FloatParameter(16f, rangeMin = 2f, rangeMax = 30f, locked = true),
                         freqX = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        freqY = FloatParameter(4.5f, rangeMin = 0.1f, rangeMax = 12f)
+                        freqY = FloatParameter(4.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        penTipShape = "star",
+                        penTipSize = 10f
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Quantum Hyper-Vessel",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        ampX = FloatParameter(145f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(145f, rangeMin = 10f, rangeMax = 250f),
+                        ampZ = FloatParameter(110f, rangeMin = 0f, rangeMax = 250f),
+                        freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqZ = FloatParameter(4.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.33f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        decayX = FloatParameter(0.0008f, rangeMin = 0f, rangeMax = 0.01f),
+                        decayY = FloatParameter(0.0008f, rangeMin = 0f, rangeMax = 0.01f),
+                        decayZ = FloatParameter(0.0008f, rangeMin = 0f, rangeMax = 0.01f),
+                        styleMode = "rainbow",
+                        periodicShape = "circle",
+                        periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f),
+                        periodicShapeConcentric = 3,
+                        periodicShapeDeployment = "progressive",
+                        periodicProgressiveDelay = FloatParameter(0.4f, rangeMin = 0.25f, rangeMax = 1.5f),
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3),
+                        penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f),
+                        liveChromaticShiftEnabled = BooleanParameter(true),
+                        chromaticShiftSpeed = FloatParameter(0.7f, rangeMin = 0.00f, rangeMax = 1.00f),
+                        penTipShape = "circle",
+                        penTipSize = 8f
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Stardust Constellation",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        ampX = FloatParameter(150f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(150f, rangeMin = 10f, rangeMax = 250f),
+                        ampZ = FloatParameter(0f, rangeMin = 0f, rangeMax = 250f),
+                        freqX = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(5.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        rationalFrequenciesEnabled = true,
+                        styleMode = "spicy",
+                        spicyHue = FloatParameter(290f, rangeMin = 0f, rangeMax = 360f),
+                        spicyColorRange = FloatParameter(90f, rangeMin = 0f, rangeMax = 360f),
+                        periodicShape = "star",
+                        periodicShapeSize = FloatParameter(8f, rangeMin = 2f, rangeMax = 18f),
+                        periodicShapeConcentric = 2,
+                        periodicShapeFreqFactor = IntParameter(4, rangeMin = 1, rangeMax = 8),
+                        penCount = IntParameter(1, rangeMin = 1, rangeMax = 3),
+                        penTipShape = "star",
+                        penTipSize = 10f
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Cosmic Kaleidoscope",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        ampX = FloatParameter(125f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(125f, rangeMin = 10f, rangeMax = 250f),
+                        ampZ = FloatParameter(80f, rangeMin = 0f, rangeMax = 250f),
+                        freqX = FloatParameter(2.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(3.75f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqZ = FloatParameter(1.25f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        styleMode = "rainbow",
+                        periodicShape = "triangle",
+                        periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f),
+                        periodicShapeConcentric = 3,
+                        penCount = IntParameter(3, rangeMin = 1, rangeMax = 3),
+                        penOffset = FloatParameter(15f, rangeMin = 2f, rangeMax = 30f),
+                        penRotationEnabled = BooleanParameter(true),
+                        penRotationMultiplier = IntParameter(3, rangeMin = 1, rangeMax = 8),
+                        monoScaleEnabled = BooleanParameter(true),
+                        monoScaleLiveShiftEnabled = BooleanParameter(true),
+                        monoScaleLiveShiftSpeed = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        penTipShape = "diamond",
+                        penTipSize = 9f
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Cyber Fusion Core",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        ampX = FloatParameter(135f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(135f, rangeMin = 10f, rangeMax = 250f),
+                        ampZ = FloatParameter(115f, rangeMin = 0f, rangeMax = 250f),
+                        freqX = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(2.25f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        styleMode = "rainbow",
+                        cameraPerspective = 2,
+                        coasterOrbitSpeed = FloatParameter(0.8f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        penCount = IntParameter(2, rangeMin = 1, rangeMax = 3),
+                        penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f),
+                        liveChromaticShiftEnabled = BooleanParameter(true),
+                        chromaticShiftSpeed = FloatParameter(0.9f, rangeMin = 0.00f, rangeMax = 1.00f),
+                        penTipShape = "square",
+                        penTipSize = 8f
+                    )
+                ) ?: ""
+            ),
+            HarmonographPreset(
+                name = "Aurora Borealis",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(
+                    HarmonographSettings(
+                        ampX = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
+                        ampZ = FloatParameter(60f, rangeMin = 0f, rangeMax = 250f),
+                        freqX = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 12f),
+                        freqY = FloatParameter(1.33f, rangeMin = 0.1f, rangeMax = 12f),
+                        xyzFreqMultiplier = FloatParameter(1.2f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true),
+                        decayX = FloatParameter(0.0003f, rangeMin = 0f, rangeMax = 0.01f),
+                        decayY = FloatParameter(0.0003f, rangeMin = 0f, rangeMax = 0.01f),
+                        styleMode = "solid",
+                        solidColorHue = FloatParameter(145f, rangeMin = 0f, rangeMax = 360f), // Soft emerald glow
+                        gyroEnabled = true,
+                        gyroSensitivity = FloatParameter(0.4f, rangeMin = 0.1f, rangeMax = 2.0f, locked = true),
+                        penTipShape = "circle",
+                        penTipSize = 7f
                     )
                 ) ?: ""
             )

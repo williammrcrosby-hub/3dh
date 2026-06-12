@@ -2393,20 +2393,39 @@ fun StyleAndPenConfigTab(
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Orthogonal Path Geometric Shapes", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                        listOf("none", "circle", "triangle", "star").forEach { shape ->
-                            val act = (settings.periodicShape == shape)
-                            Button(
-                                onClick = { onUpdate(settings.copy(periodicShape = shape)) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (act) Color(0xFFFF4081) else Color(0xFF1E293B),
-                                    contentColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f).height(30.dp),
-                                contentPadding = PaddingValues(0.dp)
-                            ) {
-                                Text(shape.replaceFirstChar { it.uppercase() }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("none", "circle", "square", "diamond").forEach { shape ->
+                                val act = (settings.periodicShape == shape)
+                                Button(
+                                    onClick = { onUpdate(settings.copy(periodicShape = shape)) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (act) Color(0xFFFF4081) else Color(0xFF1E293B),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f).height(30.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(shape.replaceFirstChar { it.uppercase() }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
                             }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                            listOf("cross", "triangle", "star").forEach { shape ->
+                                val act = (settings.periodicShape == shape)
+                                Button(
+                                    onClick = { onUpdate(settings.copy(periodicShape = shape)) },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (act) Color(0xFFFF4081) else Color(0xFF1E293B),
+                                        contentColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f).height(30.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(shape.replaceFirstChar { it.uppercase() }, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(modifier = Modifier.weight(1f))
                         }
                     }
 
@@ -3702,12 +3721,6 @@ private fun addComposeOrthogonalShapeToDrawList(
     val concentricLevels = shape.concentric
     val baseSize = shape.size
 
-    val vertices = when (shape.shapeType) {
-        "circle" -> 16
-        "triangle" -> 3
-        else -> 10 // Star
-    }
-
     val virtualDurationSec = if (settings.drawSpeedInstant) 120f else settings.drawSpeedMinutes.current * 60f
     val stepsPerSec = totalSteps.toFloat() / virtualDurationSec.coerceAtLeast(1f)
     val delayInSteps = settings.periodicProgressiveDelay.current * stepsPerSec
@@ -3728,47 +3741,9 @@ private fun addComposeOrthogonalShapeToDrawList(
             shape.center
         }
 
-        // Center on curves fix: do NOT add progressive offset, keep perfectly centered
         val centerPt3D = baseCenter
 
-        val shape3DPoints = mutableListOf<Point3D>()
-        for (v in 0 until vertices) {
-            val angle = (2f * PI * v / vertices).toFloat()
-            val r = if (shape.shapeType == "star" && v % 2 != 0) {
-                size / 2.5f
-            } else {
-                size
-            }
-            
-            val offsetVec = shape.uVector * cos(angle) * r + shape.wVector * sin(angle) * r
-            shape3DPoints.add(centerPt3D + offsetVec)
-        }
-        if (shape3DPoints.isNotEmpty()) {
-            shape3DPoints.add(shape3DPoints[0])
-        }
-
-        val projPts = HarmonographMath.project3DTo2D(
-            points = shape3DPoints,
-            yaw = yawVal,
-            pitch = pitchVal,
-            perspective = perspective,
-            currentDrawProgress = shape3DPoints.size.toFloat(),
-            screenWidth = width,
-            screenHeight = height,
-            angularLock = angularLock,
-            angularLockAxis = angularLockAxis,
-            referencePoints = centerPathPoints.ifEmpty { null },
-            cameraTargetIndex = cameraTargetIndex,
-            cameraDistance = settings.cameraDistance.current,
-            dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
-            coasterDirectionFacing = settings.coasterDirectionFacing,
-            animTime = animTime,
-            coasterDeviationAngle = settings.coasterDeviationAngle.current,
-            coasterOrbitSpeed = settings.coasterOrbitSpeed.current
-        )
-
-        if (projPts.size < 2) continue
-
+        // Project center point first to get color
         val centerProj = HarmonographMath.project3DTo2D(
             points = listOf(centerPt3D),
             yaw = yawVal,
@@ -3788,40 +3763,143 @@ private fun addComposeOrthogonalShapeToDrawList(
             coasterDeviationAngle = settings.coasterDeviationAngle.current,
             coasterOrbitSpeed = settings.coasterOrbitSpeed.current
         )
-
         val centerPtScreen = centerProj.firstOrNull() ?: continue
         val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset)
 
-        if (shape.isSolid) {
-            val pathCompose = Path()
-            pathCompose.moveTo(projPts[0].x, projPts[0].y)
-            for (ptIdx in 1 until projPts.size) {
-                pathCompose.lineTo(projPts[ptIdx].x, projPts[ptIdx].y)
-            }
-            pathCompose.close()
-            
-            val avgDepth = projPts.map { it.depth }.average().toFloat()
-            drawList.add(
-                UIInstruction.PathFill(
-                    depth = avgDepth,
-                    path = pathCompose,
-                    color = shapeColor.copy(alpha = 0.55f)
-                )
+        if (shape.shapeType == "cross") {
+            // Draw dual crossing lines pointing outward on orthogonal axes
+            val p1 = centerPt3D + shape.uVector * size
+            val p2 = centerPt3D - shape.uVector * size
+            val p3 = centerPt3D + shape.wVector * size
+            val p4 = centerPt3D - shape.wVector * size
+
+            val projPts = HarmonographMath.project3DTo2D(
+                points = listOf(p1, p2, p3, p4),
+                yaw = yawVal,
+                pitch = pitchVal,
+                perspective = perspective,
+                currentDrawProgress = 4f,
+                screenWidth = width,
+                screenHeight = height,
+                angularLock = angularLock,
+                angularLockAxis = angularLockAxis,
+                referencePoints = centerPathPoints.ifEmpty { null },
+                cameraTargetIndex = cameraTargetIndex,
+                cameraDistance = settings.cameraDistance.current,
+                dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                coasterDirectionFacing = settings.coasterDirectionFacing,
+                animTime = animTime,
+                coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                coasterOrbitSpeed = settings.coasterOrbitSpeed.current
             )
-        } else {
-            for (pIndex in 0 until projPts.size - 1) {
-                val p1 = projPts[pIndex]
-                val p2 = projPts[pIndex + 1]
-                val avgDepth = (p1.depth + p2.depth) / 2f
+
+            if (projPts.size == 4) {
+                val pr1 = projPts[0]
+                val pr2 = projPts[1]
+                val pr3 = projPts[2]
+                val pr4 = projPts[3]
+                
+                val avgDepth1 = (pr1.depth + pr2.depth) / 2f
+                val avgDepth2 = (pr3.depth + pr4.depth) / 2f
+
                 drawList.add(
                     UIInstruction.Line(
-                        depth = avgDepth,
-                        start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
-                        end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
+                        depth = avgDepth1,
+                        start = androidx.compose.ui.geometry.Offset(pr1.x, pr1.y),
+                        end = androidx.compose.ui.geometry.Offset(pr2.x, pr2.y),
                         color = shapeColor,
                         strokeWidth = 1.6f * scaleFactor
                     )
                 )
+                drawList.add(
+                    UIInstruction.Line(
+                        depth = avgDepth2,
+                        start = androidx.compose.ui.geometry.Offset(pr3.x, pr3.y),
+                        end = androidx.compose.ui.geometry.Offset(pr4.x, pr4.y),
+                        color = shapeColor,
+                        strokeWidth = 1.6f * scaleFactor
+                    )
+                )
+            }
+        } else {
+            val vertices = when (shape.shapeType) {
+                "triangle" -> 3
+                "square" -> 4
+                "diamond" -> 4
+                "star" -> 10
+                else -> 16 // "circle"
+            }
+
+            val shape3DPoints = mutableListOf<Point3D>()
+            for (v in 0 until vertices) {
+                val baseAngle = (2f * PI * v / vertices).toFloat()
+                val angle = if (shape.shapeType == "square") baseAngle + (PI / 4f).toFloat() else baseAngle
+                val r = if (shape.shapeType == "star" && v % 2 != 0) {
+                    size / 2.5f
+                } else {
+                    size
+                }
+                
+                val offsetVec = shape.uVector * cos(angle) * r + shape.wVector * sin(angle) * r
+                shape3DPoints.add(centerPt3D + offsetVec)
+            }
+            if (shape3DPoints.isNotEmpty()) {
+                shape3DPoints.add(shape3DPoints[0])
+            }
+
+            val projPts = HarmonographMath.project3DTo2D(
+                points = shape3DPoints,
+                yaw = yawVal,
+                pitch = pitchVal,
+                perspective = perspective,
+                currentDrawProgress = shape3DPoints.size.toFloat(),
+                screenWidth = width,
+                screenHeight = height,
+                angularLock = angularLock,
+                angularLockAxis = angularLockAxis,
+                referencePoints = centerPathPoints.ifEmpty { null },
+                cameraTargetIndex = cameraTargetIndex,
+                cameraDistance = settings.cameraDistance.current,
+                dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
+                coasterDirectionFacing = settings.coasterDirectionFacing,
+                animTime = animTime,
+                coasterDeviationAngle = settings.coasterDeviationAngle.current,
+                coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+            )
+
+            if (projPts.size >= 2) {
+                if (shape.isSolid) {
+                    val pathCompose = Path()
+                    pathCompose.moveTo(projPts[0].x, projPts[0].y)
+                    for (ptIdx in 1 until projPts.size) {
+                        pathCompose.lineTo(projPts[ptIdx].x, projPts[ptIdx].y)
+                    }
+                    pathCompose.close()
+                    
+                    val avgDepth = projPts.map { it.depth }.average().toFloat()
+                    drawList.add(
+                        UIInstruction.PathFill(
+                            depth = avgDepth,
+                            path = pathCompose,
+                            color = shapeColor.copy(alpha = 0.55f)
+                        )
+                    )
+                } else {
+                    for (pIndex in 0 until projPts.size - 1) {
+                        val p1 = projPts[pIndex]
+                        val p2 = projPts[pIndex + 1]
+                        val avgDepth = (p1.depth + p2.depth) / 2f
+                        drawList.add(
+                            UIInstruction.Line(
+                                depth = avgDepth,
+                                start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
+                                end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
+                                color = shapeColor,
+                                strokeWidth = 1.6f * scaleFactor
+                            )
+                        )
+                    }
+                }
             }
         }
     }
