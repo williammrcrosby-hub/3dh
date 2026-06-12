@@ -298,6 +298,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
 
                 // Project and gather line segments across all paths for unified depth sorting
+                val settingsHash = settings.hashCode().toLong()
                 val drawList = mutableListOf<UIInstruction>()
                 val tipsList = mutableListOf<Pair<ProjectedPoint, Color>>()
 
@@ -355,7 +356,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             pt = p1,
                             width = width,
                             height = height,
-                            hueOffset = timeHueOffset
+                            hueOffset = timeHueOffset,
+                            settingsHash = settingsHash
                         )
                         
                         val baseThickness = settings.lineThickness.current
@@ -384,7 +386,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                                 pt = tip,
                                 width = width,
                                 height = height,
-                                hueOffset = timeHueOffset
+                                hueOffset = timeHueOffset,
+                                settingsHash = settingsHash
                             )
                         }
                         tipsList.add(Pair(tip, tipColor))
@@ -431,7 +434,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         cameraTargetIndex = cameraTargetIndex,
                         animTime = animTime,
                         drawProgress = drawProgress,
-                        drawList = drawList
+                        drawList = drawList,
+                        settingsHash = settingsHash
                     )
                 }
 
@@ -3507,6 +3511,15 @@ private fun mapHueIntoRange(hue: Float, minHue: Float, maxHue: Float): Float {
     return minHue + wrapped
 }
 
+private fun getDeterministicRandomFloat(index: Int, salt: Long, settingsHash: Long): Float {
+    var h = index.toLong() * 312251L + salt * 17971L + settingsHash * 4371427L
+    h = h xor (h ushr 21)
+    h = h xor (h shl 35)
+    h = h xor (h ushr 4)
+    h = h * 2685821657736338717L
+    return (java.lang.Math.abs(h) % 1000000L).toFloat() / 1000000f
+}
+
 private fun computeComposeColor(
     settings: HarmonographSettings,
     idx: Int,
@@ -3514,7 +3527,8 @@ private fun computeComposeColor(
     pt: ProjectedPoint,
     width: Float,
     height: Float,
-    hueOffset: Long
+    hueOffset: Long,
+    settingsHash: Long
 ): Color {
     val sat = settings.saturation.current
     val minHue = settings.hueShiftRange.actualSelectedMin
@@ -3534,8 +3548,8 @@ private fun computeComposeColor(
         val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveCS.coerceIn(0f, 180f)
     } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
-        val csRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
-        csMin + csRand.nextFloat() * (csMax - csMin)
+        val csRandVal = getDeterministicRandomFloat(idx, 37L, settingsHash)
+        csMin + csRandVal * (csMax - csMin)
     } else {
         settings.chromaticShift.current
     }
@@ -3551,8 +3565,8 @@ private fun computeComposeColor(
         val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveAlpha.coerceIn(0.01f, 1.0f)
     } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
-        val alphaRand = java.util.Random(idx.toLong() * 97L + settings.hashCode().toLong())
-        alphaMin + alphaRand.nextFloat() * (alphaMax - alphaMin)
+        val alphaRandVal = getDeterministicRandomFloat(idx, 97L, settingsHash)
+        alphaMin + alphaRandVal * (alphaMax - alphaMin)
     } else {
         settings.lineAlpha.current
     }
@@ -3577,13 +3591,12 @@ private fun computeComposeColor(
             adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
         "spicy" -> {
-            val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
-            val segRand = java.util.Random(seedBase)
+            val rHueVal = getDeterministicRandomFloat(idx, 1109L, settingsHash)
             
             val baseHue = settings.spicyHue.current
             val hRange = settings.spicyColorRange.current
             
-            val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
+            val rHue1 = if (hRange > 0.1f) (baseHue + rHueVal * hRange) % 360f else baseHue
             val finalHueVal = (rHue1 + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 120f)) % 360f
             val finalHue = mapHueIntoRange(finalHueVal, minHue, maxHue)
             Color.hsv(finalHue, sat, 0.95f, segmentAlpha)
@@ -3597,13 +3610,13 @@ private fun computeComposeColor(
     }
 
     return if (settings.monoScaleEnabled.current) {
-        applyMonoScaleShiftToComposeColor(finalColor, settings, idx)
+        applyMonoScaleShiftToComposeColor(finalColor, settings, idx, settingsHash)
     } else {
         finalColor
     }
 }
 
-private fun applyMonoScaleShiftToComposeColor(color: Color, settings: HarmonographSettings, idx: Int): Color {
+private fun applyMonoScaleShiftToComposeColor(color: Color, settings: HarmonographSettings, idx: Int, settingsHash: Long): Color {
     val hsv = FloatArray(3)
     android.graphics.Color.colorToHSV(android.graphics.Color.argb(
         255,
@@ -3634,8 +3647,8 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     } else if (settings.monoScaleShift.rangeLocked) {
         val msMin = settings.monoScaleShift.actualSelectedMin
         val msMax = settings.monoScaleShift.actualSelectedMax
-        val msRand = java.util.Random(idx.toLong() * 1237L + settings.hashCode().toLong())
-        msMin + msRand.nextFloat() * (msMax - msMin)
+        val msRandVal = getDeterministicRandomFloat(idx, 1237L, settingsHash)
+        msMin + msRandVal * (msMax - msMin)
     } else {
         settings.monoScaleShift.current
     }
@@ -3716,7 +3729,8 @@ private fun addComposeOrthogonalShapeToDrawList(
     cameraTargetIndex: Float = -1f,
     animTime: Long = 0L,
     drawProgress: Float,
-    drawList: MutableList<UIInstruction>
+    drawList: MutableList<UIInstruction>,
+    settingsHash: Long
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -3764,7 +3778,7 @@ private fun addComposeOrthogonalShapeToDrawList(
             coasterOrbitSpeed = settings.coasterOrbitSpeed.current
         )
         val centerPtScreen = centerProj.firstOrNull() ?: continue
-        val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset)
+        val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash)
 
         if (shape.shapeType == "cross") {
             // Draw dual crossing lines pointing outward on orthogonal axes

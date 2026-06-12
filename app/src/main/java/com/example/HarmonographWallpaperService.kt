@@ -548,6 +548,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 val rawPaths = cachedPaths!!
                 val rawShapes = cachedShapes!!
                 val centerPath = cachedCenterPath!!
+                val settingsHash = settings.hashCode().toLong()
                 
                 // Color hue cycle using elapsed elapsedMs
                 val timeHueOffset = if (settings.hueShiftingEnabled) {
@@ -608,7 +609,7 @@ class HarmonographWallpaperService : WallpaperService() {
                             if (settings.drawSpeedInstant) {
                                 if (settings.instantDrawLengthInfinite.current) {
                                     -1
-                                } else {
+                                        } else {
                                     if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
                                 }
                             } else {
@@ -625,13 +626,12 @@ class HarmonographWallpaperService : WallpaperService() {
                         val p2 = projPoints[i + 1]
                         if (p1.isBehindCamera || p2.isBehindCamera) continue
                         
-                        // Compute color styled dynamically
-                        val segmentColor1 = computeDynamicColor(p1.originalIndex, settings.drawLengthSteps, p1, width, height, timeHueOffset)
-                        val segmentColor2 = computeDynamicColor(p2.originalIndex, settings.drawLengthSteps, p2, width, height, timeHueOffset)
+                        // Compute color styled dynamically once per segment (looks perfectly smooth and matches the main app!)
+                        val segmentColor = computeDynamicColor(p1.originalIndex, settings.drawLengthSteps, p1, width, height, timeHueOffset, settingsHash)
                         val baseThickness = settings.lineThickness.current
                         val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
                         
-                        drawList.add(WPInstruction.Line((p1.depth + p2.depth) / 2f, p1, p2, segmentColor1, segmentColor2, strokeWidth))
+                        drawList.add(WPInstruction.Line((p1.depth + p2.depth) / 2f, p1, p2, segmentColor, segmentColor, strokeWidth))
                     }
 
                     // Store pen tip if enabled
@@ -646,7 +646,8 @@ class HarmonographWallpaperService : WallpaperService() {
                                 tip,
                                 width,
                                 height,
-                                timeHueOffset
+                                timeHueOffset,
+                                settingsHash
                             )
                         }
                         tipsList.add(Pair(tip, tipColor))
@@ -694,7 +695,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         cameraTargetIndex = cameraTargetIndex,
                         animTime = elapsedMs,
                         drawProgress = drawProgress,
-                        drawList = drawList
+                        drawList = drawList,
+                        settingsHash = settingsHash
                     )
                 }
 
@@ -783,6 +785,15 @@ class HarmonographWallpaperService : WallpaperService() {
             }
         }
 
+        private fun getDeterministicRandomFloat(index: Int, salt: Long, settingsHash: Long): Float {
+            var h = index.toLong() * 312251L + salt * 17971L + settingsHash * 4371427L
+            h = h xor (h ushr 21)
+            h = h xor (h shl 35)
+            h = h xor (h ushr 4)
+            h = h * 2685821657736338717L
+            return (java.lang.Math.abs(h) % 1000000L).toFloat() / 1000000f
+        }
+
         private fun mapHueIntoRange(hue: Float, minHue: Float, maxHue: Float): Float {
             if (maxHue <= minHue) return minHue
             val range = maxHue - minHue
@@ -798,7 +809,8 @@ class HarmonographWallpaperService : WallpaperService() {
             pt: ProjectedPoint,
             width: Float,
             height: Float,
-            hueOffset: Long
+            hueOffset: Long,
+            settingsHash: Long
         ): Int {
             val sat = settings.saturation.current
             val minHue = settings.hueShiftRange.actualSelectedMin
@@ -818,8 +830,8 @@ class HarmonographWallpaperService : WallpaperService() {
                 val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveCS.coerceIn(0f, 180f)
             } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
-                val csRand = java.util.Random(idx.toLong() * 37L + settings.hashCode().toLong())
-                csMin + csRand.nextFloat() * (csMax - csMin)
+                val csRandVal = getDeterministicRandomFloat(idx, 37L, settingsHash)
+                csMin + csRandVal * (csMax - csMin)
             } else {
                 settings.chromaticShift.current
             }
@@ -835,8 +847,8 @@ class HarmonographWallpaperService : WallpaperService() {
                 val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveAlpha.coerceIn(0.01f, 1.0f)
             } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
-                val alphaRand = java.util.Random(idx.toLong() * 97L + settings.hashCode().toLong())
-                alphaMin + alphaRand.nextFloat() * (alphaMax - alphaMin)
+                val alphaRandVal = getDeterministicRandomFloat(idx, 97L, settingsHash)
+                alphaMin + alphaRandVal * (alphaMax - alphaMin)
             } else {
                 settings.lineAlpha.current
             }
@@ -861,13 +873,12 @@ class HarmonographWallpaperService : WallpaperService() {
                     adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
                 }
                 "spicy" -> {
-                    val seedBase = idx.toLong() * 1109L + settings.hashCode().toLong()
-                    val segRand = java.util.Random(seedBase)
+                    val rHueVal = getDeterministicRandomFloat(idx, 1109L, settingsHash)
                     
                     val baseHue = settings.spicyHue.current
                     val hRange = settings.spicyColorRange.current
                     
-                    val rHue1 = if (hRange > 0.1f) (baseHue + segRand.nextFloat() * hRange) % 360f else baseHue
+                    val rHue1 = if (hRange > 0.1f) (baseHue + rHueVal * hRange) % 360f else baseHue
                     val finalHueVal = (rHue1 + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 120f)) % 360f
                     val finalHue = mapHueIntoRange(finalHueVal, minHue, maxHue)
                     val alpha = (255 * segmentAlpha).toInt().coerceIn(0, 255)
@@ -883,13 +894,13 @@ class HarmonographWallpaperService : WallpaperService() {
             }
 
             return if (settings.monoScaleEnabled.current) {
-                applyMonoScaleShiftToColorInt(finalColor, settings, idx)
+                applyMonoScaleShiftToColorInt(finalColor, settings, idx, settingsHash)
             } else {
                 finalColor
             }
         }
 
-        private fun applyMonoScaleShiftToColorInt(colorInt: Int, settings: HarmonographSettings, idx: Int): Int {
+        private fun applyMonoScaleShiftToColorInt(colorInt: Int, settings: HarmonographSettings, idx: Int, settingsHash: Long): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(colorInt, hsv)
             val baseSat = hsv[1]
@@ -913,8 +924,8 @@ class HarmonographWallpaperService : WallpaperService() {
             } else if (settings.monoScaleShift.rangeLocked) {
                 val msMin = settings.monoScaleShift.actualSelectedMin
                 val msMax = settings.monoScaleShift.actualSelectedMax
-                val msRand = java.util.Random(idx.toLong() * 1237L + settings.hashCode().toLong())
-                msMin + msRand.nextFloat() * (msMax - msMin)
+                val msRandVal = getDeterministicRandomFloat(idx, 1237L, settingsHash)
+                msMin + msRandVal * (msMax - msMin)
             } else {
                 settings.monoScaleShift.current
             }
@@ -949,7 +960,8 @@ class HarmonographWallpaperService : WallpaperService() {
             cameraTargetIndex: Float = -1f,
             animTime: Long = 0L,
             drawProgress: Float,
-            drawList: MutableList<WPInstruction>
+            drawList: MutableList<WPInstruction>,
+            settingsHash: Long
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -998,7 +1010,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
-                val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset)
+                val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset, settingsHash)
                 
                 if (shape.shapeType == "cross") {
                     val p1 = centerPt3D + shape.uVector * size
