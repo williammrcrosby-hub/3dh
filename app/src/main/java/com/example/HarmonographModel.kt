@@ -151,7 +151,7 @@ data class HarmonographSettings(
     val freqX: FloatParameter = FloatParameter(1.001f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqY: FloatParameter = FloatParameter(1.503f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqZ: FloatParameter = FloatParameter(2.002f, rangeMin = 1f/12f, rangeMax = 12f),
-    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 2.0f, rangeMax = 2.0f, locked = true, selectedMin = 2.0f, selectedMax = 2.0f),
+    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true, selectedMin = 0.5f, selectedMax = 6.0f),
     
     val decayX: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
     val decayY: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
@@ -287,12 +287,7 @@ data class HarmonographSettings(
     val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
 ) {
     fun normalize(): HarmonographSettings {
-        return this.copy(
-            xyzFreqMultiplier = xyzFreqMultiplier.copy(current = 2.0f, locked = true),
-            gyroSensitivity = gyroSensitivity.copy(current = 1.0f, locked = true),
-            lineAlpha = lineAlpha.copy(current = 1.0f, locked = true),
-            liveAlphaShiftEnabled = liveAlphaShiftEnabled.copy(current = false, locked = true)
-        )
+        return this
     }
 
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {

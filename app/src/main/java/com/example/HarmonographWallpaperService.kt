@@ -458,21 +458,15 @@ class HarmonographWallpaperService : WallpaperService() {
             } else {
                 wallpaperFrameCount++
                 val elapsedMsFps = nowMs - wallpaperLastFpsTime
-                if (elapsedMsFps >= 500L) {
+                if (elapsedMsFps >= 300L) {
                     wallpaperCurrentFps = (wallpaperFrameCount * 1000f) / elapsedMsFps
                     wallpaperFrameCount = 0
                     wallpaperLastFpsTime = nowMs
-                }
-            }
-
-            // Dynamic tail control for performance
-            if (settings.drawSpeedInstant) {
-                if (wallpaperDynamicTailLimit == -1) {
-                    wallpaperDynamicTailLimit = -2
-                } else if (wallpaperDynamicTailLimit == -2) {
-                    wallpaperDynamicTailLimit = settings.instantDrawLengthLimit.current
-                } else {
+                    
                     if (settings.perfRemoveTailEnabled) {
+                        if (wallpaperDynamicTailLimit <= 0) {
+                            wallpaperDynamicTailLimit = settings.instantDrawLengthLimit.current
+                        }
                         val targetFpsVal = settings.perfTargetFps.current
                         if (wallpaperCurrentFps < targetFpsVal && wallpaperDynamicTailLimit > 200) {
                             wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - 100).coerceAtLeast(200)
@@ -481,8 +475,6 @@ class HarmonographWallpaperService : WallpaperService() {
                         }
                     }
                 }
-            } else {
-                wallpaperDynamicTailLimit = -1
             }
 
             var width = canvas.width.toFloat()
@@ -610,18 +602,18 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant) {
-                            if (settings.perfRemoveTailEnabled) {
-                                if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
-                            } else {
+                        tailLengthLimit = if (settings.perfRemoveTailEnabled) {
+                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                        } else {
+                            if (settings.drawSpeedInstant) {
                                 if (settings.instantDrawLengthInfinite.current) {
                                     -1
                                 } else {
                                     if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
                                 }
+                            } else {
+                                -1
                             }
-                        } else {
-                            -1
                         }
                     )
                     
@@ -662,18 +654,18 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 // Periodic shapes orthogonal details
-                val wallpaperTailLimitVal = if (settings.drawSpeedInstant) {
-                    if (settings.perfRemoveTailEnabled) {
-                        if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
-                    } else {
+                val wallpaperTailLimitVal = if (settings.perfRemoveTailEnabled) {
+                    if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                } else {
+                    if (settings.drawSpeedInstant) {
                         if (settings.instantDrawLengthInfinite.current) {
                             -1
                         } else {
                             if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
                         }
+                    } else {
+                        -1
                     }
-                } else {
-                    -1
                 }
                 val wallpaperShapesStartIdx = if (wallpaperTailLimitVal > 0 && drawProgress > wallpaperTailLimitVal) {
                     drawProgress.toInt() - wallpaperTailLimitVal
@@ -697,6 +689,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         angularLockAxis = settings.angularLockAxis,
                         hueOffset = timeHueOffset,
                         totalSteps = stepsCount,
+                        centerPathPoints = centerPath,
                         mainPathPoints = rawPaths.getOrNull(shape.penIndex) ?: rawPaths.firstOrNull() ?: emptyList(),
                         cameraTargetIndex = cameraTargetIndex,
                         animTime = elapsedMs,
@@ -820,7 +813,8 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
                 val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
                 val speed = settings.chromaticShiftSpeed.current
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
+                val progress = (speed * timeSec) % 1.0f
+                val cycleRatio = if (progress < 0.5f) progress * 2f else (1.0f - progress) * 2f
                 val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveCS.coerceIn(0f, 180f)
             } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
@@ -836,7 +830,8 @@ class HarmonographWallpaperService : WallpaperService() {
                 val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
                 val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
                 val speed = settings.liveAlphaShiftSpeed.current
-                val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
+                val progress = (speed * timeSec) % 1.0f
+                val cycleRatio = if (progress < 0.5f) progress * 2f else (1.0f - progress) * 2f
                 val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
                 liveAlpha.coerceIn(0.01f, 1.0f)
             } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
@@ -949,6 +944,7 @@ class HarmonographWallpaperService : WallpaperService() {
             angularLockAxis: String,
             hueOffset: Long,
             totalSteps: Int,
+            centerPathPoints: List<Point3D> = emptyList(),
             mainPathPoints: List<Point3D> = emptyList(),
             cameraTargetIndex: Float = -1f,
             animTime: Long = 0L,
@@ -1016,7 +1012,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     screenHeight = height,
                     angularLock = angularLock,
                     angularLockAxis = angularLockAxis,
-                    referencePoints = mainPathPoints.ifEmpty { null },
+                    referencePoints = centerPathPoints.ifEmpty { null },
                     cameraTargetIndex = cameraTargetIndex,
                     cameraDistance = settings.cameraDistance.current,
                     dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
@@ -1039,7 +1035,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     screenHeight = height,
                     angularLock = angularLock,
                     angularLockAxis = angularLockAxis,
-                    referencePoints = mainPathPoints.ifEmpty { null },
+                    referencePoints = centerPathPoints.ifEmpty { null },
                     cameraTargetIndex = cameraTargetIndex,
                     cameraDistance = settings.cameraDistance.current,
                     dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,

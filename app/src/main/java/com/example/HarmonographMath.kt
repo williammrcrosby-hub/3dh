@@ -231,8 +231,13 @@ object HarmonographMath {
             val dtUsed = if (settings.perfVelocitySampling) {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
-                val targetDt = (1.8f / estimatedSpeed.coerceAtLeast(6f)).coerceIn(0.0015f, 0.15f)
-                targetDt * settings.perfVelocityModifier.current
+                if (estimatedSpeed <= 1e-6f) {
+                    0f
+                } else {
+                    val lengthModifier = settings.perfVelocityModifier.current
+                    val targetDt = (1f / estimatedSpeed) * lengthModifier
+                    targetDt.coerceIn(0f, 0.25f)
+                }
             } else {
                 dt
             }
@@ -454,8 +459,13 @@ object HarmonographMath {
             val dtUsed = if (settings.perfVelocitySampling) {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
-                val targetDt = (1.8f / estimatedSpeed.coerceAtLeast(6f)).coerceIn(0.0015f, 0.15f)
-                targetDt * settings.perfVelocityModifier.current
+                if (estimatedSpeed <= 1e-6f) {
+                    0f
+                } else {
+                    val lengthModifier = settings.perfVelocityModifier.current
+                    val targetDt = (1f / estimatedSpeed) * lengthModifier
+                    targetDt.coerceIn(0f, 0.25f)
+                }
             } else {
                 dt
             }

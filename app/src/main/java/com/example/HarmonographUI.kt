@@ -70,7 +70,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     var dynamicTailLimit by remember(settings) { mutableStateOf(-1) }
 
     LaunchedEffect(currentFps) {
-        if (settings.perfRemoveTailEnabled && settings.drawSpeedInstant) {
+        if (settings.perfRemoveTailEnabled) {
             val targetFps = settings.perfTargetFps.current
             val currentLimit = if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
             if (currentFps < targetFps && currentLimit > 200) {
@@ -107,7 +107,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     if (dtFrame > 0L) {
                         frameCount++
                         fpsAccumTime += dtFrame
-                        if (fpsAccumTime >= 500L) {
+                        if (fpsAccumTime >= 300L) {
                             val measuredFps = (frameCount * 1000f) / fpsAccumTime
                             viewModel.updateFps(measuredFps.coerceAtLeast(1f))
                             frameCount = 0
@@ -322,18 +322,18 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant) {
-                            if (settings.perfRemoveTailEnabled) {
-                                if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
-                            } else {
+                        tailLengthLimit = if (settings.perfRemoveTailEnabled) {
+                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                        } else {
+                            if (settings.drawSpeedInstant) {
                                 if (settings.instantDrawLengthInfinite.current) {
                                     -1
                                 } else {
                                     if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
                                 }
+                            } else {
+                                -1
                             }
-                        } else {
-                            -1
                         }
                     )
                     
@@ -392,18 +392,18 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
 
                 // Gather secondary shapes and add them to the drawList
-                val tailLimitVal = if (settings.drawSpeedInstant) {
-                    if (settings.perfRemoveTailEnabled) {
-                        if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
-                    } else {
+                val tailLimitVal = if (settings.perfRemoveTailEnabled) {
+                    if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                } else {
+                    if (settings.drawSpeedInstant) {
                         if (settings.instantDrawLengthInfinite.current) {
                             -1
                         } else {
                             if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
                         }
+                    } else {
+                        -1
                     }
-                } else {
-                    -1
                 }
                 val shapesStartIdx = if (tailLimitVal > 0 && drawProgress > tailLimitVal) {
                     drawProgress.toInt() - tailLimitVal
@@ -426,6 +426,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         totalSteps = stepsCount,
                         settings = settings,
                         scaleFactor = scaleFactor,
+                        centerPathPoints = centerPath,
                         mainPathPoints = paths.getOrNull(shape.penIndex) ?: paths.firstOrNull() ?: emptyList(),
                         cameraTargetIndex = cameraTargetIndex,
                         animTime = animTime,
@@ -833,6 +834,26 @@ fun OscillatorConfigTab(
                             modifier = Modifier.scale(0.75f).testTag("rational_frequencies_switch")
                         )
                     }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    ParameterSliderRow(
+                        label = "XYZ Frequency Scale Factor",
+                        value = settings.xyzFreqMultiplier.current,
+                        minVal = settings.xyzFreqMultiplier.rangeMin,
+                        maxVal = settings.xyzFreqMultiplier.rangeMax,
+                        stepValue = 0.1f,
+                        formatString = "%.1fx",
+                        isLocked = settings.xyzFreqMultiplier.locked,
+                        onLockToggle = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.copy(locked = it))) },
+                        isRangeLocked = settings.xyzFreqMultiplier.rangeLocked,
+                        onRangeLockToggle = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withRangeLocked(it))) },
+                        selectedMin = settings.xyzFreqMultiplier.actualSelectedMin,
+                        selectedMax = settings.xyzFreqMultiplier.actualSelectedMax,
+                        onRangeChange = { min, max -> onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withRanges(min, max))) },
+                        onValueChange = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withValue(it))) },
+                        onRandomize = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.randomize(java.util.Random()))) }
+                    )
                 }
             }
         }
@@ -2325,20 +2346,20 @@ fun StyleAndPenConfigTab(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("Live Opacity (Alpha) Shift", color = Color.White, fontSize = 12.sp)
                         Spacer(modifier = Modifier.weight(1f))
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "Locked Off",
-                            tint = Color(0xFFFF4081),
-                            modifier = Modifier.size(20.dp).padding(end = 4.dp)
-                        )
+                        IconButton(
+                            onClick = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(locked = !settings.liveAlphaShiftEnabled.locked))) },
+                            modifier = Modifier.size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settings.liveAlphaShiftEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = "Lock Alpha Shift",
+                                tint = if (settings.liveAlphaShiftEnabled.locked) Color(0xFFFF4081) else Color(0xFF64748B),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                         Switch(
-                            checked = false,
-                            onCheckedChange = null,
-                            enabled = false,
-                            colors = SwitchDefaults.colors(
-                                disabledUncheckedThumbColor = Color(0xFF64748B).copy(alpha = 0.6f),
-                                disabledUncheckedTrackColor = Color(0xFF1E293B).copy(alpha = 0.4f)
-                            ),
+                            checked = settings.liveAlphaShiftEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(liveAlphaShiftEnabled = settings.liveAlphaShiftEnabled.copy(current = it))) },
                             modifier = Modifier.scale(0.8f)
                         )
                     }
@@ -3489,7 +3510,8 @@ private fun computeComposeColor(
         val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
         val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
         val speed = settings.chromaticShiftSpeed.current
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
+        val progress = (speed * timeSec) % 1.0f
+        val cycleRatio = if (progress < 0.5f) progress * 2f else (1.0f - progress) * 2f
         val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveCS.coerceIn(0f, 180f)
     } else if (settings.chromaticShift.rangeLocked && csMax > csMin) {
@@ -3505,7 +3527,8 @@ private fun computeComposeColor(
         val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
         val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
         val speed = settings.liveAlphaShiftSpeed.current
-        val cycleRatio = 0.5f + 0.5f * kotlin.math.sin(2f * kotlin.math.PI.toFloat() * speed * timeSec)
+        val progress = (speed * timeSec) % 1.0f
+        val cycleRatio = if (progress < 0.5f) progress * 2f else (1.0f - progress) * 2f
         val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveAlpha.coerceIn(0.01f, 1.0f)
     } else if (settings.lineAlpha.rangeLocked && alphaMax > alphaMin) {
@@ -3669,6 +3692,7 @@ private fun addComposeOrthogonalShapeToDrawList(
     totalSteps: Int,
     settings: HarmonographSettings,
     scaleFactor: Float,
+    centerPathPoints: List<Point3D> = emptyList(),
     mainPathPoints: List<Point3D> = emptyList(),
     cameraTargetIndex: Float = -1f,
     animTime: Long = 0L,
@@ -3733,7 +3757,7 @@ private fun addComposeOrthogonalShapeToDrawList(
             screenHeight = height,
             angularLock = angularLock,
             angularLockAxis = angularLockAxis,
-            referencePoints = mainPathPoints.ifEmpty { null },
+            referencePoints = centerPathPoints.ifEmpty { null },
             cameraTargetIndex = cameraTargetIndex,
             cameraDistance = settings.cameraDistance.current,
             dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
@@ -3755,7 +3779,7 @@ private fun addComposeOrthogonalShapeToDrawList(
             screenHeight = height,
             angularLock = angularLock,
             angularLockAxis = angularLockAxis,
-            referencePoints = mainPathPoints.ifEmpty { null },
+            referencePoints = centerPathPoints.ifEmpty { null },
             cameraTargetIndex = cameraTargetIndex,
             cameraDistance = settings.cameraDistance.current,
             dynamicCameraZoomEnabled = settings.dynamicCameraZoomEnabled,
