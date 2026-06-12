@@ -14,6 +14,8 @@ jobs:
   build:
     name: Build and Package APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout Code
@@ -89,3 +91,24 @@ jobs:
           path: apk-artifacts/
           if-no-files-found: error
           retention-days: 14
+
+      - name: Create or Update GitHub Release
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest 3D Harmonograph Pro Build
+          body: |
+            This release is automatically updated with the latest compiled APK files.
+            
+            ### Direct Download Links:
+            - **[📲 Download Signed Release APK (Recommended)](https://github.com/${{ github.repository }}/releases/download/latest/Harmonograph-3D-Signed-Release.apk)**
+            - **[🛠️ Download Debug APK](https://github.com/${{ github.repository }}/releases/download/latest/Harmonograph-3D-Debug.apk)**
+          draft: false
+          prerelease: false
+          make_latest: true
+          files: |
+            apk-artifacts/Harmonograph-3D-Signed-Release.apk
+            apk-artifacts/Harmonograph-3D-Debug.apk
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
