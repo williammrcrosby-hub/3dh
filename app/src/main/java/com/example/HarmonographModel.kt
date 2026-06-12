@@ -193,7 +193,7 @@ data class HarmonographSettings(
     val gradientStartHue: FloatParameter = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
     val gradientEndHue: FloatParameter = FloatParameter(330f, rangeMin = 0f, rangeMax = 360f),
     
-    val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f),
+    val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f, locked = true),
     val hueShiftingEnabled: Boolean = true,
     val hueShiftSpeed: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 60f),
     val hueShiftRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f, locked = true, rangeLocked = true, selectedMin = 0f, selectedMax = 360f),
