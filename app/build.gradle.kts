@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
@@ -22,6 +24,41 @@ android {
 
   signingConfigs {
     val debugKeystore = file("${rootDir}/debug.keystore")
+    if (!debugKeystore.exists()) {
+      val baseFile = file("${rootDir}/debug.keystore.base64")
+      if (baseFile.exists()) {
+        try {
+          val base64Text = baseFile.readText().replace("\\s".toRegex(), "")
+          if (base64Text.isNotEmpty()) {
+            val bytes = Base64.getDecoder().decode(base64Text)
+            debugKeystore.writeBytes(bytes)
+          }
+        } catch (e: Exception) {
+          println("Failed to decode base64 debug keystore: ${e.message}")
+        }
+      }
+      if (!debugKeystore.exists()) {
+        try {
+          val pb = ProcessBuilder(
+            "keytool", "-genkey", "-v",
+            "-keystore", debugKeystore.absolutePath,
+            "-storepass", "android",
+            "-alias", "androiddebugkey",
+            "-keypass", "android",
+            "-keyalg", "RSA",
+            "-keysize", "2048",
+            "-validity", "10000",
+            "-dname", "CN=Android Debug,O=Android,C=US"
+          )
+          pb.inheritIO()
+          val process = pb.start()
+          process.waitFor()
+        } catch (e: Exception) {
+          println("Failed to generate debug keystore: ${e.message}")
+        }
+      }
+    }
+
     create("debugConfig") {
       if (debugKeystore.exists()) {
         storeFile = debugKeystore
