@@ -539,7 +539,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         solidColorHue = FloatParameter(200f, rangeMin = 0f, rangeMax = 360f),
                         monoScaleEnabled = BooleanParameter(true),
                         monoScaleLiveShiftEnabled = BooleanParameter(true),
-                        monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f)
+                        monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        monoWaveEffectiveRange = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -0.8f, selectedMax = 0.8f)
                     )
                 ) ?: ""
             ),

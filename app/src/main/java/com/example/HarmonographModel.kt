@@ -151,7 +151,7 @@ data class HarmonographSettings(
     val freqX: FloatParameter = FloatParameter(1.001f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqY: FloatParameter = FloatParameter(1.503f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqZ: FloatParameter = FloatParameter(2.002f, rangeMin = 1f/12f, rangeMax = 12f),
-    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 10.0f),
+    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 2.0f, rangeMax = 2.0f, locked = true, selectedMin = 2.0f, selectedMax = 2.0f),
     
     val decayX: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
     val decayY: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
@@ -279,7 +279,7 @@ data class HarmonographSettings(
     val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
     val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
     val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
-    val monoWaveEffectiveRange: FloatParameter = FloatParameter(200f, rangeMin = 20f, rangeMax = 1000f),
+    val monoWaveEffectiveRange: FloatParameter = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
     val monoWaveRandomness: FloatParameter = FloatParameter(0.5f, rangeMin = 0f, rangeMax = 1.0f),
     
     // Live Transparency (Alpha) Shift Option

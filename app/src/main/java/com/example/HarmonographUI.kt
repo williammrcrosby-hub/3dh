@@ -298,7 +298,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
 
                 // Project and gather line segments across all paths for unified depth sorting
-                val segmentsList = mutableListOf<ComposeSegment>()
+                val drawList = mutableListOf<UIInstruction>()
                 val tipsList = mutableListOf<Pair<ProjectedPoint, Color>>()
 
                 for (pIdx in paths.indices) {
@@ -350,8 +350,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         
                         val segmentColor = computeComposeColor(
                             settings = settings,
-                            idx = i,
-                            total = projPoints.size,
+                            idx = p1.originalIndex,
+                            total = settings.drawLengthSteps,
                             pt = p1,
                             width = width,
                             height = height,
@@ -360,7 +360,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         
                         val baseThickness = settings.lineThickness.current
                         val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
-                        segmentsList.add(ComposeSegment(p1, p2, segmentColor, strokeWidth))
+                        drawList.add(
+                            UIInstruction.Line(
+                                depth = (p1.depth + p2.depth) / 2f,
+                                start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
+                                end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
+                                color = segmentColor,
+                                strokeWidth = strokeWidth * scaleFactor
+                            )
+                        )
                     }
 
                     // Store pen tip if enabled
@@ -369,40 +377,89 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         val tipColor = if (settings.penTipColorMode == "solid") {
                             Color(settings.penTipColor)
                         } else {
-                            if (projPoints.size > 1) {
-                                computeComposeColor(
-                                    settings = settings,
-                                    idx = projPoints.size - 2,
-                                    total = projPoints.size,
-                                    pt = projPoints[projPoints.size - 2],
-                                    width = width,
-                                    height = height,
-                                    hueOffset = timeHueOffset
-                                )
-                            } else {
-                                Color.White
-                            }
+                            computeComposeColor(
+                                settings = settings,
+                                idx = tip.originalIndex,
+                                total = settings.drawLengthSteps,
+                                pt = tip,
+                                width = width,
+                                height = height,
+                                hueOffset = timeHueOffset
+                            )
                         }
                         tipsList.add(Pair(tip, tipColor))
                     }
                 }
 
-                // Sort all line segments back-to-front (descending by average depth)
-                segmentsList.sortByDescending { (it.p1.depth + it.p2.depth) / 2f }
+                // Gather secondary shapes and add them to the drawList
+                val tailLimitVal = if (settings.drawSpeedInstant) {
+                    if (settings.perfRemoveTailEnabled) {
+                        if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                    } else {
+                        if (settings.instantDrawLengthInfinite.current) {
+                            -1
+                        } else {
+                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                        }
+                    }
+                } else {
+                    -1
+                }
+                val shapesStartIdx = if (tailLimitVal > 0 && drawProgress > tailLimitVal) {
+                    drawProgress.toInt() - tailLimitVal
+                } else {
+                    0
+                }
+
+                for (shape in shapes) {
+                    if (shape.colorIndex > drawLimit || shape.colorIndex < shapesStartIdx) continue
+                    addComposeOrthogonalShapeToDrawList(
+                        shape = shape,
+                        yawVal = animatedYaw,
+                        pitchVal = animatedPitch,
+                        perspective = settings.cameraPerspective,
+                        width = width,
+                        height = height,
+                        angularLock = settings.isAngularLockEnabled,
+                        angularLockAxis = settings.angularLockAxis,
+                        timeHueOffset = timeHueOffset,
+                        totalSteps = stepsCount,
+                        settings = settings,
+                        scaleFactor = scaleFactor,
+                        mainPathPoints = paths.getOrNull(shape.penIndex) ?: paths.firstOrNull() ?: emptyList(),
+                        cameraTargetIndex = cameraTargetIndex,
+                        animTime = animTime,
+                        drawProgress = drawProgress,
+                        drawList = drawList
+                    )
+                }
+
+                // Sort all draw list elements back-to-front (descending by average depth)
+                drawList.sortByDescending { it.depth }
 
                 withTransform({
                     if (isScaled) {
                         scale(1f / scaleFactorGlobal, 1f / scaleFactorGlobal, pivot = androidx.compose.ui.geometry.Offset.Zero)
                     }
                 }) {
-                    // Draw depth-sorted segments
-                    for (seg in segmentsList) {
-                        drawLine(
-                            color = seg.color,
-                            start = androidx.compose.ui.geometry.Offset(seg.p1.x, seg.p1.y),
-                            end = androidx.compose.ui.geometry.Offset(seg.p2.x, seg.p2.y),
-                            strokeWidth = seg.strokeWidth * scaleFactor
-                        )
+                    // Draw unified list
+                    for (inst in drawList) {
+                        when (inst) {
+                            is UIInstruction.Line -> {
+                                drawLine(
+                                    color = inst.color,
+                                    start = inst.start,
+                                    end = inst.end,
+                                    strokeWidth = inst.strokeWidth
+                                )
+                            }
+                            is UIInstruction.PathFill -> {
+                                drawPath(
+                                    path = inst.path,
+                                    color = inst.color
+                                )
+                            }
+                        }
                     }
 
                     // Render styled active pen tip markers
@@ -466,48 +523,6 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                                 )
                             }
                         }
-                    }
-
-                    // Orthogonal secondary shapes drawing
-                    val tailLimitVal = if (settings.drawSpeedInstant) {
-                        if (settings.perfRemoveTailEnabled) {
-                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
-                        } else {
-                            if (settings.instantDrawLengthInfinite.current) {
-                                -1
-                            } else {
-                                if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
-                            }
-                        }
-                    } else {
-                        -1
-                    }
-                    val shapesStartIdx = if (tailLimitVal > 0 && drawProgress > tailLimitVal) {
-                        drawProgress.toInt() - tailLimitVal
-                    } else {
-                        0
-                    }
-
-                    for (shape in shapes) {
-                        if (shape.colorIndex > drawLimit || shape.colorIndex < shapesStartIdx) continue
-                        drawComposeOrthogonalShape(
-                            shape = shape,
-                            yawVal = animatedYaw,
-                            pitchVal = animatedPitch,
-                            perspective = settings.cameraPerspective,
-                            width = width,
-                            height = height,
-                            angularLock = settings.isAngularLockEnabled,
-                            angularLockAxis = settings.angularLockAxis,
-                            timeHueOffset = timeHueOffset,
-                            totalSteps = stepsCount,
-                            settings = settings,
-                            scaleFactor = scaleFactor,
-                            mainPathPoints = paths.getOrNull(shape.penIndex) ?: paths.firstOrNull() ?: emptyList(),
-                            cameraTargetIndex = cameraTargetIndex,
-                            animTime = animTime,
-                            drawProgress = drawProgress
-                        )
                     }
                 }
             }
@@ -818,23 +833,6 @@ fun OscillatorConfigTab(
                             modifier = Modifier.scale(0.75f).testTag("rational_frequencies_switch")
                         )
                     }
-                    
-                    ParameterSliderRow(
-                        label = "XYZ Frequency Multiplier",
-                        value = settings.xyzFreqMultiplier.current,
-                        minVal = settings.xyzFreqMultiplier.rangeMin,
-                        maxVal = settings.xyzFreqMultiplier.rangeMax,
-                        stepValue = 0.1f,
-                        isLocked = settings.xyzFreqMultiplier.locked,
-                        onLockToggle = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.copy(locked = it))) },
-                        isRangeLocked = settings.xyzFreqMultiplier.rangeLocked,
-                        onRangeLockToggle = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withRangeLocked(it))) },
-                        selectedMin = settings.xyzFreqMultiplier.actualSelectedMin,
-                        selectedMax = settings.xyzFreqMultiplier.actualSelectedMax,
-                        onRangeChange = { min, max -> onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withRanges(min, max))) },
-                        onValueChange = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.withValue(it))) },
-                        onRandomize = { onUpdate(settings.copy(xyzFreqMultiplier = settings.xyzFreqMultiplier.randomize(java.util.Random()))) }
-                    )
                 }
             }
         }
@@ -2102,12 +2100,12 @@ fun StyleAndPenConfigTab(
                             Spacer(modifier = Modifier.height(4.dp))
 
                             ParameterSliderRow(
-                                label = "Live Wave Effective Range",
+                                label = "Live Shift Value Range",
                                 value = settings.monoWaveEffectiveRange.current,
                                 minVal = settings.monoWaveEffectiveRange.rangeMin,
                                 maxVal = settings.monoWaveEffectiveRange.rangeMax,
-                                stepValue = 10f,
-                                formatString = "%.0f segments",
+                                stepValue = 0.05f,
+                                formatString = "%.2f range limits",
                                 isLocked = settings.monoWaveEffectiveRange.locked,
                                 onLockToggle = { onUpdate(settings.copy(monoWaveEffectiveRange = settings.monoWaveEffectiveRange.copy(locked = it))) },
                                 isRangeLocked = settings.monoWaveEffectiveRange.rangeLocked,
@@ -3575,20 +3573,18 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     val baseSat = hsv[1]
     
     val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
-        val msMin = settings.monoScaleShift.actualSelectedMin
-        val msMax = settings.monoScaleShift.actualSelectedMax
-        val sweepMin = msMin
-        val sweepMax = msMax
+        val sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
+        val sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
         val speed = settings.monoScaleLiveShiftSpeed.current
         val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
-        val effectiveRange = settings.monoWaveEffectiveRange.current.coerceAtLeast(1f)
+        val wavelength = 200f
         val randomness = settings.monoWaveRandomness.current
         
         // Traveling base wave
-        val waveBase = kotlin.math.sin((idx.toFloat() / effectiveRange) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
+        val waveBase = kotlin.math.sin((idx.toFloat() / wavelength) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
         // Secondary interference waves
-        val waveNoise1 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
-        val waveNoise2 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
+        val waveNoise1 = kotlin.math.sin((idx.toFloat() / (wavelength * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
+        val waveNoise2 = kotlin.math.sin((idx.toFloat() / (wavelength * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
         
         val combinedWave = (1f - randomness) * waveBase + randomness * (0.6f * waveNoise1 + 0.4f * waveNoise2)
         val cycleRatio = 0.5f + 0.5f * combinedWave
@@ -3642,28 +3638,25 @@ private fun interpolateComposeColor(c1: Color, c2: Color, ratio: Float): Color {
     return Color(r, g, b, a)
 }
 
-private fun drawComposeOrthogonalShape(
-    shape: CustomShapeData,
-    yawVal: Float,
-    pitchVal: Float,
-    perspective: Int,
-    width: Float,
-    height: Float,
-    angularLock: Boolean,
-    angularLockAxis: String,
-    timeHueOffset: Long,
-    totalSteps: Int,
-    settings: HarmonographSettings,
-    scaleFactor: Float,
-    mainPathPoints: List<Point3D> = emptyList(),
-    cameraTargetIndex: Float = -1f,
-    animTime: Long = 0L,
-    drawProgress: Float = 0f
-) {
-    // Standard DrawScope cannot be accessed outside draw extension function.
+private sealed class UIInstruction {
+    abstract val depth: Float
+
+    data class Line(
+        override val depth: Float,
+        val start: androidx.compose.ui.geometry.Offset,
+        val end: androidx.compose.ui.geometry.Offset,
+        val color: Color,
+        val strokeWidth: Float
+    ) : UIInstruction()
+
+    data class PathFill(
+        override val depth: Float,
+        val path: Path,
+        val color: Color
+    ) : UIInstruction()
 }
 
-private fun DrawScope.drawComposeOrthogonalShape(
+private fun addComposeOrthogonalShapeToDrawList(
     shape: CustomShapeData,
     yawVal: Float,
     pitchVal: Float,
@@ -3679,7 +3672,8 @@ private fun DrawScope.drawComposeOrthogonalShape(
     mainPathPoints: List<Point3D> = emptyList(),
     cameraTargetIndex: Float = -1f,
     animTime: Long = 0L,
-    drawProgress: Float
+    drawProgress: Float,
+    drawList: MutableList<UIInstruction>
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -3710,11 +3704,8 @@ private fun DrawScope.drawComposeOrthogonalShape(
             shape.center
         }
 
-        val centerPt3D = if (shape.deployment == "progressive") {
-            baseCenter + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
-        } else {
-            baseCenter
-        }
+        // Center on curves fix: do NOT add progressive offset, keep perfectly centered
+        val centerPt3D = baseCenter
 
         val shape3DPoints = mutableListOf<Point3D>()
         for (v in 0 until vertices) {
@@ -3784,17 +3775,28 @@ private fun DrawScope.drawComposeOrthogonalShape(
                 pathCompose.lineTo(projPts[ptIdx].x, projPts[ptIdx].y)
             }
             pathCompose.close()
-            drawPath(
-                path = pathCompose,
-                color = shapeColor.copy(alpha = 0.55f)
+            
+            val avgDepth = projPts.map { it.depth }.average().toFloat()
+            drawList.add(
+                UIInstruction.PathFill(
+                    depth = avgDepth,
+                    path = pathCompose,
+                    color = shapeColor.copy(alpha = 0.55f)
+                )
             )
         } else {
             for (pIndex in 0 until projPts.size - 1) {
-                drawLine(
-                    color = shapeColor,
-                    start = androidx.compose.ui.geometry.Offset(projPts[pIndex].x, projPts[pIndex].y),
-                    end = androidx.compose.ui.geometry.Offset(projPts[pIndex + 1].x, projPts[pIndex + 1].y),
-                    strokeWidth = 1.6f * scaleFactor
+                val p1 = projPts[pIndex]
+                val p2 = projPts[pIndex + 1]
+                val avgDepth = (p1.depth + p2.depth) / 2f
+                drawList.add(
+                    UIInstruction.Line(
+                        depth = avgDepth,
+                        start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
+                        end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
+                        color = shapeColor,
+                        strokeWidth = 1.6f * scaleFactor
+                    )
                 )
             }
         }
@@ -3865,16 +3867,19 @@ fun HelpContentDialog(onDismiss: () -> Unit) {
                             HelpBulletPoint("Play/Pause", "Use the main play/pause button to watch the geometric equations render. In standard mode, the coordinate line decays gradually simulating mechanical friction.")
                             HelpBulletPoint("Speed Control", "Switch from timed rendering (up to 10 minutes) or toggle 'Instant Draw' to immediately render all points. Infinite sliders dynamically slice trailing tails.")
                             HelpBulletPoint("First Pen Options", "Adjust amplitudes and basic frequencies of X and Y axes to produce immediate, beautiful curves.")
+                            HelpBulletPoint("Interactive Touch Gestures", "• Orbit: Drag a single finger across the canvas to manually rotate the 3D grid.\n• Zoom: Pinch with two fingers to adjust camera distance.\n• Pan / Rotate: Use two fingers to drag and reposition or twist the model.\n• Fast Reset: Double-tap the canvas to snap back to default front-facing coordinates.\n• Desktop/Emulator: Left-click and drag to orbit; mousewheel to zoom.")
                         }
                         item {
                             HelpSectionTitle("Picking Presets")
                             HelpBulletPoint("Standard Factory Presets", "Tap any card in the Presets panel to instantly load beautifully balanced geometries like classic spirographs or decaying orbits.")
-                            HelpBulletPoint("Preset Rotation", "Enable automatic preset rotation to cycle through allowed designs automatically upon each full draw completion.")
+                            HelpBulletPoint("Preset Rotation & Allowed Checkboxes", "Tap the circular checkbox indicator on the top-right of any preset card to select which designs are allowed to be cycled during automatic preset rotation updates.")
                             HelpBulletPoint("User Presets", "Save your balanced creations to the database under personalized custom titles which can be renamed or deleted.")
                         }
                         item {
                             HelpSectionTitle("Live Wallpapers")
                             HelpBulletPoint("Interactive Backgrounds", "Tap the Wallpaper icon on top to open your system's live wallpaper selection. The background stays animated, responds to physical gyro tilts, and renders smoothly.")
+                            HelpBulletPoint("Direct Touch Ripples", "Tapping the active home screen live wallpaper background registers touch impacts, generating interactive, expanding color ripples around your fingertips.")
+                            HelpBulletPoint("Battery Optimization", "The service is highly optimized to pause calculations and paint requests when the screen is turned off or covered by another application.")
                         }
                     } else {
                         item {
@@ -3883,14 +3888,21 @@ fun HelpContentDialog(onDismiss: () -> Unit) {
                         }
                         item {
                             HelpSectionTitle("Advanced Mathematics")
+                            HelpBulletPoint("Friction & Decay Rates", "Adjust decay coefficients (decay X, Y, Z) to configure simulated atmospheric and friction resistance. Higher values lead to rapid inward spiraling decay curves; lower values project dense overlapping designs.")
                             HelpBulletPoint("The Z-Axis & Sub-pens", "A third independent mathematical pendulum adds simulated depth (Z amplitude). Parallel or Rotational multi-pen sublayers (up to 3 pens) shift the centers outward producing incredible complex symmetry.")
                             HelpBulletPoint("Rational Frequencies", "Force pendulum speed ratios into pure integers or fractions (e.g., 2:3, 3:4). This constructs closed curves that align into pristine symmetric loops instead of infinite overlapping tangles.")
                         }
                         item {
                             HelpSectionTitle("Shifting & Dynamics")
                             HelpBulletPoint("Gyro Sensitivity", "Enabling physical gyroscope inputs allows device pitch and roll angles to tilt the 3D grid, creating active kinetic layouts. Sensitive values are optimized at 1.0.")
-                            HelpBulletPoint("Monochromatic Wave Shift", "Shifts line parameters dynamically between selected lower and upper limits. A traveler wave combined with dual interference noise shapes the value curve, producing gorgeous dynamic breathing transitions.")
+                            HelpBulletPoint("Monochromatic Wave Shift", "Shifts line parameters dynamically between selected lower and upper limits. A traveling base phase wave combined with dual-frequency non-linear interference waves propagates value shifts smoothly down the length of the drawing.")
+                            HelpBulletPoint("Live Shift Value Range", "Allows you to select a specific minimum and maximum range for the monochromatic live shift values, restricting oscillations precisely.")
                             HelpBulletPoint("Live Alpha Shifts", "Allows transparency of lines to cycle from peak to bottom. Alpha shifts are locked off by default to maintain consistent geometric intensity.")
+                        }
+                        item {
+                            HelpSectionTitle("Camera & Ride Views")
+                            HelpBulletPoint("Follow-Pen Ride (Coaster)", "In Coaster-mode (Perspective 2), the 3D camera is locked behind the drawing pen tip. Tweak coaster deviation angle and orbit speed to ride through the mathematical curves as the line deposits.")
+                            HelpBulletPoint("Rotation Speed & Lock", "Configure auto-rotation and gyro limits to make the 3D model pivot independently. Toggle 'Angular Lock' or restrict motion to a specific axis (X, Y, or Z) to lock down coordinates while maintaining gorgeous kinetic depth.")
                         }
                     }
                 }

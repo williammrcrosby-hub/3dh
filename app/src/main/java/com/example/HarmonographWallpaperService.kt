@@ -24,6 +24,26 @@ class HarmonographWallpaperService : WallpaperService() {
         val strokeWidth: Float
     )
 
+    private sealed class WPInstruction {
+        abstract val depth: Float
+
+        data class Line(
+            override val depth: Float,
+            val p1: ProjectedPoint,
+            val p2: ProjectedPoint,
+            val color1: Int,
+            val color2: Int,
+            val strokeWidth: Float
+        ) : WPInstruction()
+
+        data class PathFill(
+            override val depth: Float,
+            val path: Path,
+            val color: Int,
+            val alpha: Int
+        ) : WPInstruction()
+    }
+
     private fun HarmonographSettings.isDrawingFormEquivalent(other: HarmonographSettings): Boolean {
         return this.freqX.current == other.freqX.current &&
                this.freqY.current == other.freqY.current &&
@@ -564,7 +584,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 // Project and gather line segments across all paths for unified depth sorting
-                val segmentsList = mutableListOf<WallpaperSegment>()
+                val drawList = mutableListOf<WPInstruction>()
                 val tipsList = mutableListOf<Pair<ProjectedPoint, Int>>()
 
                 for (pIdx in rawPaths.indices) {
@@ -614,12 +634,12 @@ class HarmonographWallpaperService : WallpaperService() {
                         if (p1.isBehindCamera || p2.isBehindCamera) continue
                         
                         // Compute color styled dynamically
-                        val segmentColor1 = computeDynamicColor(i, projPoints.size, p1, width, height, timeHueOffset)
-                        val segmentColor2 = computeDynamicColor(i + 1, projPoints.size, p2, width, height, timeHueOffset)
+                        val segmentColor1 = computeDynamicColor(p1.originalIndex, settings.drawLengthSteps, p1, width, height, timeHueOffset)
+                        val segmentColor2 = computeDynamicColor(p2.originalIndex, settings.drawLengthSteps, p2, width, height, timeHueOffset)
                         val baseThickness = settings.lineThickness.current
                         val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
                         
-                        segmentsList.add(WallpaperSegment(p1, p2, segmentColor1, segmentColor2, strokeWidth))
+                        drawList.add(WPInstruction.Line((p1.depth + p2.depth) / 2f, p1, p2, segmentColor1, segmentColor2, strokeWidth))
                     }
 
                     // Store pen tip if enabled
@@ -628,44 +648,93 @@ class HarmonographWallpaperService : WallpaperService() {
                         val tipColor = if (settings.penTipColorMode == "solid") {
                             settings.penTipColor
                         } else {
-                            if (projPoints.size > 1) {
-                                computeDynamicColor(
-                                    projPoints.size - 2,
-                                    projPoints.size,
-                                    projPoints[projPoints.size - 2],
-                                    width,
-                                    height,
-                                    timeHueOffset
-                                )
-                            } else {
-                                0xFFFFFFFF.toInt()
-                            }
+                            computeDynamicColor(
+                                tip.originalIndex,
+                                settings.drawLengthSteps,
+                                tip,
+                                width,
+                                height,
+                                timeHueOffset
+                            )
                         }
                         tipsList.add(Pair(tip, tipColor))
                     }
                 }
 
-                // Sort all line segments back-to-front (descending by average depth)
-                segmentsList.sortByDescending { (it.p1.depth + it.p2.depth) / 2f }
-
-                // Draw depth-sorted segments on the canvas
-                for (seg in segmentsList) {
-                    paint.strokeWidth = seg.strokeWidth
-                    if (seg.color1 == seg.color2) {
-                        paint.shader = null
-                        paint.color = seg.color1
+                // Periodic shapes orthogonal details
+                val wallpaperTailLimitVal = if (settings.drawSpeedInstant) {
+                    if (settings.perfRemoveTailEnabled) {
+                        if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
                     } else {
-                        paint.shader = android.graphics.LinearGradient(
-                            seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y,
-                            seg.color1, seg.color2,
-                            android.graphics.Shader.TileMode.CLAMP
-                        )
+                        if (settings.instantDrawLengthInfinite.current) {
+                            -1
+                        } else {
+                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                        }
                     }
-                    canvas.drawLine(seg.p1.x, seg.p1.y, seg.p2.x, seg.p2.y, paint)
+                } else {
+                    -1
+                }
+                val wallpaperShapesStartIdx = if (wallpaperTailLimitVal > 0 && drawProgress > wallpaperTailLimitVal) {
+                    drawProgress.toInt() - wallpaperTailLimitVal
+                } else {
+                    0
+                }
+
+                for (shape in rawShapes) {
+                    val kIndex = shape.colorIndex
+                    if (kIndex > drawProgress.roundToInt() || kIndex < wallpaperShapesStartIdx) continue
+                    
+                    // Add secondary shapes to the unified WP drawList
+                    addOrthogonalShapeToDrawList(
+                        shape = shape,
+                        yawVal = activeYaw,
+                        pitchVal = activePitch,
+                        perspective = settings.cameraPerspective,
+                        width = width,
+                        height = height,
+                        angularLock = settings.isAngularLockEnabled,
+                        angularLockAxis = settings.angularLockAxis,
+                        hueOffset = timeHueOffset,
+                        totalSteps = stepsCount,
+                        mainPathPoints = rawPaths.getOrNull(shape.penIndex) ?: rawPaths.firstOrNull() ?: emptyList(),
+                        cameraTargetIndex = cameraTargetIndex,
+                        animTime = elapsedMs,
+                        drawProgress = drawProgress,
+                        drawList = drawList
+                    )
+                }
+
+                // Sort all draw list items back-to-front (descending by average depth)
+                drawList.sortByDescending { it.depth }
+
+                // Draw depth-sorted unified list on the canvas
+                for (inst in drawList) {
+                    when (inst) {
+                        is WPInstruction.Line -> {
+                            paint.strokeWidth = inst.strokeWidth
+                            if (inst.color1 == inst.color2) {
+                                paint.shader = null
+                                paint.color = inst.color1
+                            } else {
+                                paint.shader = android.graphics.LinearGradient(
+                                    inst.p1.x, inst.p1.y, inst.p2.x, inst.p2.y,
+                                    inst.color1, inst.color2,
+                                    android.graphics.Shader.TileMode.CLAMP
+                                )
+                            }
+                            canvas.drawLine(inst.p1.x, inst.p1.y, inst.p2.x, inst.p2.y, paint)
+                        }
+                        is WPInstruction.PathFill -> {
+                            fillPaint.color = inst.color
+                            fillPaint.alpha = inst.alpha
+                            canvas.drawPath(inst.path, fillPaint)
+                        }
+                    }
                 }
                 paint.shader = null
 
-                // Render styled active pen tip markers on top of all segment drawings
+                // Render styled active pen tip markers on top of all drawings
                 for ((tip, tipColor) in tipsList) {
                     val s = settings.penTipSize
                     fillPaint.color = tipColor
@@ -709,42 +778,6 @@ class HarmonographWallpaperService : WallpaperService() {
                             canvas.drawCircle(tip.x, tip.y, s * 2f, paint)
                         }
                     }
-                }
-
-                // Periodic shapes orthogonal details
-                val wallpaperTailLimitVal = if (settings.drawSpeedInstant) {
-                    if (settings.perfRemoveTailEnabled) {
-                        if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
-                    } else {
-                        if (settings.instantDrawLengthInfinite.current) {
-                            -1
-                        } else {
-                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
-                        }
-                    }
-                } else {
-                    -1
-                }
-                val wallpaperShapesStartIdx = if (wallpaperTailLimitVal > 0 && drawProgress > wallpaperTailLimitVal) {
-                    drawProgress.toInt() - wallpaperTailLimitVal
-                } else {
-                    0
-                }
-
-                for (shape in rawShapes) {
-                    val kIndex = shape.colorIndex
-                    if (kIndex > drawProgress.roundToInt() || kIndex < wallpaperShapesStartIdx) continue
-                    
-                    // Project shape center and outer coordinates
-                    val stepsCount = settings.drawLengthSteps
-                    
-                    // Draw outer shapes
-                    drawOrthogonalShapeOnCanvas(
-                        canvas, shape, activeYaw, activePitch, settings.cameraPerspective,
-                        width, height, settings.isAngularLockEnabled, settings.angularLockAxis,
-                        timeHueOffset, stepsCount, rawPaths.getOrNull(shape.penIndex) ?: rawPaths.firstOrNull() ?: emptyList(), cameraTargetIndex,
-                        elapsedMs, drawProgress
-                    )
                 }
 
             } finally {
@@ -866,20 +899,18 @@ class HarmonographWallpaperService : WallpaperService() {
             Color.colorToHSV(colorInt, hsv)
             val baseSat = hsv[1]
             val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
-                val msMin = settings.monoScaleShift.actualSelectedMin
-                val msMax = settings.monoScaleShift.actualSelectedMax
-                val sweepMin = msMin
-                val sweepMax = msMax
+                val sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
+                val sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
                 val speed = settings.monoScaleLiveShiftSpeed.current
                 val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
-                val effectiveRange = settings.monoWaveEffectiveRange.current.coerceAtLeast(1f)
+                val wavelength = 200f
                 val randomness = settings.monoWaveRandomness.current
                 
                 // Traveling base wave
-                val waveBase = kotlin.math.sin((idx.toFloat() / effectiveRange) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
+                val waveBase = kotlin.math.sin((idx.toFloat() / wavelength) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
                 // Secondary interference waves
-                val waveNoise1 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
-                val waveNoise2 = kotlin.math.sin((idx.toFloat() / (effectiveRange * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
+                val waveNoise1 = kotlin.math.sin((idx.toFloat() / (wavelength * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
+                val waveNoise2 = kotlin.math.sin((idx.toFloat() / (wavelength * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
                 
                 val combinedWave = (1f - randomness) * waveBase + randomness * (0.6f * waveNoise1 + 0.4f * waveNoise2)
                 val cycleRatio = 0.5f + 0.5f * combinedWave
@@ -907,8 +938,7 @@ class HarmonographWallpaperService : WallpaperService() {
             return Color.HSVToColor(alpha, hsv)
         }
 
-        private fun drawOrthogonalShapeOnCanvas(
-            canvas: Canvas,
+        private fun addOrthogonalShapeToDrawList(
             shape: CustomShapeData,
             yawVal: Float,
             pitchVal: Float,
@@ -922,7 +952,8 @@ class HarmonographWallpaperService : WallpaperService() {
             mainPathPoints: List<Point3D> = emptyList(),
             cameraTargetIndex: Float = -1f,
             animTime: Long = 0L,
-            drawProgress: Float
+            drawProgress: Float,
+            drawList: MutableList<WPInstruction>
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -954,11 +985,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     shape.center
                 }
 
-                val centerPt3D = if (shape.deployment == "progressive") {
-                    baseCenter + (shape.uVector.cross(shape.wVector) * (conc * size * 0.4f))
-                } else {
-                    baseCenter
-                }
+                // Center on curves fix: do NOT add progressive offset, keep perfectly centered
+                val centerPt3D = baseCenter
                 
                 val shape3DPoints = mutableListOf<Point3D>()
                 for (v in 0 until vertices) {
@@ -1031,18 +1059,14 @@ class HarmonographWallpaperService : WallpaperService() {
                         polyPath.lineTo(projPts[ptIdx].x, projPts[ptIdx].y)
                     }
                     polyPath.close()
-                    fillPaint.color = shapeColor
-                    fillPaint.alpha = 150 // semi-transparent fills
-                    canvas.drawPath(polyPath, fillPaint)
+                    val avgDepth = projPts.map { it.depth }.average().toFloat()
+                    drawList.add(WPInstruction.PathFill(avgDepth, polyPath, shapeColor, 150))
                 } else {
-                    paint.color = shapeColor
-                    paint.strokeWidth = 1.5f
                     for (ptIdx in 0 until projPts.size - 1) {
-                        canvas.drawLine(
-                            projPts[ptIdx].x, projPts[ptIdx].y,
-                            projPts[ptIdx + 1].x, projPts[ptIdx + 1].y,
-                            paint
-                        )
+                        val p1 = projPts[ptIdx]
+                        val p2 = projPts[ptIdx + 1]
+                        val avgDepth = (p1.depth + p2.depth) / 2f
+                        drawList.add(WPInstruction.Line(avgDepth, p1, p2, shapeColor, shapeColor, 1.5f))
                     }
                 }
             }
