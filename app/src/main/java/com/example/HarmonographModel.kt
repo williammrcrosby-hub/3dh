@@ -268,6 +268,7 @@ data class HarmonographSettings(
     val perfVelocityModifier: FloatParameter = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 5.0f, locked = true),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
+    val perfWallpaperShowFps: Boolean = false,
     val perfTargetFps: IntParameter = IntParameter(20, rangeMin = 10, rangeMax = 60),
 
     // Fast Draw sliding tail settings

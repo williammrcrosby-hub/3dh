@@ -480,9 +480,13 @@ class HarmonographWallpaperService : WallpaperService() {
                         }
                         val targetFpsVal = settings.perfTargetFps.current
                         if (wallpaperCurrentFps < targetFpsVal && wallpaperDynamicTailLimit > 200) {
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - 100).coerceAtLeast(200)
-                        } else if (wallpaperCurrentFps > targetFpsVal + 5 && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 30).coerceAtMost(settings.instantDrawLengthLimit.current)
+                            val diff = targetFpsVal - wallpaperCurrentFps
+                            val drop = if (diff > 10f) 200 else 100
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - drop).coerceAtLeast(200)
+                        } else if (wallpaperCurrentFps >= targetFpsVal + 10f && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 250).coerceAtMost(settings.instantDrawLengthLimit.current)
+                        } else if (wallpaperCurrentFps >= targetFpsVal + 5f && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
+                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
                         }
                     }
                 }
@@ -620,8 +624,8 @@ class HarmonographWallpaperService : WallpaperService() {
                             if (settings.drawSpeedInstant) {
                                 if (settings.instantDrawLengthInfinite.current) {
                                     -1
-                                        } else {
-                                    if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                                } else {
+                                    settings.instantDrawLengthLimit.current
                                 }
                             } else {
                                 -1
@@ -686,7 +690,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         if (settings.instantDrawLengthInfinite.current) {
                             -1
                         } else {
-                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                            settings.instantDrawLengthLimit.current
                         }
                     } else {
                         -1
@@ -797,6 +801,34 @@ class HarmonographWallpaperService : WallpaperService() {
                             canvas.drawCircle(tip.x, tip.y, s * 2f, paint)
                         }
                     }
+                }
+
+                // Render togglable tech-overlay HUD for real-time wallpaper FPS counters
+                if (settings.perfWallpaperShowFps) {
+                    val fpsPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 34f
+                        typeface = android.graphics.Typeface.create(android.graphics.Typeface.MONOSPACE, android.graphics.Typeface.BOLD)
+                    }
+                    val bgPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xAA0F172A.toInt() // Slate 900 custom transparency overlay
+                        style = android.graphics.Paint.Style.FILL
+                    }
+                    val borderPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = 0xFF00E5FF.toInt() // Cyber Cyan Border
+                        style = android.graphics.Paint.Style.STROKE
+                        strokeWidth = 3f
+                    }
+                    val fpsText = "WP: ${wallpaperCurrentFps.toInt()} FPS"
+                    val left = 48f
+                    val top = 120f
+                    val right = left + fpsPaint.measureText(fpsText) + 32f
+                    val bottom = top + 64f
+                    
+                    val rect = android.graphics.RectF(left, top, right, bottom)
+                    canvas.drawRoundRect(rect, 32f, 32f, bgPaint)
+                    canvas.drawRoundRect(rect, 32f, 32f, borderPaint)
+                    canvas.drawText(fpsText, left + 16f, top + 44f, fpsPaint)
                 }
 
             } finally {

@@ -74,9 +74,13 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             val targetFps = settings.perfTargetFps.current
             val currentLimit = if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
             if (currentFps < targetFps && currentLimit > 200) {
-                dynamicTailLimit = (currentLimit - 100).coerceAtLeast(200)
-            } else if (currentFps > targetFps + 5 && currentLimit < settings.instantDrawLengthLimit.current) {
-                dynamicTailLimit = (currentLimit + 30).coerceAtMost(settings.instantDrawLengthLimit.current)
+                val diff = targetFps - currentFps
+                val drop = if (diff > 10f) 200 else 100
+                dynamicTailLimit = (currentLimit - drop).coerceAtLeast(200)
+            } else if (currentFps >= targetFps + 10f && currentLimit < settings.instantDrawLengthLimit.current) {
+                dynamicTailLimit = (currentLimit + 250).coerceAtMost(settings.instantDrawLengthLimit.current)
+            } else if (currentFps >= targetFps + 5f && currentLimit < settings.instantDrawLengthLimit.current) {
+                dynamicTailLimit = (currentLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
             }
         }
     }
@@ -330,7 +334,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                                 if (settings.instantDrawLengthInfinite.current) {
                                     -1
                                 } else {
-                                    if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                                    settings.instantDrawLengthLimit.current
                                 }
                             } else {
                                 -1
@@ -413,7 +417,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         if (settings.instantDrawLengthInfinite.current) {
                             -1
                         } else {
-                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                            settings.instantDrawLengthLimit.current
                         }
                     } else {
                         -1
@@ -3408,6 +3412,44 @@ fun PerformanceAndQualityTab(
                             colors = SliderDefaults.colors(
                                 thumbColor = Color(0xFF00E5FF),
                                 activeTrackColor = Color(0xFF00E5FF)
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // 3b. Wallpaper FPS Counter Toggle
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF0F172A)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                    text = "SHOW WALLPAPER FPS COUNTER",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF00E5FF),
+                                    fontSize = 11.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                    text = "Overlay the exact wallpaper rendering frame rate on the desktop launcher screen for performance debugging.",
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 10.sp
+                            )
+                        }
+                        Switch(
+                            checked = settings.perfWallpaperShowFps,
+                            onCheckedChange = { onUpdate(settings.copy(perfWallpaperShowFps = it)) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0x6600E5FF)
                             )
                         )
                     }
