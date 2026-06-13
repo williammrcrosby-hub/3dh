@@ -236,7 +236,20 @@ object HarmonographMath {
                     0f
                 } else {
                     val lengthModifier = settings.perfVelocityModifier.current
-                    val targetDt = (1f / estimatedSpeed) * lengthModifier
+                    var targetDt = (1f / estimatedSpeed) * lengthModifier
+                    if (settings.perfAngularModifier.current > 0f) {
+                        val secondEstimate = fastCalculatePointAtT(tLocal + 0.004f)
+                        val d1 = nextEstimate - pt
+                        val d2 = secondEstimate - nextEstimate
+                        val len1 = d1.length()
+                        val len2 = d2.length()
+                        if (len1 > 1e-6f && len2 > 1e-6f) {
+                            val dot = (d1.x * d2.x + d1.y * d2.y + d1.z * d2.z) / (len1 * len2)
+                            val angle = kotlin.math.acos(dot.coerceIn(-1f, 1f))
+                            val angularRate = angle / 0.002f
+                            targetDt /= (1f + angularRate * settings.perfAngularModifier.current)
+                        }
+                    }
                     val scaledTargetDt = targetDt * (mult / 2.0f)
                     scaledTargetDt.coerceIn(0f, 0.25f)
                 }
@@ -467,7 +480,20 @@ object HarmonographMath {
                     0f
                 } else {
                     val lengthModifier = settings.perfVelocityModifier.current
-                    val targetDt = (1f / estimatedSpeed) * lengthModifier
+                    var targetDt = (1f / estimatedSpeed) * lengthModifier
+                    if (settings.perfAngularModifier.current > 0f) {
+                        val secondEstimate = fastCalculatePointAtT(tLocal + 0.004f)
+                        val d1 = nextEstimate - pt
+                        val d2 = secondEstimate - nextEstimate
+                        val len1 = d1.length()
+                        val len2 = d2.length()
+                        if (len1 > 1e-6f && len2 > 1e-6f) {
+                            val dot = (d1.x * d2.x + d1.y * d2.y + d1.z * d2.z) / (len1 * len2)
+                            val angle = kotlin.math.acos(dot.coerceIn(-1f, 1f))
+                            val angularRate = angle / 0.002f
+                            targetDt /= (1f + angularRate * settings.perfAngularModifier.current)
+                        }
+                    }
                     val scaledTargetDt = targetDt * (mult / 2.0f)
                     scaledTargetDt.coerceIn(0f, 0.25f)
                 }

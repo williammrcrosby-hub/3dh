@@ -266,7 +266,8 @@ data class HarmonographSettings(
     // Performance & Quality Options
     val perfResolution: String = "native", // "native", "760", "480", "auto"
     val perfVelocitySampling: Boolean = true,
-    val perfVelocityModifier: FloatParameter = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 5.0f, locked = true),
+    val perfVelocityModifier: FloatParameter = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 15.0f, locked = true),
+    val perfAngularModifier: FloatParameter = FloatParameter(0.0f, rangeMin = 0.0f, rangeMax = 10.0f, locked = true),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
     val perfWallpaperShowFps: Boolean = false,
@@ -397,6 +398,7 @@ data class HarmonographSettings(
             gyroSensitivity = gyroSensitivity.copy(locked = true),
             lineAlpha = lineAlpha.copy(locked = true),
             perfVelocityModifier = perfVelocityModifier.copy(locked = true),
+            perfAngularModifier = perfAngularModifier.copy(locked = true),
             
             monoScaleShift = monoScaleShift.copy(locked = true),
             monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = true),
@@ -553,6 +555,7 @@ data class HarmonographSettings(
             lineAlpha = lineAlpha.randomize(random),
             xyzFreqMultiplier = xyzFreqMultiplier.randomize(random),
             perfVelocityModifier = perfVelocityModifier.randomize(random),
+            perfAngularModifier = perfAngularModifier.randomize(random),
             
             monoScaleEnabled = monoScaleEnabled.randomize(random),
             monoScaleShift = monoScaleShift.randomize(random),

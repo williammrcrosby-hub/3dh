@@ -3422,6 +3422,23 @@ fun PerformanceAndQualityTab(
                             onValueChange = { onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.withValue(it))) },
                             onRandomize = { onUpdate(settings.copy(perfVelocityModifier = settings.perfVelocityModifier.randomize(java.util.Random()))) }
                         )
+                        HorizontalDivider(color = Color.DarkGray, thickness = 0.5.dp)
+                        ParameterSliderRow(
+                            label = "Pen Tip Angular Modifier",
+                            value = settings.perfAngularModifier.current,
+                            minVal = settings.perfAngularModifier.rangeMin,
+                            maxVal = settings.perfAngularModifier.rangeMax,
+                            stepValue = 0.1f,
+                            isLocked = settings.perfAngularModifier.locked,
+                            onLockToggle = { onUpdate(settings.copy(perfAngularModifier = settings.perfAngularModifier.copy(locked = it))) },
+                            isRangeLocked = settings.perfAngularModifier.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(perfAngularModifier = settings.perfAngularModifier.withRangeLocked(it))) },
+                            selectedMin = settings.perfAngularModifier.actualSelectedMin,
+                            selectedMax = settings.perfAngularModifier.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(perfAngularModifier = settings.perfAngularModifier.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(perfAngularModifier = settings.perfAngularModifier.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(perfAngularModifier = settings.perfAngularModifier.randomize(java.util.Random()))) }
+                        )
                     }
                 }
             }
