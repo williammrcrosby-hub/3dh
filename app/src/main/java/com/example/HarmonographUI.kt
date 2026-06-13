@@ -251,7 +251,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 HarmonographMath.generatePeriodicShapes(settings, stepsCount)
             }
             
-            val timeHueOffset = if (settings.hueShiftingEnabled) {
+            val timeHueOffset = if (settings.hueShiftingEnabled.current) {
                 (animTime * settings.hueShiftSpeed.current / 360).toLong() % 360
             } else {
                 0L
@@ -1918,9 +1918,25 @@ fun StyleAndPenConfigTab(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Live Color Hue Shifting", color = Color.White, fontSize = 12.sp)
                     Spacer(modifier = Modifier.weight(1f))
-                    Switch(checked = settings.hueShiftingEnabled, onCheckedChange = { onUpdate(settings.copy(hueShiftingEnabled = it)) }, modifier = Modifier.scale(0.8f))
+                    
+                    IconButton(
+                        onClick = { onUpdate(settings.copy(hueShiftingEnabled = settings.hueShiftingEnabled.copy(locked = !settings.hueShiftingEnabled.locked))) }
+                    ) {
+                        Icon(
+                            imageVector = if (settings.hueShiftingEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                            contentDescription = "Lock live color hue shifting",
+                            tint = if (settings.hueShiftingEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    
+                    Switch(
+                        checked = settings.hueShiftingEnabled.current,
+                        onCheckedChange = { onUpdate(settings.copy(hueShiftingEnabled = settings.hueShiftingEnabled.withValue(it))) },
+                        modifier = Modifier.scale(0.8f)
+                    )
                 }
-                if (settings.hueShiftingEnabled) {
+                if (settings.hueShiftingEnabled.current) {
                     ParameterSliderRow(
                         label = "Hue Shift Speed",
                         value = settings.hueShiftSpeed.current,
@@ -3588,7 +3604,7 @@ fun PerformanceAndQualityTab(
                         Slider(
                             value = settings.instantDrawLengthLimit.current.toFloat(),
                             onValueChange = { onUpdate(settings.copy(instantDrawLengthLimit = settings.instantDrawLengthLimit.copy(current = it.roundToInt()))) },
-                            valueRange = 250f..2500f,
+                            valueRange = settings.instantDrawLengthLimit.rangeMin.toFloat()..settings.instantDrawLengthLimit.rangeMax.toFloat(),
                             colors = SliderDefaults.colors(
                                 thumbColor = Color(0xFF00E5FF),
                                 activeTrackColor = Color(0xFF00E5FF)

@@ -194,7 +194,7 @@ data class HarmonographSettings(
     val gradientEndHue: FloatParameter = FloatParameter(330f, rangeMin = 0f, rangeMax = 360f),
     
     val saturation: FloatParameter = FloatParameter(0.9f, rangeMin = 0.1f, rangeMax = 1.0f, locked = true),
-    val hueShiftingEnabled: Boolean = true,
+    val hueShiftingEnabled: BooleanParameter = BooleanParameter(true),
     val hueShiftSpeed: FloatParameter = FloatParameter(15f, rangeMin = 0f, rangeMax = 60f),
     val hueShiftRange: FloatParameter = FloatParameter(360f, rangeMin = 0f, rangeMax = 360f, locked = true, rangeLocked = true, selectedMin = 0f, selectedMax = 360f),
     
@@ -369,6 +369,7 @@ data class HarmonographSettings(
             
             hueShiftSpeed = hueShiftSpeed.copy(locked = true),
             hueShiftRange = hueShiftRange.copy(locked = true),
+            hueShiftingEnabled = hueShiftingEnabled.copy(locked = true),
             
             rainbowHue = rainbowHue.copy(locked = true),
             rainbowColorRange = rainbowColorRange.copy(locked = true),
@@ -523,6 +524,7 @@ data class HarmonographSettings(
             
             hueShiftSpeed = hueShiftSpeed.randomize(random),
             hueShiftRange = hueShiftRange.randomize(random),
+            hueShiftingEnabled = hueShiftingEnabled.randomize(random),
             
             rainbowHue = rainbowHue.randomize(random),
             rainbowColorRange = rainbowColorRange.randomize(random),

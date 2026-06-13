@@ -739,8 +739,8 @@ object HarmonographMath {
         val progressInt = floor(progressCoerced).toInt()
         val progressFrac = (progressCoerced - progressInt).coerceIn(0f, 1f)
         
-        val startIdx = if (tailLengthLimit > 0 && currentDrawProgress > tailLengthLimit) {
-            floor(currentDrawProgress).toInt() - tailLengthLimit
+        val startIdx = if (tailLengthLimit > 0 && progressCoerced > tailLengthLimit) {
+            floor(progressCoerced).toInt() - tailLengthLimit
         } else {
             0
         }

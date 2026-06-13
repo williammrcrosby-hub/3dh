@@ -584,7 +584,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 val settingsHash = settings.hashCode().toLong()
                 
                 // Color hue cycle using elapsed elapsedMs
-                val timeHueOffset = if (settings.hueShiftingEnabled) {
+                val timeHueOffset = if (settings.hueShiftingEnabled.current) {
                     (elapsedMs * settings.hueShiftSpeed.current / 360).toLong() % 360
                 } else {
                     0L
