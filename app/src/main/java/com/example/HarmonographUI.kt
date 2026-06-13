@@ -72,15 +72,27 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     LaunchedEffect(currentFps) {
         if (settings.perfRemoveTailEnabled) {
             val targetFps = settings.perfTargetFps.current
-            val currentLimit = if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
-            if (currentFps < targetFps && currentLimit > 200) {
+            if (currentFps < targetFps) {
+                val currentLimit = if (dynamicTailLimit == -1) settings.instantDrawLengthLimit.current else dynamicTailLimit
                 val diff = targetFps - currentFps
                 val drop = if (diff > 10f) 200 else 100
                 dynamicTailLimit = (currentLimit - drop).coerceAtLeast(200)
-            } else if (currentFps >= targetFps + 10f && currentLimit < settings.instantDrawLengthLimit.current) {
-                dynamicTailLimit = (currentLimit + 250).coerceAtMost(settings.instantDrawLengthLimit.current)
-            } else if (currentFps >= targetFps + 5f && currentLimit < settings.instantDrawLengthLimit.current) {
-                dynamicTailLimit = (currentLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
+            } else if (dynamicTailLimit != -1) {
+                if (currentFps >= targetFps + 10f) {
+                    val nextLimit = dynamicTailLimit + 250
+                    if (nextLimit >= settings.instantDrawLengthLimit.current) {
+                        dynamicTailLimit = -1
+                    } else {
+                        dynamicTailLimit = nextLimit
+                    }
+                } else if (currentFps >= targetFps + 5f) {
+                    val nextLimit = dynamicTailLimit + 100
+                    if (nextLimit >= settings.instantDrawLengthLimit.current) {
+                        dynamicTailLimit = -1
+                    } else {
+                        dynamicTailLimit = nextLimit
+                    }
+                }
             }
         }
     }
@@ -328,7 +340,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
                         tailLengthLimit = if (settings.perfRemoveTailEnabled) {
-                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                            if (dynamicTailLimit == -1 || dynamicTailLimit == -2) {
+                                if (settings.drawSpeedInstant) {
+                                    if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                                } else {
+                                    -1
+                                }
+                            } else {
+                                dynamicTailLimit
+                            }
                         } else {
                             if (settings.drawSpeedInstant) {
                                 if (settings.instantDrawLengthInfinite.current) {
@@ -411,7 +431,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
 
                 // Gather secondary shapes and add them to the drawList
                 val tailLimitVal = if (settings.perfRemoveTailEnabled) {
-                    if (dynamicTailLimit == -1 || dynamicTailLimit == -2) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                    if (dynamicTailLimit == -1 || dynamicTailLimit == -2) {
+                        if (settings.drawSpeedInstant) {
+                            if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                        } else {
+                            -1
+                        }
+                    } else {
+                        dynamicTailLimit
+                    }
                 } else {
                     if (settings.drawSpeedInstant) {
                         if (settings.instantDrawLengthInfinite.current) {

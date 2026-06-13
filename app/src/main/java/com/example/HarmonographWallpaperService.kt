@@ -459,9 +459,17 @@ class HarmonographWallpaperService : WallpaperService() {
             }
         }
 
-        private fun drawFrame() {
+         private fun drawFrame() {
             val holder = surfaceHolder
-            val canvas = holder.lockCanvas() ?: return
+            val canvas = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                try {
+                    holder.lockHardwareCanvas()
+                } catch (e: Exception) {
+                    holder.lockCanvas()
+                }
+            } else {
+                holder.lockCanvas()
+            } ?: return
             
             val nowMs = System.currentTimeMillis()
             if (wallpaperLastFpsTime == 0L) {
@@ -475,18 +483,28 @@ class HarmonographWallpaperService : WallpaperService() {
                     wallpaperLastFpsTime = nowMs
                     
                     if (settings.perfRemoveTailEnabled) {
-                        if (wallpaperDynamicTailLimit <= 0) {
-                            wallpaperDynamicTailLimit = settings.instantDrawLengthLimit.current
-                        }
                         val targetFpsVal = settings.perfTargetFps.current
-                        if (wallpaperCurrentFps < targetFpsVal && wallpaperDynamicTailLimit > 200) {
+                        if (wallpaperCurrentFps < targetFpsVal) {
+                            val currentLimit = if (wallpaperDynamicTailLimit == -1) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
                             val diff = targetFpsVal - wallpaperCurrentFps
                             val drop = if (diff > 10f) 200 else 100
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit - drop).coerceAtLeast(200)
-                        } else if (wallpaperCurrentFps >= targetFpsVal + 10f && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 250).coerceAtMost(settings.instantDrawLengthLimit.current)
-                        } else if (wallpaperCurrentFps >= targetFpsVal + 5f && wallpaperDynamicTailLimit < settings.instantDrawLengthLimit.current) {
-                            wallpaperDynamicTailLimit = (wallpaperDynamicTailLimit + 100).coerceAtMost(settings.instantDrawLengthLimit.current)
+                            wallpaperDynamicTailLimit = (currentLimit - drop).coerceAtLeast(200)
+                        } else if (wallpaperDynamicTailLimit != -1) {
+                            if (wallpaperCurrentFps >= targetFpsVal + 10f) {
+                                val nextLimit = wallpaperDynamicTailLimit + 250
+                                if (nextLimit >= settings.instantDrawLengthLimit.current) {
+                                    wallpaperDynamicTailLimit = -1
+                                } else {
+                                    wallpaperDynamicTailLimit = nextLimit
+                                }
+                            } else if (wallpaperCurrentFps >= targetFpsVal + 5f) {
+                                val nextLimit = wallpaperDynamicTailLimit + 100
+                                if (nextLimit >= settings.instantDrawLengthLimit.current) {
+                                    wallpaperDynamicTailLimit = -1
+                                } else {
+                                    wallpaperDynamicTailLimit = nextLimit
+                                }
+                            }
                         }
                     }
                 }
@@ -619,7 +637,15 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
                         tailLengthLimit = if (settings.perfRemoveTailEnabled) {
-                            if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                            if (wallpaperDynamicTailLimit == -1) {
+                                if (settings.drawSpeedInstant) {
+                                    if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                                } else {
+                                    -1
+                                }
+                            } else {
+                                wallpaperDynamicTailLimit
+                            }
                         } else {
                             if (settings.drawSpeedInstant) {
                                 if (settings.instantDrawLengthInfinite.current) {
@@ -684,7 +710,15 @@ class HarmonographWallpaperService : WallpaperService() {
 
                 // Periodic shapes orthogonal details
                 val wallpaperTailLimitVal = if (settings.perfRemoveTailEnabled) {
-                    if (wallpaperDynamicTailLimit == -1 || wallpaperDynamicTailLimit == -2) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
+                    if (wallpaperDynamicTailLimit == -1) {
+                        if (settings.drawSpeedInstant) {
+                            if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                        } else {
+                            -1
+                        }
+                    } else {
+                        wallpaperDynamicTailLimit
+                    }
                 } else {
                     if (settings.drawSpeedInstant) {
                         if (settings.instantDrawLengthInfinite.current) {
