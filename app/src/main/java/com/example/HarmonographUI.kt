@@ -70,7 +70,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     var dynamicTailLimit by remember(settings) { mutableStateOf(-1) }
 
     LaunchedEffect(currentFps) {
-        if (settings.perfRemoveTailEnabled) {
+        if (settings.perfRemoveTailEnabled && !settings.instantDrawLengthInfinite.current) {
             val targetFps = settings.perfTargetFps.current
             if (currentFps < targetFps) {
                 val currentLimit = if (dynamicTailLimit == -1) settings.instantDrawLengthLimit.current else dynamicTailLimit
@@ -257,16 +257,6 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 0L
             }
 
-            if (settings.drawSpeedInstant) {
-                androidx.compose.runtime.SideEffect {
-                    if (dynamicTailLimit == -1) {
-                        dynamicTailLimit = -2
-                    } else if (dynamicTailLimit == -2) {
-                        dynamicTailLimit = settings.instantDrawLengthLimit.current
-                    }
-                }
-            }
-
             Canvas(modifier = Modifier.fillMaxSize().testTag("3d_harmonograph_canvas")) {
                 val drawLimit = drawProgress.roundToInt()
                 var width = size.width
@@ -339,10 +329,12 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.perfRemoveTailEnabled) {
+                        tailLengthLimit = if (settings.instantDrawLengthInfinite.current) {
+                            -1
+                        } else if (settings.perfRemoveTailEnabled) {
                             if (dynamicTailLimit == -1 || dynamicTailLimit == -2) {
                                 if (settings.drawSpeedInstant) {
-                                    if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                                    settings.instantDrawLengthLimit.current
                                 } else {
                                     -1
                                 }
@@ -351,11 +343,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             }
                         } else {
                             if (settings.drawSpeedInstant) {
-                                if (settings.instantDrawLengthInfinite.current) {
-                                    -1
-                                } else {
-                                    settings.instantDrawLengthLimit.current
-                                }
+                                settings.instantDrawLengthLimit.current
                             } else {
                                 -1
                             }
@@ -430,10 +418,12 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
 
                 // Gather secondary shapes and add them to the drawList
-                val tailLimitVal = if (settings.perfRemoveTailEnabled) {
+                val tailLimitVal = if (settings.instantDrawLengthInfinite.current) {
+                    -1
+                } else if (settings.perfRemoveTailEnabled) {
                     if (dynamicTailLimit == -1 || dynamicTailLimit == -2) {
                         if (settings.drawSpeedInstant) {
-                            if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                            settings.instantDrawLengthLimit.current
                         } else {
                             -1
                         }
@@ -442,11 +432,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     }
                 } else {
                     if (settings.drawSpeedInstant) {
-                        if (settings.instantDrawLengthInfinite.current) {
-                            -1
-                        } else {
-                            settings.instantDrawLengthLimit.current
-                        }
+                        settings.instantDrawLengthLimit.current
                     } else {
                         -1
                     }
@@ -3704,7 +3690,15 @@ private fun computeComposeColor(
             adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
         "spicy" -> {
-            val rHueVal = getDeterministicRandomFloat(idx, 1109L, settingsHash)
+            val seed1 = (settingsHash % 7919L).toFloat() / 7919f
+            val seed2 = ((settingsHash / 7919L) % 65537L).toFloat() / 65537f
+            val seed3 = ((settingsHash / 524287L) % 100003L).toFloat() / 100003f
+            
+            val theta1 = idx.toFloat() * 0.0051f + seed1 * 100f
+            val theta2 = idx.toFloat() * 0.0139f + seed2 * 200f
+            val theta3 = idx.toFloat() * 0.0383f + seed3 * 300f
+            
+            val rHueVal = 0.5f + 0.3f * kotlin.math.sin(theta1) + 0.15f * kotlin.math.cos(theta2) + 0.05f * kotlin.math.sin(theta3)
             
             val baseHue = settings.spicyHue.current
             val hRange = settings.spicyColorRange.current
@@ -3760,7 +3754,16 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     } else if (settings.monoScaleShift.rangeLocked) {
         val msMin = settings.monoScaleShift.actualSelectedMin
         val msMax = settings.monoScaleShift.actualSelectedMax
-        val msRandVal = getDeterministicRandomFloat(idx, 1237L, settingsHash)
+        
+        val seed1 = (settingsHash % 7919L).toFloat() / 7919f
+        val seed2 = ((settingsHash / 7919L) % 65537L).toFloat() / 65537f
+        val seed3 = ((settingsHash / 524287L) % 100003L).toFloat() / 100003f
+        
+        val theta1 = idx.toFloat() * 0.0051f + seed1 * 100f
+        val theta2 = idx.toFloat() * 0.0139f + seed2 * 200f
+        val theta3 = idx.toFloat() * 0.0383f + seed3 * 300f
+        
+        val msRandVal = 0.5f + 0.3f * kotlin.math.sin(theta1) + 0.15f * kotlin.math.cos(theta2) + 0.05f * kotlin.math.sin(theta3)
         msMin + msRandVal * (msMax - msMin)
     } else {
         settings.monoScaleShift.current

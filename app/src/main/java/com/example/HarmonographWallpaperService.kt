@@ -482,7 +482,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     wallpaperFrameCount = 0
                     wallpaperLastFpsTime = nowMs
                     
-                    if (settings.perfRemoveTailEnabled) {
+                    if (settings.perfRemoveTailEnabled && !settings.instantDrawLengthInfinite.current) {
                         val targetFpsVal = settings.perfTargetFps.current
                         if (wallpaperCurrentFps < targetFpsVal) {
                             val currentLimit = if (wallpaperDynamicTailLimit == -1) settings.instantDrawLengthLimit.current else wallpaperDynamicTailLimit
@@ -636,10 +636,12 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.perfRemoveTailEnabled) {
+                        tailLengthLimit = if (settings.instantDrawLengthInfinite.current) {
+                            -1
+                        } else if (settings.perfRemoveTailEnabled) {
                             if (wallpaperDynamicTailLimit == -1) {
                                 if (settings.drawSpeedInstant) {
-                                    if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                                    settings.instantDrawLengthLimit.current
                                 } else {
                                     -1
                                 }
@@ -648,11 +650,7 @@ class HarmonographWallpaperService : WallpaperService() {
                             }
                         } else {
                             if (settings.drawSpeedInstant) {
-                                if (settings.instantDrawLengthInfinite.current) {
-                                    -1
-                                } else {
-                                    settings.instantDrawLengthLimit.current
-                                }
+                                settings.instantDrawLengthLimit.current
                             } else {
                                 -1
                             }
@@ -709,10 +707,12 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 // Periodic shapes orthogonal details
-                val wallpaperTailLimitVal = if (settings.perfRemoveTailEnabled) {
+                val wallpaperTailLimitVal = if (settings.instantDrawLengthInfinite.current) {
+                    -1
+                } else if (settings.perfRemoveTailEnabled) {
                     if (wallpaperDynamicTailLimit == -1) {
                         if (settings.drawSpeedInstant) {
-                            if (settings.instantDrawLengthInfinite.current) -1 else settings.instantDrawLengthLimit.current
+                            settings.instantDrawLengthLimit.current
                         } else {
                             -1
                         }
@@ -721,11 +721,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     }
                 } else {
                     if (settings.drawSpeedInstant) {
-                        if (settings.instantDrawLengthInfinite.current) {
-                            -1
-                        } else {
-                            settings.instantDrawLengthLimit.current
-                        }
+                        settings.instantDrawLengthLimit.current
                     } else {
                         -1
                     }
@@ -963,7 +959,15 @@ class HarmonographWallpaperService : WallpaperService() {
                     adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
                 }
                 "spicy" -> {
-                    val rHueVal = getDeterministicRandomFloat(idx, 1109L, settingsHash)
+                    val seed1 = (settingsHash % 7919L).toFloat() / 7919f
+                    val seed2 = ((settingsHash / 7919L) % 65537L).toFloat() / 65537f
+                    val seed3 = ((settingsHash / 524287L) % 100003L).toFloat() / 100003f
+                    
+                    val theta1 = idx.toFloat() * 0.0051f + seed1 * 100f
+                    val theta2 = idx.toFloat() * 0.0139f + seed2 * 200f
+                    val theta3 = idx.toFloat() * 0.0383f + seed3 * 300f
+                    
+                    val rHueVal = 0.5f + 0.3f * kotlin.math.sin(theta1) + 0.15f * kotlin.math.cos(theta2) + 0.05f * kotlin.math.sin(theta3)
                     
                     val baseHue = settings.spicyHue.current
                     val hRange = settings.spicyColorRange.current
@@ -1014,7 +1018,16 @@ class HarmonographWallpaperService : WallpaperService() {
             } else if (settings.monoScaleShift.rangeLocked) {
                 val msMin = settings.monoScaleShift.actualSelectedMin
                 val msMax = settings.monoScaleShift.actualSelectedMax
-                val msRandVal = getDeterministicRandomFloat(idx, 1237L, settingsHash)
+                
+                val seed1 = (settingsHash % 7919L).toFloat() / 7919f
+                val seed2 = ((settingsHash / 7919L) % 65537L).toFloat() / 65537f
+                val seed3 = ((settingsHash / 524287L) % 100003L).toFloat() / 100003f
+                
+                val theta1 = idx.toFloat() * 0.0051f + seed1 * 100f
+                val theta2 = idx.toFloat() * 0.0139f + seed2 * 200f
+                val theta3 = idx.toFloat() * 0.0383f + seed3 * 300f
+                
+                val msRandVal = 0.5f + 0.3f * kotlin.math.sin(theta1) + 0.15f * kotlin.math.cos(theta2) + 0.05f * kotlin.math.sin(theta3)
                 msMin + msRandVal * (msMax - msMin)
             } else {
                 settings.monoScaleShift.current
