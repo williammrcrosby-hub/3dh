@@ -237,10 +237,11 @@ object HarmonographMath {
                 } else {
                     val lengthModifier = settings.perfVelocityModifier.current
                     val targetDt = (1f / estimatedSpeed) * lengthModifier
-                    targetDt.coerceIn(0f, 0.25f)
+                    val scaledTargetDt = targetDt * (mult / 2.0f)
+                    scaledTargetDt.coerceIn(0f, 0.25f)
                 }
             } else {
-                dt
+                dt * (mult / 2.0f)
             }
             tLocal += dtUsed
         }
@@ -467,10 +468,11 @@ object HarmonographMath {
                 } else {
                     val lengthModifier = settings.perfVelocityModifier.current
                     val targetDt = (1f / estimatedSpeed) * lengthModifier
-                    targetDt.coerceIn(0f, 0.25f)
+                    val scaledTargetDt = targetDt * (mult / 2.0f)
+                    scaledTargetDt.coerceIn(0f, 0.25f)
                 }
             } else {
-                dt
+                dt * (mult / 2.0f)
             }
             tLocal += dtUsed
         }

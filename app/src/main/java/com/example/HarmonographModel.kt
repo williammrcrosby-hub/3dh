@@ -219,7 +219,8 @@ data class HarmonographSettings(
     val penTipShape: String = "circle", // "circle", "square", "diamond", "cross", "star"
     val penTipColorMode: String = "match_line", // "match_line", "solid"
     val penTipColor: Int = 0xFFFFFFFF.toInt(),
-    val penTipSize: Float = 8f,
+    val penTipSize: Float = 6f,
+    val penTipSizeLocked: Boolean = true,
     
     // Periodic shapes orthogonal to the path line
     val periodicShape: String = "none", // "none", "circle", "triangle", "star"
@@ -288,7 +289,11 @@ data class HarmonographSettings(
     val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
 ) {
     fun normalize(): HarmonographSettings {
-        return this
+        return if (penTipSizeLocked) {
+            copy(penTipSize = 6f)
+        } else {
+            this
+        }
     }
 
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {

@@ -2673,15 +2673,47 @@ fun StyleAndPenConfigTab(
                             )
                         }
 
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
-                            Text("Marker Size: ${settings.penTipSize.roundToInt()}dp", color = Color.White, fontSize = 11.sp)
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Slider(
-                                value = settings.penTipSize,
-                                onValueChange = { onUpdate(settings.copy(penTipSize = it)) },
-                                valueRange = 4f..24f,
-                                modifier = Modifier.weight(1f)
-                            )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Marker Size: ", color = Color(0xFF94A3B8), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "${settings.penTipSize.roundToInt()}dp",
+                                        color = Color.White,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Slider(
+                                    value = settings.penTipSize,
+                                    onValueChange = { onUpdate(settings.copy(penTipSize = it)) },
+                                    valueRange = 2f..20f,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = if (settings.penTipSizeLocked) Color.Red else Color(0xFF00E5FF),
+                                        activeTrackColor = Color(0xFF00E5FF)
+                                    ),
+                                    enabled = !settings.penTipSizeLocked
+                                )
+                            }
+                            IconButton(
+                                onClick = { 
+                                    val nextLocked = !settings.penTipSizeLocked
+                                    val nextSize = if (nextLocked) 6f else settings.penTipSize
+                                    onUpdate(settings.copy(penTipSizeLocked = nextLocked, penTipSize = nextSize))
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (settings.penTipSizeLocked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                    contentDescription = "Lock Marker Size",
+                                    tint = if (settings.penTipSizeLocked) Color(0xFFFF4081) else Color(0xFF64748B),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
                         }
                     }
                 }
