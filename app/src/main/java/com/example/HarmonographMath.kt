@@ -77,6 +77,7 @@ object HarmonographMath {
      */
     fun calculatePointAtStep(k: Int, settings: HarmonographSettings, dt: Float = 0.015f): Point3D {
         val t = k * dt
+        val mult = settings.xyzFreqMultiplier.current
         
         // XYZ Base signals with decay and phase
         val px = Math.toRadians(settings.phaseX.current.toDouble()).toFloat()
@@ -87,10 +88,10 @@ object HarmonographMath {
         val decayFactorY = if (settings.decayEnabled.current) exp(-settings.decayY.current * t) else 1f
         val decayFactorZ = if (settings.decayEnabled.current) exp(-settings.decayZ.current * t) else 1f
         
-        var xRaw = settings.ampX.current * decayFactorX * sin(settings.activeFreqX * t + px)
-        var yRaw = settings.ampY.current * decayFactorY * sin(settings.activeFreqY * t + py)
+        var xRaw = settings.ampX.current * decayFactorX * sin(settings.activeFreqX * mult * t + px)
+        var yRaw = settings.ampY.current * decayFactorY * sin(settings.activeFreqY * mult * t + py)
         val zRaw = if (settings.ampZ.current > 0f) {
-            settings.ampZ.current * decayFactorZ * sin(settings.activeFreqZ * t + pz)
+            settings.ampZ.current * decayFactorZ * sin(settings.activeFreqZ * mult * t + pz)
         } else {
             0f
         }
@@ -100,7 +101,7 @@ object HarmonographMath {
         // Sublayer X'
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
-            val freqSubX = if (settings.subXFreqIsMultiply.current) settings.activeFreqX * factor else settings.activeFreqX / factor
+            val freqSubX = if (settings.subXFreqIsMultiply.current) (settings.activeFreqX * mult) * factor else (settings.activeFreqX * mult) / factor
             val pSubX = Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat()
             xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + pSubX)
         }
@@ -108,7 +109,7 @@ object HarmonographMath {
         // Sublayer Y'
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
             val factor = settings.subYFreqFactor.current.toFloat()
-            val freqSubY = if (settings.subYFreqIsMultiply.current) settings.activeFreqY * factor else settings.activeFreqY / factor
+            val freqSubY = if (settings.subYFreqIsMultiply.current) (settings.activeFreqY * mult) * factor else (settings.activeFreqY * mult) / factor
             val pSubY = Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat()
             yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + pSubY)
         }
@@ -116,7 +117,7 @@ object HarmonographMath {
         // Sublayer Z'
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
             val factor = settings.subZFreqFactor.current.toFloat()
-            val freqSubZ = if (settings.subZFreqIsMultiply.current) settings.activeFreqZ * factor else settings.activeFreqZ / factor
+            val freqSubZ = if (settings.subZFreqIsMultiply.current) (settings.activeFreqZ * mult) * factor else (settings.activeFreqZ * mult) / factor
             val pSubZ = Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat()
             // Let sublayer Z' influence the depth
             xRaw += settings.ampSubZ.current * decayFactorZ * sin(freqSubZ * t + pz + pSubZ)
@@ -365,8 +366,10 @@ object HarmonographMath {
     ): List<CustomShapeData> {
         if (settings.periodicShape == "none") return emptyList()
         
+        val mult = settings.xyzFreqMultiplier.current
+        
         // Calculate max active frequency in the system to determine optimal dt
-        var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
+        var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.subXFreqFactor.current.toFloat()
             val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
@@ -393,9 +396,9 @@ object HarmonographMath {
             val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
             val pz = Math.toRadians(settings.phaseZ.current.toDouble()).toFloat()
             
-            val fX = settings.activeFreqX
-            val fY = settings.activeFreqY
-            val fZ = settings.activeFreqZ
+            val fX = settings.activeFreqX * mult
+            val fY = settings.activeFreqY * mult
+            val fZ = settings.activeFreqZ * mult
             
             val decEnabled = settings.decayEnabled.current
             val decX = settings.decayX.current
@@ -474,7 +477,7 @@ object HarmonographMath {
 
         val shapesList = mutableListOf<CustomShapeData>()
         
-        val fastestBase = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ)
+        val fastestBase = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
         val factor = settings.periodicShapeFreqFactor.current.toFloat()
         val freqShape = if (settings.periodicShapeFreqIsMultiply) fastestBase * factor else fastestBase / factor
         

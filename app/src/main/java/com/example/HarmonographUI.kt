@@ -340,37 +340,48 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     
                     if (projPoints.isEmpty()) continue
 
-                    // Gather line segments
-                    for (i in 0 until projPoints.size - 1) {
-                        val p1 = projPoints[i]
-                        val p2 = projPoints[i + 1]
-                        
-                        if (p1.isBehindCamera || p2.isBehindCamera) {
-                            continue
-                        }
-                        
-                        val segmentColor = computeComposeColor(
-                            settings = settings,
-                            idx = p1.originalIndex,
-                            total = settings.drawLengthSteps,
-                            pt = p1,
-                            width = width,
-                            height = height,
-                            hueOffset = timeHueOffset,
-                            settingsHash = settingsHash
-                        )
-                        
-                        val baseThickness = settings.lineThickness.current
-                        val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
-                        drawList.add(
-                            UIInstruction.Line(
-                                depth = (p1.depth + p2.depth) / 2f,
-                                start = androidx.compose.ui.geometry.Offset(p1.x, p1.y),
-                                end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
-                                color = segmentColor,
-                                strokeWidth = strokeWidth * scaleFactor
+                    // Gather line segments with sub-pixel line merging optimization to prevent CPU/GPU load
+                    if (projPoints.isNotEmpty()) {
+                        var lastAddedP = projPoints.first()
+                        for (i in 1 until projPoints.size) {
+                            val p2 = projPoints[i]
+                            if (p2.isBehindCamera) continue
+                            if (lastAddedP.isBehindCamera) {
+                                lastAddedP = p2
+                                continue
+                            }
+                            
+                            // Merge sub-pixel micro-segments across adjacent visual locations to dramatically reduce instruction count
+                            val dx = p2.x - lastAddedP.x
+                            val dy = p2.y - lastAddedP.y
+                            if (i < projPoints.size - 1 && (dx * dx + dy * dy) < 2.25f) { // 1.5 pixels squared threshold
+                                continue
+                            }
+                            
+                            val segmentColor = computeComposeColor(
+                                settings = settings,
+                                idx = lastAddedP.originalIndex,
+                                total = settings.drawLengthSteps,
+                                pt = lastAddedP,
+                                width = width,
+                                height = height,
+                                hueOffset = timeHueOffset,
+                                settingsHash = settingsHash
                             )
-                        )
+                            
+                            val baseThickness = settings.lineThickness.current
+                            val strokeWidth = baseThickness + (0.5f * baseThickness * (lastAddedP.depth / 500f).coerceIn(-1f, 1f))
+                            drawList.add(
+                                UIInstruction.Line(
+                                    depth = (lastAddedP.depth + p2.depth) / 2f,
+                                    start = androidx.compose.ui.geometry.Offset(lastAddedP.x, lastAddedP.y),
+                                    end = androidx.compose.ui.geometry.Offset(p2.x, p2.y),
+                                    color = segmentColor,
+                                    strokeWidth = strokeWidth * scaleFactor
+                                )
+                            )
+                            lastAddedP = p2
+                        }
                     }
 
                     // Store pen tip if enabled

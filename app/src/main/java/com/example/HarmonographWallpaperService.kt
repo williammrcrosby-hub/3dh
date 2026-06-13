@@ -83,11 +83,13 @@ class HarmonographWallpaperService : WallpaperService() {
         private var settings = HarmonographSettings()
         private var sharedPrefs: SharedPreferences? = null
 
-        private var drawProgress = 0f
-        private var animTime = 0L
-        private var isVisible = false
+        @Volatile private var drawProgress = 0f
+        @Volatile private var animTime = 0L
+        @Volatile private var isVisible = false
         private var completionTimeOfAnim: Long? = null
-        private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        private var handlerThread: android.os.HandlerThread? = null
+        private var backgroundHandler: android.os.Handler? = null
 
         // Cached math points to eliminate math overhead in drawing loop
         private var cachedSettingsForPoints: HarmonographSettings? = null
@@ -185,7 +187,7 @@ class HarmonographWallpaperService : WallpaperService() {
                                     val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
                                     drawProgress = 0f
                                     randomizeUnlockedSettings()
-                                    handler.postDelayed(this, postResetDelay)
+                                    backgroundHandler?.postDelayed(this, postResetDelay)
                                     saveWallpaperProgressToPrefs()
                                     return
                                 } else {
@@ -201,7 +203,7 @@ class HarmonographWallpaperService : WallpaperService() {
                                     val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
                                     drawProgress = 0f
                                     randomizeUnlockedSettings()
-                                    handler.postDelayed(this, postResetDelay)
+                                    backgroundHandler?.postDelayed(this, postResetDelay)
                                     saveWallpaperProgressToPrefs()
                                     return
                                 } else if (settings.drawLengthLooping) {
@@ -222,7 +224,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         saveWallpaperProgressToPrefs()
                     }
 
-                    handler.postDelayed(this, 16) // ~60fps Limit
+                    backgroundHandler?.postDelayed(this, 16) // ~60fps Limit
                 }
             }
         }
@@ -230,6 +232,12 @@ class HarmonographWallpaperService : WallpaperService() {
         override fun onCreate(surfaceHolder: android.view.SurfaceHolder?) {
             super.onCreate(surfaceHolder)
             setTouchEventsEnabled(true)
+            
+            val thread = android.os.HandlerThread("HarmonographRenderThread")
+            thread.start()
+            handlerThread = thread
+            backgroundHandler = android.os.Handler(thread.looper)
+
             sharedPrefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
             sharedPrefs?.registerOnSharedPreferenceChangeListener(this)
             
@@ -244,16 +252,19 @@ class HarmonographWallpaperService : WallpaperService() {
             sharedPrefs?.unregisterOnSharedPreferenceChangeListener(this)
             sensorManager?.unregisterListener(this)
             isGyroRegistered = false
-            handler.removeCallbacks(runDrawingRunnable)
+            
+            backgroundHandler?.removeCallbacks(runDrawingRunnable)
+            handlerThread?.quitSafely()
+            handlerThread = null
+            backgroundHandler = null
         }
 
         override fun onVisibilityChanged(visible: Boolean) {
             super.onVisibilityChanged(visible)
             isVisible = visible
+            backgroundHandler?.removeCallbacks(runDrawingRunnable)
             if (visible) {
-                handler.post(runDrawingRunnable)
-            } else {
-                handler.removeCallbacks(runDrawingRunnable)
+                backgroundHandler?.post(runDrawingRunnable)
             }
             updateGyroRegistration()
         }
@@ -347,7 +358,7 @@ class HarmonographWallpaperService : WallpaperService() {
                             settingsJson = json
                         )
                     )
-                    handler.post {
+                    mainHandler.post {
                         android.widget.Toast.makeText(context, "Wallpaper Snapshot Saved!", android.widget.Toast.LENGTH_SHORT).show()
                     }
                 } catch (e: Exception) {
@@ -458,7 +469,7 @@ class HarmonographWallpaperService : WallpaperService() {
             } else {
                 wallpaperFrameCount++
                 val elapsedMsFps = nowMs - wallpaperLastFpsTime
-                if (elapsedMsFps >= 50L) {
+                if (elapsedMsFps >= 1000L) {
                     wallpaperCurrentFps = (wallpaperFrameCount * 1000f) / elapsedMsFps
                     wallpaperFrameCount = 0
                     wallpaperLastFpsTime = nowMs
@@ -620,18 +631,31 @@ class HarmonographWallpaperService : WallpaperService() {
                     
                     if (projPoints.isEmpty()) continue
                     
-                    // Segment lines gathering
-                    for (i in 0 until projPoints.size - 1) {
-                        val p1 = projPoints[i]
-                        val p2 = projPoints[i + 1]
-                        if (p1.isBehindCamera || p2.isBehindCamera) continue
-                        
-                        // Compute color styled dynamically once per segment (looks perfectly smooth and matches the main app!)
-                        val segmentColor = computeDynamicColor(p1.originalIndex, settings.drawLengthSteps, p1, width, height, timeHueOffset, settingsHash)
-                        val baseThickness = settings.lineThickness.current
-                        val strokeWidth = baseThickness + (0.5f * baseThickness * (p1.depth / 500f).coerceIn(-1f, 1f))
-                        
-                        drawList.add(WPInstruction.Line((p1.depth + p2.depth) / 2f, p1, p2, segmentColor, segmentColor, strokeWidth))
+                    // Segment lines gathering with sub-pixel lines merging optimization to save execution and drawing cycles
+                    if (projPoints.isNotEmpty()) {
+                        var lastAddedP = projPoints.first()
+                        for (i in 1 until projPoints.size) {
+                            val p2 = projPoints[i]
+                            if (p2.isBehindCamera) continue
+                            if (lastAddedP.isBehindCamera) {
+                                lastAddedP = p2
+                                continue
+                            }
+                            
+                            val dx = p2.x - lastAddedP.x
+                            val dy = p2.y - lastAddedP.y
+                            if (i < projPoints.size - 1 && (dx * dx + dy * dy) < 2.25f) { // 1.5 pixels squared threshold
+                                continue
+                            }
+                            
+                            // Compute color styled dynamically once per segment
+                            val segmentColor = computeDynamicColor(lastAddedP.originalIndex, settings.drawLengthSteps, lastAddedP, width, height, timeHueOffset, settingsHash)
+                            val baseThickness = settings.lineThickness.current
+                            val strokeWidth = baseThickness + (0.5f * baseThickness * (lastAddedP.depth / 500f).coerceIn(-1f, 1f))
+                            
+                            drawList.add(WPInstruction.Line((lastAddedP.depth + p2.depth) / 2f, lastAddedP, p2, segmentColor, segmentColor, strokeWidth))
+                            lastAddedP = p2
+                        }
                     }
 
                     // Store pen tip if enabled
