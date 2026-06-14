@@ -3604,33 +3604,18 @@ fun PerformanceAndQualityTab(
                         fontSize = 10.sp
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Infinite Drawing Length", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                        Switch(
-                            checked = settings.instantDrawLengthInfinite.current,
-                            onCheckedChange = { isInf ->
-                                onUpdate(settings.copy(instantDrawLengthInfinite = settings.instantDrawLengthInfinite.copy(current = isInf)))
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF00E5FF),
-                                checkedTrackColor = Color(0x6600E5FF)
-                            )
-                        )
+                        Text("Sliding Segment Window Limit:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                        Text("${settings.instantDrawLengthLimit.current} pts", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
-                    if (!settings.instantDrawLengthInfinite.current) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Sliding Segment Window Limit:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                            Text("${settings.instantDrawLengthLimit.current} pts", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Slider(
-                            value = settings.instantDrawLengthLimit.current.toFloat(),
-                            onValueChange = { onUpdate(settings.copy(instantDrawLengthLimit = settings.instantDrawLengthLimit.copy(current = it.roundToInt()))) },
-                            valueRange = settings.instantDrawLengthLimit.rangeMin.toFloat()..settings.instantDrawLengthLimit.rangeMax.toFloat(),
-                            colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF00E5FF),
-                                activeTrackColor = Color(0xFF00E5FF)
-                            )
+                    Slider(
+                        value = settings.instantDrawLengthLimit.current.toFloat(),
+                        onValueChange = { onUpdate(settings.copy(instantDrawLengthLimit = settings.instantDrawLengthLimit.copy(current = it.roundToInt()))) },
+                        valueRange = settings.instantDrawLengthLimit.rangeMin.toFloat()..settings.instantDrawLengthLimit.rangeMax.toFloat(),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color(0xFF00E5FF),
+                            activeTrackColor = Color(0xFF00E5FF)
                         )
-                    }
+                    )
                 }
             }
         }

@@ -180,7 +180,7 @@ data class HarmonographSettings(
     val drawSpeedMinutes: FloatParameter = FloatParameter(2.0f, rangeMin = 1.0f, rangeMax = 15.0f),
     val drawSpeedInstant: Boolean = false,
     val drawLengthSteps: Int = 3000, 
-    val drawLengthFactor: Float = 1.0f,
+    val drawLengthFactor: Float = 6.0f,
     val drawLengthLooping: Boolean = true,
     
     // Style configurations
@@ -274,7 +274,7 @@ data class HarmonographSettings(
     val perfTargetFps: IntParameter = IntParameter(20, rangeMin = 10, rangeMax = 60),
 
     // Fast Draw sliding tail settings
-    val instantDrawLengthLimit: IntParameter = IntParameter(3000, rangeMin = 200, rangeMax = 15000),
+    val instantDrawLengthLimit: IntParameter = IntParameter(3000, rangeMin = 200, rangeMax = 18000),
     val instantDrawLengthInfinite: BooleanParameter = BooleanParameter(false),
 
     // Monochromatic Value Scale Option
