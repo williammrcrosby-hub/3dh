@@ -362,9 +362,12 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(0f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
-                        decayX = FloatParameter(0.0004f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayY = FloatParameter(0.0004f, rangeMin = 0f, rangeMax = 0.02f),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
+                        decayX = FloatParameter(0.0004f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayY = FloatParameter(0.0004f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayEnabled = BooleanParameter(true, locked = true),
+                        lineThickness = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.9f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         styleMode = "length",
                         penTipShape = "circle",
                         penTipSize = 7f
@@ -382,10 +385,13 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         freqX = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(2.25f, rangeMin = 0.1f, rangeMax = 12f),
                         freqZ = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.2f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
-                        decayX = FloatParameter(0.001f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayY = FloatParameter(0.001f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayZ = FloatParameter(0.001f, rangeMin = 0f, rangeMax = 0.02f),
+                        xyzFreqMultiplier = FloatParameter(1.2f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
+                        decayX = FloatParameter(0.001f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayY = FloatParameter(0.001f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayZ = FloatParameter(0.001f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayEnabled = BooleanParameter(true, locked = true),
+                        lineThickness = FloatParameter(3.0f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         styleMode = "rainbow",
                         cameraPerspective = 1,
                         cameraAutoRotationEnabled = true,
@@ -406,10 +412,13 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(80f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
-                        decayX = FloatParameter(0.0035f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayY = FloatParameter(0.0035f, rangeMin = 0f, rangeMax = 0.02f),
+                        xyzFreqMultiplier = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
+                        decayX = FloatParameter(0.0035f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayY = FloatParameter(0.0035f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayEnabled = BooleanParameter(true, locked = true),
                         ampSubX = FloatParameter(35f, rangeMin = 0f, rangeMax = 80f),
+                        lineThickness = FloatParameter(4.0f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.9f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         styleMode = "center",
                         penTipShape = "diamond",
                         penTipSize = 9f
@@ -426,7 +435,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(90f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(4.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
                         penCount = IntParameter(3, rangeMin = 1, rangeMax = 3),
                         penOffset = FloatParameter(18f, rangeMin = 2f, rangeMax = 30f),
                         penRotationEnabled = BooleanParameter(true),
@@ -434,6 +443,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         styleMode = "rainbow",
                         liveChromaticShiftEnabled = BooleanParameter(true),
                         chromaticShiftSpeed = FloatParameter(0.8f, rangeMin = 0.0f, rangeMax = 1.0f),
+                        lineThickness = FloatParameter(1.8f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.95f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "star",
                         penTipSize = 10f
                     )
@@ -450,13 +461,15 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         freqX = FloatParameter(1.33f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqZ = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
                         styleMode = "rainbow",
                         cameraPerspective = 2,
                         cameraAutoRotationEnabled = false,
                         coasterDirectionFacing = true,
                         coasterDeviationAngle = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
                         coasterOrbitSpeed = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        lineThickness = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.88f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "circle",
                         penTipSize = 8f
                     )
@@ -467,6 +480,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 isUserPreset = false,
                 settingsJson = adapter.toJson(
                     HarmonographSettings(
+                        ampX = FloatParameter(120f, rangeMin = 10f, rangeMax = 250f),
+                        ampY = FloatParameter(120f, rangeMin = 10f, rangeMax = 250f),
                         styleMode = "center",
                         penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
                         gradientStartHue = FloatParameter(200f, rangeMin = 0f, rangeMax = 360f, locked = true),
@@ -475,6 +490,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         periodicShape = "circle",
                         periodicShapeSize = FloatParameter(8f, rangeMin = 2f, rangeMax = 18f),
                         periodicShapeConcentric = 2,
+                        lineThickness = FloatParameter(3.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "square",
                         penTipSize = 10f
                     )
@@ -494,6 +511,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penCount = IntParameter(3, rangeMin = 1, rangeMax = 3, locked = true),
                         penRotationEnabled = BooleanParameter(true, locked = true),
                         liveChromaticShiftEnabled = BooleanParameter(true),
+                        lineThickness = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.9f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "diamond",
                         penTipSize = 9f
                     )
@@ -513,6 +532,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         spicyHue = FloatParameter(280f, rangeMin = 0f, rangeMax = 360f),
                         spicyColorRange = FloatParameter(180f, rangeMin = 0f, rangeMax = 360f),
                         penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
+                        lineThickness = FloatParameter(2.2f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.92f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "star",
                         penTipSize = 10f
                     )
@@ -529,6 +550,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penCount = IntParameter(2, rangeMin = 1, rangeMax = 3, locked = true),
                         penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f, locked = true),
                         gyroEnabled = true,
+                        lineThickness = FloatParameter(3.2f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "cross",
                         penTipSize = 8f
                     )
@@ -545,6 +568,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         rationalFrequenciesEnabled = BooleanParameter(true),
                         penCount = IntParameter(1, rangeMin = 1, rangeMax = 3, locked = true),
                         dynamicCameraZoomEnabled = true,
+                        lineThickness = FloatParameter(2.8f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.9f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "star",
                         penTipSize = 9f
                     )
@@ -563,6 +588,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penRotationMultiplier = IntParameter(6, rangeMin = 1, rangeMax = 8, locked = true),
                         liveChromaticShiftEnabled = BooleanParameter(true),
                         chromaticShiftSpeed = FloatParameter(0.5f, rangeMin = 0.0f, rangeMax = 1.0f),
+                        lineThickness = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.93f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "diamond",
                         penTipSize = 8f
                     )
@@ -584,6 +611,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         monoScaleLiveShiftEnabled = BooleanParameter(true),
                         monoScaleLiveShiftSpeed = FloatParameter(0.4f, rangeMin = 0.05f, rangeMax = 1.0f),
                         monoWaveEffectiveRange = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -0.8f, selectedMax = 0.8f),
+                        lineThickness = FloatParameter(3.8f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "circle",
                         penTipSize = 8f
                     )
@@ -608,6 +637,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampY = FloatParameter(140f, rangeMin = 10f, rangeMax = 250f),
                         freqX = FloatParameter(2.5f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(3.75f, rangeMin = 0.1f, rangeMax = 12f),
+                        lineThickness = FloatParameter(2.4f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.9f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "diamond",
                         penTipSize = 9f
                     )
@@ -629,6 +660,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penOffset = FloatParameter(16f, rangeMin = 2f, rangeMax = 30f, locked = true),
                         freqX = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(4.5f, rangeMin = 0.1f, rangeMax = 12f),
+                        lineThickness = FloatParameter(1.6f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.95f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "star",
                         penTipSize = 10f
                     )
@@ -645,10 +678,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         freqX = FloatParameter(2.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqZ = FloatParameter(4.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.33f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
-                        decayX = FloatParameter(0.0008f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayY = FloatParameter(0.0008f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayZ = FloatParameter(0.0008f, rangeMin = 0f, rangeMax = 0.02f),
+                        xyzFreqMultiplier = FloatParameter(1.33f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
+                        decayX = FloatParameter(0.0008f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayY = FloatParameter(0.0008f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayZ = FloatParameter(0.0008f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayEnabled = BooleanParameter(true, locked = true),
                         styleMode = "rainbow",
                         periodicShape = "circle",
                         periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f),
@@ -659,6 +693,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f),
                         liveChromaticShiftEnabled = BooleanParameter(true),
                         chromaticShiftSpeed = FloatParameter(0.7f, rangeMin = 0.00f, rangeMax = 1.00f),
+                        lineThickness = FloatParameter(2.6f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "circle",
                         penTipSize = 8f
                     )
@@ -674,7 +710,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(0f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(3.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(5.0f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
+                        xyzFreqMultiplier = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
                         rationalFrequenciesEnabled = BooleanParameter(true),
                         styleMode = "spicy",
                         spicyHue = FloatParameter(290f, rangeMin = 0f, rangeMax = 360f),
@@ -684,6 +720,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         periodicShapeConcentric = 2,
                         periodicShapeFreqFactor = IntParameter(4, rangeMin = 1, rangeMax = 8),
                         penCount = IntParameter(1, rangeMin = 1, rangeMax = 3),
+                        lineThickness = FloatParameter(1.8f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.9f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "star",
                         penTipSize = 10f
                     )
@@ -700,7 +738,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         freqX = FloatParameter(2.5f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(3.75f, rangeMin = 0.1f, rangeMax = 12f),
                         freqZ = FloatParameter(1.25f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
+                        xyzFreqMultiplier = FloatParameter(1.5f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
                         styleMode = "rainbow",
                         periodicShape = "triangle",
                         periodicShapeSize = FloatParameter(10f, rangeMin = 2f, rangeMax = 18f),
@@ -712,6 +750,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         monoScaleEnabled = BooleanParameter(true),
                         monoScaleLiveShiftEnabled = BooleanParameter(true),
                         monoScaleLiveShiftSpeed = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
+                        lineThickness = FloatParameter(2.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.85f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "diamond",
                         penTipSize = 9f
                     )
@@ -727,7 +767,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(115f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(1.5f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(2.25f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
+                        xyzFreqMultiplier = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
                         styleMode = "rainbow",
                         cameraPerspective = 2,
                         coasterOrbitSpeed = FloatParameter(0.8f, rangeMin = 0.05f, rangeMax = 1.0f),
@@ -735,6 +775,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         penOffset = FloatParameter(12f, rangeMin = 2f, rangeMax = 30f),
                         liveChromaticShiftEnabled = BooleanParameter(true),
                         chromaticShiftSpeed = FloatParameter(0.9f, rangeMin = 0.00f, rangeMax = 1.00f),
+                        lineThickness = FloatParameter(3.0f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.88f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "square",
                         penTipSize = 8f
                     )
@@ -750,13 +792,16 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         ampZ = FloatParameter(60f, rangeMin = 0f, rangeMax = 250f),
                         freqX = FloatParameter(1.0f, rangeMin = 0.1f, rangeMax = 12f),
                         freqY = FloatParameter(1.33f, rangeMin = 0.1f, rangeMax = 12f),
-                        xyzFreqMultiplier = FloatParameter(1.2f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true),
-                        decayX = FloatParameter(0.0003f, rangeMin = 0f, rangeMax = 0.02f),
-                        decayY = FloatParameter(0.0003f, rangeMin = 0f, rangeMax = 0.02f),
+                        xyzFreqMultiplier = FloatParameter(1.2f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
+                        decayX = FloatParameter(0.0003f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayY = FloatParameter(0.0003f, rangeMin = 0.0001f, rangeMax = 0.02f),
+                        decayEnabled = BooleanParameter(true, locked = true),
                         styleMode = "solid",
                         solidColorHue = FloatParameter(145f, rangeMin = 0f, rangeMax = 360f), // Soft emerald glow
                         gyroEnabled = true,
                         gyroSensitivity = FloatParameter(0.4f, rangeMin = 0.1f, rangeMax = 2.0f, locked = true),
+                        lineThickness = FloatParameter(4.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
+                        lineAlpha = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f, locked = true),
                         penTipShape = "circle",
                         penTipSize = 7f
                     )
