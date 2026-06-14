@@ -195,6 +195,18 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         _currentDrawProgress.value = value.coerceIn(0f, maxSteps)
     }
 
+    private fun saveProgressToPrefsDirectly(progress: Float, isDrawing: Boolean) {
+        try {
+            val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+            prefs.edit()
+                .putFloat("draw_progress", progress)
+                .putBoolean("is_drawing", isDrawing)
+                .apply()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     /**
      * Resets current progress and randomizes unlocked draw settings
      */
@@ -203,6 +215,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         gyroPitchOffset.value = 0f
         _isDrawing.value = true
         
+        // Reset progress first to avoid the intermediate frame race condition in Compose!
+        _currentDrawProgress.value = 0f
+        saveProgressToPrefsDirectly(0f, true)
+
         val current = _uiState.value
         val allowedKeys = current.allowedPresets.split(",").filter { it.isNotEmpty() }
         var baseSettings = current
@@ -232,7 +248,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
 
         val u = baseSettings.randomizeAll(random).normalize()
         _uiState.value = u
-        _currentDrawProgress.value = 0f
         saveSettingsToPrefs(u)
         startDrawingLoop()
     }
@@ -257,6 +272,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         gyroPitchOffset.value = 0f
         _isDrawing.value = true
         _currentDrawProgress.value = 0f
+        saveProgressToPrefsDirectly(0f, true)
     }
 
     /**
@@ -315,8 +331,12 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 gyroYawOffset.value = 0f
                 gyroPitchOffset.value = 0f
                 val randomizedSettings = settings.randomizeAll(random).normalize()
-                _uiState.value = randomizedSettings
+                
+                // Reset progress first to avoid drawing jumps!
                 _currentDrawProgress.value = 0f
+                saveProgressToPrefsDirectly(0f, true)
+                
+                _uiState.value = randomizedSettings
                 saveSettingsToPrefs(randomizedSettings)
                 startDrawingLoop()
             }
