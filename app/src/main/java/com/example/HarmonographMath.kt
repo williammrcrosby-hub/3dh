@@ -246,8 +246,10 @@ object HarmonographMath {
                         if (len1 > 1e-6f && len2 > 1e-6f) {
                             val dot = (d1.x * d2.x + d1.y * d2.y + d1.z * d2.z) / (len1 * len2)
                             val angle = kotlin.math.acos(dot.coerceIn(-1f, 1f))
-                            val angularRate = angle / 0.002f
-                            targetDt /= (1f + angularRate * settings.perfAngularModifier.current)
+                            val rawAngleDegrees = Math.toDegrees(angle.toDouble()).toFloat()
+                            val angDiff = if (kotlin.math.abs(rawAngleDegrees - 180f) < 1e-2f) 0f else rawAngleDegrees
+                            val angularTerm = 1f / (180f - angDiff)
+                            targetDt /= (1f + angularTerm * settings.perfAngularModifier.current * 180f)
                         }
                     }
                     val scaledTargetDt = targetDt * (mult / 2.0f)
@@ -490,8 +492,10 @@ object HarmonographMath {
                         if (len1 > 1e-6f && len2 > 1e-6f) {
                             val dot = (d1.x * d2.x + d1.y * d2.y + d1.z * d2.z) / (len1 * len2)
                             val angle = kotlin.math.acos(dot.coerceIn(-1f, 1f))
-                            val angularRate = angle / 0.002f
-                            targetDt /= (1f + angularRate * settings.perfAngularModifier.current)
+                            val rawAngleDegrees = Math.toDegrees(angle.toDouble()).toFloat()
+                            val angDiff = if (kotlin.math.abs(rawAngleDegrees - 180f) < 1e-2f) 0f else rawAngleDegrees
+                            val angularTerm = 1f / (180f - angDiff)
+                            targetDt /= (1f + angularTerm * settings.perfAngularModifier.current * 180f)
                         }
                     }
                     val scaledTargetDt = targetDt * (mult / 2.0f)
