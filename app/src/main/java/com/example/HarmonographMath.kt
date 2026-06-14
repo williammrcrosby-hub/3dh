@@ -840,7 +840,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = depth,
-                        originalIndex = idx,
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -859,7 +859,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = depth,
-                        originalIndex = idx,
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -922,7 +922,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = depth,
-                        originalIndex = idx,
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -950,7 +950,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = zRot2,
-                        originalIndex = idx,
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -1110,7 +1110,7 @@ object HarmonographMath {
                     x = u,
                     y = v,
                     depth = rz,
-                    originalIndex = idx,
+                    originalIndex = startIdx + idx,
                     isTip = (idx == maxIndex && referencePoints == null),
                     dist3D = pt.length(),
                     isBehindCamera = isBehind
