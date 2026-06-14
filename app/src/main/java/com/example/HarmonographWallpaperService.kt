@@ -592,20 +592,19 @@ class HarmonographWallpaperService : WallpaperService() {
                 }
 
                 val stepsCount = settings.drawLengthSteps
-                val totalStepsCount = (settings.drawLengthSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
-                if (drawProgress < totalStepsCount - 1f) {
+                if (drawProgress < stepsCount - 1f) {
                     completionTimeOfAnim = null
                 } else if (completionTimeOfAnim == null) {
                     completionTimeOfAnim = elapsedMs
                 }
 
-                val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= totalStepsCount.coerceAtLeast(1) - 1f) {
+                val cameraTargetIndex = if (settings.cameraPerspective == 2 && drawProgress >= stepsCount.coerceAtLeast(1) - 1f) {
                     val durationMin = if (settings.drawSpeedInstant) 18.0f else (settings.drawSpeedMinutes.current * 7.0f).coerceAtLeast(15.0f)
                     val cycleDurationMs = (durationMin * 60f * 1000f).toLong().coerceAtLeast(1000L)
                     val startT = completionTimeOfAnim ?: elapsedMs
                     val completedTime = (elapsedMs - startT).coerceAtLeast(0L)
                     val fraction = (completedTime.toFloat() / cycleDurationMs) % 1.0f
-                    val stepsInPath = rawPaths.firstOrNull()?.size ?: totalStepsCount
+                    val stepsInPath = rawPaths.firstOrNull()?.size ?: stepsCount
                     ((stepsInPath - 1f + (fraction * stepsInPath)) % stepsInPath).coerceIn(0f, (stepsInPath - 1).toFloat())
                 } else {
                     drawProgress
@@ -642,12 +641,20 @@ class HarmonographWallpaperService : WallpaperService() {
                             -1
                         } else if (settings.perfRemoveTailEnabled) {
                             if (wallpaperDynamicTailLimit == -1) {
-                                settings.instantDrawLengthLimit.current
+                                if (settings.drawSpeedInstant) {
+                                    settings.instantDrawLengthLimit.current
+                                } else {
+                                    -1
+                                }
                             } else {
                                 wallpaperDynamicTailLimit
                             }
                         } else {
-                            settings.instantDrawLengthLimit.current
+                            if (settings.drawSpeedInstant) {
+                                settings.instantDrawLengthLimit.current
+                            } else {
+                                -1
+                            }
                         }
                     )
                     
@@ -708,12 +715,20 @@ class HarmonographWallpaperService : WallpaperService() {
                     -1
                 } else if (settings.perfRemoveTailEnabled) {
                     if (wallpaperDynamicTailLimit == -1) {
-                        settings.instantDrawLengthLimit.current
+                        if (settings.drawSpeedInstant) {
+                            settings.instantDrawLengthLimit.current
+                        } else {
+                            -1
+                        }
                     } else {
                         wallpaperDynamicTailLimit
                     }
                 } else {
-                    settings.instantDrawLengthLimit.current
+                    if (settings.drawSpeedInstant) {
+                        settings.instantDrawLengthLimit.current
+                    } else {
+                        -1
+                    }
                 }
                 val wallpaperShapesStartIdx = if (wallpaperTailLimitVal > 0 && drawProgress > wallpaperTailLimitVal) {
                     drawProgress.toInt() - wallpaperTailLimitVal

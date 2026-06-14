@@ -761,60 +761,34 @@ object HarmonographMath {
         if (points.isEmpty()) return emptyList()
         
         // Find fractional progress index and fractional parts to avoid "jumpy / choppy" front tip steps!
-        val progressCoerced: Float
-        val startIdx: Int
-        val progressInt: Int
-        val progressFrac: Float
-        val isTrailingMode = tailLengthLimit > 0
-        
-        if (perspective == 2 && cameraTargetIndex >= 0f && isTrailingMode) {
-            // Roller coaster phase 2 / looping with tail limit: camera follows cameraTargetIndex, and it wraps.
-            progressCoerced = cameraTargetIndex
-            progressInt = floor(progressCoerced).toInt()
-            progressFrac = (progressCoerced - progressInt).coerceIn(0f, 1f)
-            startIdx = progressInt - tailLengthLimit
+        val progressCoerced = if (tailLengthLimit > 0) {
+            currentDrawProgress.coerceAtMost((points.size - 1).toFloat())
         } else {
-            progressCoerced = if (isTrailingMode) {
-                currentDrawProgress.coerceAtMost((points.size - 1).toFloat())
-            } else {
-                currentDrawProgress.coerceIn(0f, (points.size - 1).toFloat())
-            }
-            progressInt = floor(progressCoerced).toInt()
-            progressFrac = (progressCoerced - progressInt).coerceIn(0f, 1f)
-            startIdx = if (isTrailingMode && progressCoerced > tailLengthLimit) {
-                floor(progressCoerced).toInt() - tailLengthLimit
-            } else {
-                0
-            }
+            currentDrawProgress.coerceIn(0f, (points.size - 1).toFloat())
         }
+        val progressInt = floor(progressCoerced).toInt()
+        val progressFrac = (progressCoerced - progressInt).coerceIn(0f, 1f)
         
-        val activePoints = ArrayList<Point3D>()
-        val originalIndices = ArrayList<Int>()
-        
+        val startIdx = if (tailLengthLimit > 0 && progressCoerced > tailLengthLimit) {
+            floor(progressCoerced).toInt() - tailLengthLimit
+        } else {
+            0
+        }
+        val activePoints = ArrayList<Point3D>((progressInt - startIdx).coerceAtLeast(0) + 3)
         for (i in startIdx..progressInt) {
-            val idxWrapped = (i % points.size + points.size) % points.size
-            if (idxWrapped in points.indices) {
-                activePoints.add(points[idxWrapped])
-                originalIndices.add(idxWrapped)
+            if (i in points.indices) {
+                activePoints.add(points[i])
             }
         }
-        
-        if (progressFrac > 0.001f) {
-            val iNext = progressInt + 1
-            val idxCurrWrapped = (progressInt % points.size + points.size) % points.size
-            val idxNextWrapped = (iNext % points.size + points.size) % points.size
-            
-            if (idxCurrWrapped in points.indices && idxNextWrapped in points.indices) {
-                val p1 = points[idxCurrWrapped]
-                val p2 = points[idxNextWrapped]
-                val interpolated = Point3D(
-                    p1.x + (p2.x - p1.x) * progressFrac,
-                    p1.y + (p2.y - p1.y) * progressFrac,
-                    p1.z + (p2.z - p1.z) * progressFrac
-                )
-                activePoints.add(interpolated)
-                originalIndices.add(idxCurrWrapped)
-            }
+        if (progressFrac > 0.001f && progressInt >= 0 && progressInt < points.size - 1) {
+            val p1 = points[progressInt]
+            val p2 = points[progressInt + 1]
+            val interpolated = Point3D(
+                p1.x + (p2.x - p1.x) * progressFrac,
+                p1.y + (p2.y - p1.y) * progressFrac,
+                p1.z + (p2.z - p1.z) * progressFrac
+            )
+            activePoints.add(interpolated)
         }
         
         val maxIndex = activePoints.size - 1
@@ -866,7 +840,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = depth,
-                        originalIndex = originalIndices.getOrElse(idx) { startIdx + idx },
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -885,7 +859,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = depth,
-                        originalIndex = originalIndices.getOrElse(idx) { startIdx + idx },
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -948,7 +922,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = depth,
-                        originalIndex = originalIndices.getOrElse(idx) { startIdx + idx },
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -976,7 +950,7 @@ object HarmonographMath {
                         x = u,
                         y = v,
                         depth = zRot2,
-                        originalIndex = originalIndices.getOrElse(idx) { startIdx + idx },
+                        originalIndex = startIdx + idx,
                         isTip = (idx == maxIndex),
                         dist3D = pt.length()
                     )
@@ -1136,7 +1110,7 @@ object HarmonographMath {
                     x = u,
                     y = v,
                     depth = rz,
-                    originalIndex = originalIndices.getOrElse(idx) { startIdx + idx },
+                    originalIndex = startIdx + idx,
                     isTip = (idx == maxIndex && referencePoints == null),
                     dist3D = pt.length(),
                     isBehindCamera = isBehind
