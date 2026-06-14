@@ -66,7 +66,8 @@ class HarmonographWallpaperService : WallpaperService() {
                this.penRotationEnabled.current == other.penRotationEnabled.current &&
                this.drawLengthSteps == other.drawLengthSteps &&
                this.drawLengthFactor == other.drawLengthFactor &&
-               this.rationalFrequenciesEnabled == other.rationalFrequenciesEnabled
+               this.rationalFrequenciesEnabled.current == other.rationalFrequenciesEnabled.current &&
+               this.rationalFrequenciesEnabled.locked == other.rationalFrequenciesEnabled.locked
     }
 
     private val moshi = Moshi.Builder()

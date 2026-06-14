@@ -862,11 +862,31 @@ fun OscillatorConfigTab(
                     }
                     
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Rational Frequencies Only", color = Color.White, fontSize = 12.sp)
+                        Column {
+                            Text("Rational Frequencies Only", color = Color.White, fontSize = 12.sp)
+                            Text(
+                                if (settings.rationalFrequenciesEnabled.locked) "Locked in generation" else "Randomized",
+                                color = Color(0xFFA0AEC0),
+                                fontSize = 10.sp
+                            )
+                        }
                         Spacer(modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                onUpdate(settings.copy(rationalFrequenciesEnabled = settings.rationalFrequenciesEnabled.withLocked(!settings.rationalFrequenciesEnabled.locked)))
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settings.rationalFrequenciesEnabled.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = "Lock Rational Frequencies",
+                                tint = if (settings.rationalFrequenciesEnabled.locked) Color(0xFF00E5FF) else Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
                         Switch(
-                            checked = settings.rationalFrequenciesEnabled,
-                            onCheckedChange = { onUpdate(settings.copy(rationalFrequenciesEnabled = it)) },
+                            checked = settings.rationalFrequenciesEnabled.current,
+                            onCheckedChange = { onUpdate(settings.copy(rationalFrequenciesEnabled = settings.rationalFrequenciesEnabled.withValue(it))) },
                             modifier = Modifier.scale(0.75f).testTag("rational_frequencies_switch")
                         )
                     }

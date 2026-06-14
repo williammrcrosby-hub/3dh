@@ -151,11 +151,11 @@ data class HarmonographSettings(
     val freqX: FloatParameter = FloatParameter(1.001f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqY: FloatParameter = FloatParameter(1.503f, rangeMin = 1f/12f, rangeMax = 12f),
     val freqZ: FloatParameter = FloatParameter(2.002f, rangeMin = 1f/12f, rangeMax = 12f),
-    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 6.0f, locked = true, selectedMin = 0.5f, selectedMax = 6.0f),
+    val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
     
-    val decayX: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
-    val decayY: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
-    val decayZ: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.01f),
+    val decayX: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.02f),
+    val decayY: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.02f),
+    val decayZ: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.02f),
     
     val phaseX: FloatParameter = FloatParameter(0f, rangeMin = 0f, rangeMax = 360f),
     val phaseY: FloatParameter = FloatParameter(90f, rangeMin = 0f, rangeMax = 360f),
@@ -234,7 +234,7 @@ data class HarmonographSettings(
     
     // Camera Setup
     val cameraPerspective: Int = 1, // 1 = Full View, 2 = Roller coaster
-    val cameraDistance: FloatParameter = FloatParameter(220f, rangeMin = 80f, rangeMax = 600f),
+    val cameraDistance: FloatParameter = FloatParameter(150f, rangeMin = 80f, rangeMax = 600f, locked = true),
     val dynamicCameraZoomEnabled: Boolean = false,
     val cameraAngleLock: Boolean = false,
     val cameraAngleLockValue: Float = 0f,
@@ -252,8 +252,8 @@ data class HarmonographSettings(
     
     // Additional options
     val decayEnabled: BooleanParameter = BooleanParameter(true),
-    val rationalFrequenciesEnabled: Boolean = false,
-    val lineThickness: FloatParameter = FloatParameter(3.5f, rangeMin = 0.5f, rangeMax = 12f),
+    val rationalFrequenciesEnabled: BooleanParameter = BooleanParameter(false),
+    val lineThickness: FloatParameter = FloatParameter(3.5f, rangeMin = 0.5f, rangeMax = 12f, rangeLocked = true, selectedMin = 1.0f, selectedMax = 5.0f),
     val coasterDirectionFacing: Boolean = true,
     val coasterDeviationAngle: FloatParameter = FloatParameter(25f, rangeMin = 10f, rangeMax = 45f),
     val coasterOrbitSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
@@ -395,6 +395,7 @@ data class HarmonographSettings(
             coasterDeviationAngle = coasterDeviationAngle.copy(locked = true),
             coasterOrbitSpeed = coasterOrbitSpeed.copy(locked = true),
             decayEnabled = decayEnabled.copy(locked = true),
+            rationalFrequenciesEnabled = rationalFrequenciesEnabled.copy(locked = true),
             gyroSensitivity = gyroSensitivity.copy(locked = true),
             lineAlpha = lineAlpha.copy(locked = true),
             perfVelocityModifier = perfVelocityModifier.copy(locked = true),
@@ -417,11 +418,11 @@ data class HarmonographSettings(
     }
 
     val activeFreqX: Float
-        get() = if (rationalFrequenciesEnabled) roundToRational(freqX.current) else freqX.current
+        get() = if (rationalFrequenciesEnabled.current) roundToRational(freqX.current) else freqX.current
     val activeFreqY: Float
-        get() = if (rationalFrequenciesEnabled) roundToRational(freqY.current) else freqY.current
+        get() = if (rationalFrequenciesEnabled.current) roundToRational(freqY.current) else freqY.current
     val activeFreqZ: Float
-        get() = if (rationalFrequenciesEnabled) roundToRational(freqZ.current) else freqZ.current
+        get() = if (rationalFrequenciesEnabled.current) roundToRational(freqZ.current) else freqZ.current
 
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
@@ -470,7 +471,7 @@ data class HarmonographSettings(
         var randFreqX = freqX.randomize(random)
         var randFreqY = freqY.randomize(random)
         var randFreqZ = freqZ.randomize(random)
-        if (rationalFrequenciesEnabled) {
+        if (rationalFrequenciesEnabled.current) {
             randFreqX = randFreqX.copy(current = roundToRational(randFreqX.current))
             randFreqY = randFreqY.copy(current = roundToRational(randFreqY.current))
             randFreqZ = randFreqZ.copy(current = roundToRational(randFreqZ.current))
@@ -551,6 +552,7 @@ data class HarmonographSettings(
             coasterDeviationAngle = coasterDeviationAngle.randomize(random),
             coasterOrbitSpeed = coasterOrbitSpeed.randomize(random),
             decayEnabled = decayEnabled.randomize(random),
+            rationalFrequenciesEnabled = rationalFrequenciesEnabled.randomize(random),
             gyroSensitivity = gyroSensitivity.randomize(random),
             lineAlpha = lineAlpha.randomize(random),
             xyzFreqMultiplier = xyzFreqMultiplier.randomize(random),
