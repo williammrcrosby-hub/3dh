@@ -10,7 +10,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.isActive
 import java.util.Random
 import androidx.compose.runtime.mutableStateOf
 
@@ -103,9 +102,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         drawingJob = viewModelScope.launch(Dispatchers.Default) {
             var completionTimeMs = 0L
             var lastSaveTime = 0L
-            while (coroutineContext.isActive) {
+            while (true) {
                 delay(16) // ~60fps ticker loop
-                if (!coroutineContext.isActive) break
                 
                 val settings = _uiState.value
                 val isPlay = _isDrawing.value
@@ -116,9 +114,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     if (settings.drawSpeedInstant) {
                         completionTimeMs = 0L
                         if (progress < maxSteps) {
-                            if (coroutineContext.isActive) {
-                                _currentDrawProgress.value = maxSteps
-                            }
+                            // Instantly jump to completed shape
+                            _currentDrawProgress.value = maxSteps
                         } else {
                             // It is in phase 2: animate/slide along the path
                             val totalDurationSec = settings.drawSpeedMinutes.current * 60f
@@ -130,16 +127,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                             // Check auto-reset if enabled
                             val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
                             if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
-                                if (coroutineContext.isActive) {
-                                    viewModelScope.launch(Dispatchers.Main) {
-                                        resetAndRandomize()
-                                    }
-                                }
-                                break
+                                resetAndRandomize()
                             } else {
-                                if (coroutineContext.isActive) {
-                                    _currentDrawProgress.value = nextVal
-                                }
+                                _currentDrawProgress.value = nextVal
                             }
                         }
                     } else {
@@ -150,33 +140,22 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         
                         val sumProgress = progress + stepsPerFrame
                         val newProgress = if (sumProgress > maxSteps) maxSteps else sumProgress
-                        if (coroutineContext.isActive) {
-                            _currentDrawProgress.value = newProgress
-                        }
+                        _currentDrawProgress.value = newProgress
                         
                         if (newProgress >= maxSteps && settings.postCompletionAutoReset) {
                             val waitSec = totalDurationSec * settings.postCompletionResetTimeFactor
                             delay((waitSec * 1000).toLong().coerceAtLeast(100L))
-                            if (coroutineContext.isActive) {
-                                viewModelScope.launch(Dispatchers.Main) {
-                                    resetAndRandomize()
-                                }
-                            }
-                            break
+                            resetAndRandomize()
                         }
                     }
                 } else {
                     completionTimeMs = 0L
                 }
 
-                if (!coroutineContext.isActive) break
-
                 val now = System.currentTimeMillis()
                 if (now - lastSaveTime > 200L) {
                     lastSaveTime = now
-                    if (coroutineContext.isActive) {
-                        saveProgressAndStateToPrefs(progress, isPlay)
-                    }
+                    saveProgressAndStateToPrefs(progress, isPlay)
                 }
             }
         }
@@ -216,18 +195,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         _currentDrawProgress.value = value.coerceIn(0f, maxSteps)
     }
 
-    private fun saveProgressToPrefsDirectly(progress: Float, isDrawing: Boolean) {
-        try {
-            val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
-            prefs.edit()
-                .putFloat("draw_progress", progress)
-                .putBoolean("is_drawing", isDrawing)
-                .apply()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
     /**
      * Resets current progress and randomizes unlocked draw settings
      */
@@ -236,10 +203,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         gyroPitchOffset.value = 0f
         _isDrawing.value = true
         
-        // Reset progress first to avoid the intermediate frame race condition in Compose!
-        _currentDrawProgress.value = 0f
-        saveProgressToPrefsDirectly(0f, true)
-
         val current = _uiState.value
         val allowedKeys = current.allowedPresets.split(",").filter { it.isNotEmpty() }
         var baseSettings = current
@@ -269,6 +232,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
 
         val u = baseSettings.randomizeAll(random).normalize()
         _uiState.value = u
+        _currentDrawProgress.value = 0f
         saveSettingsToPrefs(u)
         startDrawingLoop()
     }
@@ -293,7 +257,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         gyroPitchOffset.value = 0f
         _isDrawing.value = true
         _currentDrawProgress.value = 0f
-        saveProgressToPrefsDirectly(0f, true)
     }
 
     /**
@@ -352,12 +315,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 gyroYawOffset.value = 0f
                 gyroPitchOffset.value = 0f
                 val randomizedSettings = settings.randomizeAll(random).normalize()
-                
-                // Reset progress first to avoid drawing jumps!
-                _currentDrawProgress.value = 0f
-                saveProgressToPrefsDirectly(0f, true)
-                
                 _uiState.value = randomizedSettings
+                _currentDrawProgress.value = 0f
                 saveSettingsToPrefs(randomizedSettings)
                 startDrawingLoop()
             }

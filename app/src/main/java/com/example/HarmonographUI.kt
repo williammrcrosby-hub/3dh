@@ -362,11 +362,6 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             // Merge sub-pixel micro-segments across adjacent visual locations to dramatically reduce instruction count
                             val dx = p2.x - lastAddedP.x
                             val dy = p2.y - lastAddedP.y
-                            if (p2.originalIndex < lastAddedP.originalIndex) {
-                                // Jump detected due to wrapped tail buffer limit, do not connect with a line!
-                                lastAddedP = p2
-                                continue
-                            }
                             if (i < projPoints.size - 1 && (dx * dx + dy * dy) < 2.25f) { // 1.5 pixels squared threshold
                                 continue
                             }

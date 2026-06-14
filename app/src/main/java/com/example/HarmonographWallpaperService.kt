@@ -175,47 +175,42 @@ class HarmonographWallpaperService : WallpaperService() {
 
                     if (isPlay) {
                         val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
-                        if (appActive) {
-                            // Let the main app VM loop drive the drawing progress so they never fight!
-                            drawProgress = sharedPrefs?.getFloat("draw_progress", drawProgress) ?: drawProgress
-                        } else {
-                            if (settings.drawSpeedInstant) {
-                                if (drawProgress < maxSteps) {
-                                    drawProgress = maxSteps
-                                } else {
-                                    val dt = 0.016f // step time
-                                    val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
-                                    val nextVal = drawProgress + stepsPerSec * dt
-                                    
-                                    val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
-                                    if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
-                                        val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
-                                        drawProgress = 0f
-                                        randomizeUnlockedSettings()
-                                        backgroundHandler?.postDelayed(this, postResetDelay)
-                                        saveWallpaperProgressToPrefs()
-                                        return
-                                    } else {
-                                        drawProgress = nextVal
-                                    }
-                                }
+                        if (settings.drawSpeedInstant) {
+                            if (drawProgress < maxSteps) {
+                                drawProgress = maxSteps
                             } else {
                                 val dt = 0.016f // step time
                                 val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
-                                drawProgress += stepsPerSec * dt
-                                if (drawProgress >= maxSteps) {
-                                    if (settings.postCompletionAutoReset) {
-                                        val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
-                                        drawProgress = 0f
-                                        randomizeUnlockedSettings()
-                                        backgroundHandler?.postDelayed(this, postResetDelay)
-                                        saveWallpaperProgressToPrefs()
-                                        return
-                                    } else if (settings.drawLengthLooping) {
-                                        drawProgress = 0f
-                                    } else {
-                                        drawProgress = maxSteps
-                                    }
+                                val nextVal = drawProgress + stepsPerSec * dt
+                                
+                                val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                                if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
+                                    val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                    drawProgress = 0f
+                                    randomizeUnlockedSettings()
+                                    backgroundHandler?.postDelayed(this, postResetDelay)
+                                    saveWallpaperProgressToPrefs()
+                                    return
+                                } else {
+                                    drawProgress = nextVal
+                                }
+                            }
+                        } else {
+                            val dt = 0.016f // step time
+                            val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
+                            drawProgress += stepsPerSec * dt
+                            if (drawProgress >= maxSteps) {
+                                if (settings.postCompletionAutoReset) {
+                                    val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                    drawProgress = 0f
+                                    randomizeUnlockedSettings()
+                                    backgroundHandler?.postDelayed(this, postResetDelay)
+                                    saveWallpaperProgressToPrefs()
+                                    return
+                                } else if (settings.drawLengthLooping) {
+                                    drawProgress = 0f
+                                } else {
+                                    drawProgress = maxSteps
                                 }
                             }
                         }
@@ -674,11 +669,6 @@ class HarmonographWallpaperService : WallpaperService() {
                             
                             val dx = p2.x - lastAddedP.x
                             val dy = p2.y - lastAddedP.y
-                            if (p2.originalIndex < lastAddedP.originalIndex) {
-                                // Jump detected due to wrapped tail buffer limit, do not connect with a line!
-                                lastAddedP = p2
-                                continue
-                            }
                             if (i < projPoints.size - 1 && (dx * dx + dy * dy) < 2.25f) { // 1.5 pixels squared threshold
                                 continue
                             }
