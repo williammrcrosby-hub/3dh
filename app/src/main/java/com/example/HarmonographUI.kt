@@ -357,7 +357,10 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         var lastAddedP = projPoints.first()
                         for (i in 1 until projPoints.size) {
                             val p2 = projPoints[i]
-                            if (p2.isBehindCamera) continue
+                            if (p2.isBehindCamera) {
+                                lastAddedP = p2
+                                continue
+                            }
                             if (lastAddedP.isBehindCamera) {
                                 lastAddedP = p2
                                 continue
@@ -3631,6 +3634,76 @@ fun PerformanceAndQualityTab(
                 }
             }
         }
+
+        item {
+            var showResetDialog by remember { mutableStateOf(false) }
+
+            if (showResetDialog) {
+                AlertDialog(
+                    onDismissRequest = { showResetDialog = false },
+                    title = { Text("Reset Performance Settings?", color = Color.White) },
+                    text = { 
+                        Text(
+                            text = "This will restore all performance & quality variables (resolution, sampling rates, thresholds, and drawing windows) back to factory default values.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 13.sp
+                        ) 
+                    },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                val defaults = HarmonographSettings()
+                                onUpdate(
+                                    settings.copy(
+                                        perfResolution = defaults.perfResolution,
+                                        perfVelocitySampling = defaults.perfVelocitySampling,
+                                        perfVelocityModifier = defaults.perfVelocityModifier,
+                                        perfAngularModifier = defaults.perfAngularModifier,
+                                        perfLiveShiftTickRateMs = defaults.perfLiveShiftTickRateMs,
+                                        perfRemoveTailEnabled = defaults.perfRemoveTailEnabled,
+                                        perfWallpaperShowFps = defaults.perfWallpaperShowFps,
+                                        perfTargetFps = defaults.perfTargetFps,
+                                        instantDrawLengthLimit = defaults.instantDrawLengthLimit,
+                                        instantDrawLengthInfinite = defaults.instantDrawLengthInfinite
+                                    )
+                                )
+                                showResetDialog = false
+                            }
+                        ) {
+                            Text("Reset", color = Color(0xFFFF4081), fontWeight = FontWeight.Bold)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showResetDialog = false }) {
+                            Text("Cancel", color = Color.White)
+                        }
+                    },
+                    containerColor = Color(0xFF0F172A)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = { showResetDialog = true },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFFE11D48),
+                    contentColor = Color.White
+                ),
+                contentPadding = PaddingValues(14.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reset",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("RESET TO DEFAULT PERFORMANCE", fontWeight = FontWeight.Bold, fontSize = 11.sp, letterSpacing = 1.sp)
+            }
+        }
     }
 }
 
@@ -3666,8 +3739,8 @@ private fun computeComposeColor(
     val minHue = settings.hueShiftRange.actualSelectedMin
     val maxHue = settings.hueShiftRange.actualSelectedMax
     
-    // Prevent float precision loss of System.currentTimeMillis() by scaling down a modulo value
-    val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
+    // Prevent float precision loss of System.currentTimeMillis() by using Double for progress calculation
+    val timeSecDouble = System.currentTimeMillis().toDouble() / 1000.0
 
     val csMin = settings.chromaticShift.actualSelectedMin
     val csMax = settings.chromaticShift.actualSelectedMax
@@ -3675,7 +3748,7 @@ private fun computeComposeColor(
         val sweepMin = if (settings.chromaticShift.rangeLocked) csMin else 0f
         val sweepMax = if (settings.chromaticShift.rangeLocked) csMax else 90f
         val speed = settings.chromaticShiftSpeed.current
-        val progress = (speed * timeSec) % 1.0f
+        val progress = ((speed.toDouble() * timeSecDouble) % 1.0).toFloat()
         val cycleRatio = if (progress < 0.5f) progress * 2f else (1.0f - progress) * 2f
         val liveCS = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveCS.coerceIn(0f, 180f)
@@ -3692,7 +3765,7 @@ private fun computeComposeColor(
         val sweepMin = if (settings.lineAlpha.rangeLocked) alphaMin else 0.1f
         val sweepMax = if (settings.lineAlpha.rangeLocked) alphaMax else 1.0f
         val speed = settings.liveAlphaShiftSpeed.current
-        val progress = (speed * timeSec) % 1.0f
+        val progress = ((speed.toDouble() * timeSecDouble) % 1.0).toFloat()
         val cycleRatio = if (progress < 0.5f) progress * 2f else (1.0f - progress) * 2f
         val liveAlpha = sweepMin + cycleRatio * (sweepMax - sweepMin)
         liveAlpha.coerceIn(0.01f, 1.0f)
@@ -3771,15 +3844,15 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
         val sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
         val sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
         val speed = settings.monoScaleLiveShiftSpeed.current / 3f
-        val timeSec = (System.currentTimeMillis() % 100000L).toFloat() / 1000f
+        val timeSecDouble = System.currentTimeMillis().toDouble() / 1000.0
         val wavelength = 200f
         val randomness = settings.monoWaveRandomness.current
         
         // Traveling base wave
-        val waveBase = kotlin.math.sin((idx.toFloat() / wavelength) - (timeSec * speed * 2f * kotlin.math.PI.toFloat()))
+        val waveBase = kotlin.math.sin((idx.toFloat() / wavelength) - (timeSecDouble.toFloat() * speed * 2f * kotlin.math.PI.toFloat()))
         // Secondary interference waves
-        val waveNoise1 = kotlin.math.sin((idx.toFloat() / (wavelength * 1.618f)) - (timeSec * speed * 3.4f) + 2.3f)
-        val waveNoise2 = kotlin.math.sin((idx.toFloat() / (wavelength * 0.618f)) - (timeSec * speed * 8.9f) - 1.1f)
+        val waveNoise1 = kotlin.math.sin((idx.toFloat() / (wavelength * 1.618f)) - (timeSecDouble.toFloat() * speed * 3.4f) + 2.3f)
+        val waveNoise2 = kotlin.math.sin((idx.toFloat() / (wavelength * 0.618f)) - (timeSecDouble.toFloat() * speed * 8.9f) - 1.1f)
         
         val combinedWave = (1f - randomness) * waveBase + randomness * (0.6f * waveNoise1 + 0.4f * waveNoise2)
         val cycleRatio = 0.5f + 0.5f * combinedWave

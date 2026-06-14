@@ -266,8 +266,8 @@ data class HarmonographSettings(
     // Performance & Quality Options
     val perfResolution: String = "native", // "native", "760", "480", "auto"
     val perfVelocitySampling: Boolean = true,
-    val perfVelocityModifier: FloatParameter = FloatParameter(1.0f, rangeMin = 0.5f, rangeMax = 15.0f, locked = true),
-    val perfAngularModifier: FloatParameter = FloatParameter(0.0f, rangeMin = 0.0f, rangeMax = 10.0f, locked = true),
+    val perfVelocityModifier: FloatParameter = FloatParameter(15.0f, rangeMin = 0.5f, rangeMax = 15.0f, locked = true),
+    val perfAngularModifier: FloatParameter = FloatParameter(4.0f, rangeMin = 0.0f, rangeMax = 10.0f, locked = true),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
     val perfWallpaperShowFps: Boolean = false,
