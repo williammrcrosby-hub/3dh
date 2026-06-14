@@ -156,7 +156,7 @@ object HarmonographMath {
         // Dynamically compute adaptive dt: for higher frequencies, sample with a much finer steps to preserve smooth curves.
         val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
  
-        val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 20000)
+        val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
         
         val px = Math.toRadians(settings.phaseX.current.toDouble()).toFloat()
         val py = Math.toRadians(settings.phaseY.current.toDouble()).toFloat()
@@ -223,15 +223,10 @@ object HarmonographMath {
             Point3D(xr, yr, zr)
         }
         
-        // Precalculate adaptive step times based on curve velocity resetting at each curve boundary
-        val curveSize = settings.drawLengthSteps
+        // Precalculate adaptive step times based on curve velocity
         var tLocal = 0f
         val ts = FloatArray(totalSteps + 2)
         for (k in 0..totalSteps + 1) {
-            val localK = k % curveSize
-            if (localK == 0 && k > 0) {
-                tLocal = 0f
-            }
             ts[k] = tLocal
             val pt = fastCalculatePointAtT(tLocal)
             val dtUsed = if (settings.perfVelocitySampling) {
@@ -265,19 +260,6 @@ object HarmonographMath {
             }
             tLocal += dtUsed
         }
-
-        // Calculate seamless 3D offsets for each curve segment
-        val numCurves = (totalSteps + curveSize - 1) / curveSize
-        val offsets = Array(numCurves) { Point3D(0f, 0f, 0f) }
-        for (j in 1 until numCurves) {
-            val prevCurveLastK = j * curveSize - 1
-            val prevCurveLastT = ts[prevCurveLastK]
-            val prevCurveLastPt = fastCalculatePointAtT(prevCurveLastT) + offsets[j - 1]
-            val curCurveFirstK = j * curveSize
-            val curCurveFirstT = ts[curCurveFirstK]
-            val curCurveFirstPt = fastCalculatePointAtT(curCurveFirstT)
-            offsets[j] = prevCurveLastPt - curCurveFirstPt
-        }
         
         // Initialize lines for pen counts: 1 to 3
         val paths = List(settings.penCount.current) { mutableListOf<Point3D>() }
@@ -291,14 +273,13 @@ object HarmonographMath {
         
         for (k in 0 until totalSteps) {
             val t = ts[k]
-            val curveIdx = k / curveSize
-            val basePt = fastCalculatePointAtT(t) + offsets[curveIdx]
+            val basePt = fastCalculatePointAtT(t)
             
             if (settings.penCount.current == 1) {
                 paths[0].add(basePt)
             } else {
                 // We need orthogonal plane to calculate offset vectors
-                val nextPt = fastCalculatePointAtT(ts[k + 1]) + offsets[minOf(numCurves - 1, (k + 1) / curveSize)]
+                val nextPt = fastCalculatePointAtT(ts[k + 1])
                 val rawDir = (nextPt - basePt).normalized()
                 
                 val dir = if (prevDir != null && prevBasePt != null) {
@@ -424,7 +405,7 @@ object HarmonographMath {
         // Dynamically compute adaptive dt to match the path point sampling perfectly
         val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
 
-        val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 20000)
+        val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
         
         val fastCalculatePointAtT = { tVal: Float ->
             val px = Math.toRadians(settings.phaseX.current.toDouble()).toFloat()
@@ -488,15 +469,10 @@ object HarmonographMath {
             Point3D(xr, yr, zr)
         }
         
-        // Precalculate adaptive step times based on curve velocity resetting at each curve boundary
-        val curveSize = settings.drawLengthSteps
+        // Precalculate adaptive step times based on curve velocity
         var tLocal = 0f
         val ts = FloatArray(totalSteps + 2)
         for (k in 0..totalSteps + 1) {
-            val localK = k % curveSize
-            if (localK == 0 && k > 0) {
-                tLocal = 0f
-            }
             ts[k] = tLocal
             val pt = fastCalculatePointAtT(tLocal)
             val dtUsed = if (settings.perfVelocitySampling) {
@@ -531,19 +507,6 @@ object HarmonographMath {
             tLocal += dtUsed
         }
 
-        // Calculate seamless 3D offsets for each curve segment
-        val numCurves = (totalSteps + curveSize - 1) / curveSize
-        val offsets = Array(numCurves) { Point3D(0f, 0f, 0f) }
-        for (j in 1 until numCurves) {
-            val prevCurveLastK = j * curveSize - 1
-            val prevCurveLastT = ts[prevCurveLastK]
-            val prevCurveLastPt = fastCalculatePointAtT(prevCurveLastT) + offsets[j - 1]
-            val curCurveFirstK = j * curveSize
-            val curCurveFirstT = ts[curCurveFirstK]
-            val curCurveFirstPt = fastCalculatePointAtT(curCurveFirstT)
-            offsets[j] = prevCurveLastPt - curCurveFirstPt
-        }
-
         val shapesList = mutableListOf<CustomShapeData>()
         
         val fastestBase = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
@@ -562,9 +525,8 @@ object HarmonographMath {
         
         for (k in 0 until totalSteps) {
             val t = ts[k]
-            val curveIdx = k / curveSize
-            val basePt = fastCalculatePointAtT(t) + offsets[curveIdx]
-            val nextPt = fastCalculatePointAtT(ts[k + 1]) + offsets[minOf(numCurves - 1, (k + 1) / curveSize)]
+            val basePt = fastCalculatePointAtT(t)
+            val nextPt = fastCalculatePointAtT(ts[k + 1])
             val rawDir = (nextPt - basePt).normalized()
             
             val dir = if (prevDir != null && prevBasePt != null) {
