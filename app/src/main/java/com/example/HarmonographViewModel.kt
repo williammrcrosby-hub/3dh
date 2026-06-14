@@ -10,6 +10,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import java.util.Random
 import androidx.compose.runtime.mutableStateOf
 
@@ -102,8 +103,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         drawingJob = viewModelScope.launch(Dispatchers.Default) {
             var completionTimeMs = 0L
             var lastSaveTime = 0L
-            while (true) {
+            while (coroutineContext.isActive) {
                 delay(16) // ~60fps ticker loop
+                if (!coroutineContext.isActive) break
                 
                 val settings = _uiState.value
                 val isPlay = _isDrawing.value
@@ -114,8 +116,9 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     if (settings.drawSpeedInstant) {
                         completionTimeMs = 0L
                         if (progress < maxSteps) {
-                            // Instantly jump to completed shape
-                            _currentDrawProgress.value = maxSteps
+                            if (coroutineContext.isActive) {
+                                _currentDrawProgress.value = maxSteps
+                            }
                         } else {
                             // It is in phase 2: animate/slide along the path
                             val totalDurationSec = settings.drawSpeedMinutes.current * 60f
@@ -127,9 +130,16 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                             // Check auto-reset if enabled
                             val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
                             if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
-                                resetAndRandomize()
+                                if (coroutineContext.isActive) {
+                                    viewModelScope.launch(Dispatchers.Main) {
+                                        resetAndRandomize()
+                                    }
+                                }
+                                break
                             } else {
-                                _currentDrawProgress.value = nextVal
+                                if (coroutineContext.isActive) {
+                                    _currentDrawProgress.value = nextVal
+                                }
                             }
                         }
                     } else {
@@ -140,22 +150,33 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         
                         val sumProgress = progress + stepsPerFrame
                         val newProgress = if (sumProgress > maxSteps) maxSteps else sumProgress
-                        _currentDrawProgress.value = newProgress
+                        if (coroutineContext.isActive) {
+                            _currentDrawProgress.value = newProgress
+                        }
                         
                         if (newProgress >= maxSteps && settings.postCompletionAutoReset) {
                             val waitSec = totalDurationSec * settings.postCompletionResetTimeFactor
                             delay((waitSec * 1000).toLong().coerceAtLeast(100L))
-                            resetAndRandomize()
+                            if (coroutineContext.isActive) {
+                                viewModelScope.launch(Dispatchers.Main) {
+                                    resetAndRandomize()
+                                }
+                            }
+                            break
                         }
                     }
                 } else {
                     completionTimeMs = 0L
                 }
 
+                if (!coroutineContext.isActive) break
+
                 val now = System.currentTimeMillis()
                 if (now - lastSaveTime > 200L) {
                     lastSaveTime = now
-                    saveProgressAndStateToPrefs(progress, isPlay)
+                    if (coroutineContext.isActive) {
+                        saveProgressAndStateToPrefs(progress, isPlay)
+                    }
                 }
             }
         }
