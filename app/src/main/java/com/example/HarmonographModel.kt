@@ -177,7 +177,7 @@ data class HarmonographSettings(
     val subZFreqFactor: IntParameter = IntParameter(4, rangeMin = 1, rangeMax = 8),
     val subZFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     
-    val drawSpeedMinutes: FloatParameter = FloatParameter(2.0f, rangeMin = 1.0f, rangeMax = 15.0f),
+    val drawSpeedMinutes: FloatParameter = FloatParameter(3.0f, rangeMin = 3.0f, rangeMax = 10.0f),
     val drawSpeedInstant: Boolean = false,
     val drawLengthSteps: Int = 3000, 
     val drawLengthFactor: Float = 6.0f,
@@ -266,8 +266,8 @@ data class HarmonographSettings(
     // Performance & Quality Options
     val perfResolution: String = "native", // "native", "760", "480", "auto"
     val perfVelocitySampling: Boolean = true,
-    val perfVelocityModifier: FloatParameter = FloatParameter(15.0f, rangeMin = 0.5f, rangeMax = 45.0f, locked = true),
-    val perfAngularModifier: FloatParameter = FloatParameter(4.0f, rangeMin = 0.0f, rangeMax = 25.0f, locked = true),
+    val perfVelocityModifier: FloatParameter = FloatParameter(45.0f, rangeMin = 0.5f, rangeMax = 45.0f, locked = true),
+    val perfAngularModifier: FloatParameter = FloatParameter(14.0f, rangeMin = 0.0f, rangeMax = 25.0f, locked = true),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
     val perfWallpaperShowFps: Boolean = false,

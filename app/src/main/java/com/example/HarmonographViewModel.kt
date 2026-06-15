@@ -353,6 +353,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private suspend fun insertDefaultPresets() {
         val presets = listOf(
             HarmonographPreset(
+                name = "Default Settings",
+                isUserPreset = false,
+                settingsJson = adapter.toJson(HarmonographSettings()) ?: ""
+            ),
+            HarmonographPreset(
                 name = "Classic Spirograph",
                 isUserPreset = false,
                 settingsJson = adapter.toJson(
