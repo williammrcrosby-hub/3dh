@@ -3856,31 +3856,42 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
             sweepMin = -halfRange
             sweepMax = halfRange
         }
-        val speed = settings.monoScaleLiveShiftSpeed.current / 3f
+        val speed = settings.monoScaleLiveShiftSpeed.current / 12f // extremely calming pace
         val timeSecDouble = animTime.toDouble() / 1000.0
-        val baseWavelength = 300f
+        val baseWavelength = 1200f // wide, smooth waves
         val randomness = settings.monoWaveRandomness.current
         
-        // Use a time-based slow noise to modulate the wavelength (spatial duration) and speed (temporal duration)
-        val waveRandomModTime = timeSecDouble.toFloat() * 0.2f
-        val wavelengthNoise = kotlin.math.sin(waveRandomModTime * 1.5f) * 0.4f + kotlin.math.cos(waveRandomModTime * 0.7f) * 0.3f
-        val speedNoise = kotlin.math.sin(waveRandomModTime * 0.9f) * 0.5f + kotlin.math.cos(waveRandomModTime * 1.3f) * 0.3f
+        // We want randomness to vary/randomize the wave duration (both spatial wavelength and temporal period).
+        // Let's use a slow, continuous modulation wave for this duration variation.
+        // The speed of this modulation is extremely slow to keep it calming.
+        val modTime = timeSecDouble * 0.15
+        val waveModulator = kotlin.math.sin(modTime * 2.0 * kotlin.math.PI) * 0.4f + 
+                            kotlin.math.cos(modTime * 1.3 * kotlin.math.PI) * 0.2f
+                            
+        // Modulate wavelength by waveModulator scaled by randomness
+        // When randomness is 0, wavelength is exactly baseWavelength
+        // When randomness is 1, wavelength varies slowly between 0.4 * baseWavelength and 1.6 * baseWavelength
+        val modulatedWavelength = baseWavelength * (1.0f + waveModulator.toFloat() * randomness * 0.6f)
         
-        // Adjust wavelength and speed based on the noise, scaled by randomness
-        val modulatedWavelength = baseWavelength * (1f - randomness * 0.6f * wavelengthNoise)
-        val modulatedSpeed = speed * (1f + randomness * 0.8f * speedNoise)
+        // Let's also introduce a secondary, slow propagating wave that blends in with randomness.
+        // This adds organic complexity ("randomized duration of waves") without any high-frequency flicker.
+        val mainWavePhase = (idx.toFloat() / modulatedWavelength) - (timeSecDouble.toFloat() * speed * 2f * kotlin.math.PI.toFloat())
         
-        // Spatial wave noise based on idx and time
-        val waveNoise = if (randomness > 0f) {
-            val noiseTerm1 = kotlin.math.sin((idx.toFloat() / (modulatedWavelength * 0.4f)) + timeSecDouble.toFloat() * modulatedSpeed * 3.14f)
-            val noiseTerm2 = kotlin.math.sin((idx.toFloat() / (modulatedWavelength * 1.8f)) - timeSecDouble.toFloat() * modulatedSpeed * 1.57f)
-            (0.6f * noiseTerm1 + 0.4f * noiseTerm2) * randomness * 1.5f
+        // Secondary wave has a slightly different wavelength and speed (e.g. golden ratio)
+        val secondaryWavelength = modulatedWavelength * 1.618f
+        val secondarySpeed = speed * 0.618f
+        val secondaryWavePhase = (idx.toFloat() / secondaryWavelength) - (timeSecDouble.toFloat() * secondarySpeed * 2f * kotlin.math.PI.toFloat()) + 1.25f
+        
+        // Blend the main wave and secondary wave based on randomness
+        // If randomness is 0, we have a pure simple sine wave
+        // If randomness is 1, we blend in the secondary wave to create organic wave-packet variations
+        val combinedPhase = if (randomness > 0f) {
+            mainWavePhase * (1.0f - randomness * 0.3f) + secondaryWavePhase * (randomness * 0.3f)
         } else {
-            0f
+            mainWavePhase
         }
         
-        // Traveling base wave translating down the length of the line, perturbed by waveNoise
-        val waveBase = kotlin.math.sin((idx.toFloat() / modulatedWavelength) - (timeSecDouble.toFloat() * modulatedSpeed * 2f * kotlin.math.PI.toFloat()) + waveNoise)
+        val waveBase = kotlin.math.sin(combinedPhase)
         
         val cycleRatio = 0.5f + 0.5f * waveBase
         sweepMin + cycleRatio * (sweepMax - sweepMin)
