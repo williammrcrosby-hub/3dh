@@ -521,7 +521,7 @@ class HarmonographWallpaperService : WallpaperService() {
 
             try {
                 // Background Paint - Deep Space Aesthetic
-                canvas.drawColor(0xFF0F172A.toInt()) // Slate 900
+                canvas.drawColor(android.graphics.Color.BLACK) // Completely black
                 
                 if (isScaled) {
                     canvas.save()
@@ -987,21 +987,43 @@ class HarmonographWallpaperService : WallpaperService() {
             Color.colorToHSV(colorInt, hsv)
             val baseSat = hsv[1]
             val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
-                val sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
-                val sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
+                val sweepMin: Float
+                val sweepMax: Float
+                if (settings.monoWaveEffectiveRange.rangeLocked) {
+                    sweepMin = settings.monoWaveEffectiveRange.actualSelectedMin
+                    sweepMax = settings.monoWaveEffectiveRange.actualSelectedMax
+                } else {
+                    val halfRange = kotlin.math.abs(settings.monoWaveEffectiveRange.current)
+                    sweepMin = -halfRange
+                    sweepMax = halfRange
+                }
                 val speed = settings.monoScaleLiveShiftSpeed.current / 3f
                 val timeSecDouble = System.currentTimeMillis().toDouble() / 1000.0
-                val wavelength = 200f
+                val baseWavelength = 300f
                 val randomness = settings.monoWaveRandomness.current
                 
-                // Traveling base wave
-                val waveBase = kotlin.math.sin((idx.toFloat() / wavelength) - (timeSecDouble.toFloat() * speed * 2f * kotlin.math.PI.toFloat()))
-                // Secondary interference waves
-                val waveNoise1 = kotlin.math.sin((idx.toFloat() / (wavelength * 1.618f)) - (timeSecDouble.toFloat() * speed * 3.4f) + 2.3f)
-                val waveNoise2 = kotlin.math.sin((idx.toFloat() / (wavelength * 0.618f)) - (timeSecDouble.toFloat() * speed * 8.9f) - 1.1f)
+                // Use a time-based slow noise to modulate the wavelength (spatial duration) and speed (temporal duration)
+                val waveRandomModTime = timeSecDouble.toFloat() * 0.2f
+                val wavelengthNoise = kotlin.math.sin(waveRandomModTime * 1.5f) * 0.4f + kotlin.math.cos(waveRandomModTime * 0.7f) * 0.3f
+                val speedNoise = kotlin.math.sin(waveRandomModTime * 0.9f) * 0.5f + kotlin.math.cos(waveRandomModTime * 1.3f) * 0.3f
                 
-                val combinedWave = (1f - randomness) * waveBase + randomness * (0.6f * waveNoise1 + 0.4f * waveNoise2)
-                val cycleRatio = 0.5f + 0.5f * combinedWave
+                // Adjust wavelength and speed based on the noise, scaled by randomness
+                val modulatedWavelength = baseWavelength * (1f - randomness * 0.6f * wavelengthNoise)
+                val modulatedSpeed = speed * (1f + randomness * 0.8f * speedNoise)
+                
+                // Spatial wave noise based on idx and time
+                val waveNoise = if (randomness > 0f) {
+                    val noiseTerm1 = kotlin.math.sin((idx.toFloat() / (modulatedWavelength * 0.4f)) + timeSecDouble.toFloat() * modulatedSpeed * 3.14f)
+                    val noiseTerm2 = kotlin.math.sin((idx.toFloat() / (modulatedWavelength * 1.8f)) - timeSecDouble.toFloat() * modulatedSpeed * 1.57f)
+                    (0.6f * noiseTerm1 + 0.4f * noiseTerm2) * randomness * 1.5f
+                } else {
+                    0f
+                }
+                
+                // Traveling base wave translating down the length of the line, perturbed by waveNoise
+                val waveBase = kotlin.math.sin((idx.toFloat() / modulatedWavelength) - (timeSecDouble.toFloat() * modulatedSpeed * 2f * kotlin.math.PI.toFloat()) + waveNoise)
+                
+                val cycleRatio = 0.5f + 0.5f * waveBase
                 sweepMin + cycleRatio * (sweepMax - sweepMin)
             } else if (settings.monoScaleShift.rangeLocked) {
                 val msMin = settings.monoScaleShift.actualSelectedMin

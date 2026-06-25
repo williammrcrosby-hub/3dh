@@ -282,7 +282,7 @@ data class HarmonographSettings(
     val monoScaleShift: FloatParameter = FloatParameter(0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
     val monoScaleLiveShiftEnabled: BooleanParameter = BooleanParameter(false),
     val monoScaleLiveShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
-    val monoWaveEffectiveRange: FloatParameter = FloatParameter(0.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = true, selectedMin = -1.0f, selectedMax = 1.0f),
+    val monoWaveEffectiveRange: FloatParameter = FloatParameter(1.0f, rangeMin = -1.0f, rangeMax = 1.0f, locked = true, rangeLocked = false, selectedMin = -1.0f, selectedMax = 1.0f),
     val monoWaveRandomness: FloatParameter = FloatParameter(0.5f, rangeMin = 0f, rangeMax = 1.0f),
     
     // Live Transparency (Alpha) Shift Option
@@ -401,7 +401,9 @@ data class HarmonographSettings(
             perfVelocityModifier = perfVelocityModifier.copy(locked = true),
             perfAngularModifier = perfAngularModifier.copy(locked = true),
             
+            monoScaleEnabled = monoScaleEnabled.copy(locked = true),
             monoScaleShift = monoScaleShift.copy(locked = true),
+            monoScaleLiveShiftEnabled = monoScaleLiveShiftEnabled.copy(locked = true),
             monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = true),
             monoWaveEffectiveRange = monoWaveEffectiveRange.copy(locked = true),
             monoWaveRandomness = monoWaveRandomness.copy(locked = true),
