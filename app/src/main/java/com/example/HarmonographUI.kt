@@ -256,6 +256,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             }
             
             val stepsInPath = remember(paths) { paths.firstOrNull()?.size ?: stepsCount }
+            val isClosedLoop = remember(paths) {
+                paths.firstOrNull()?.let { it.size > 1 && it.first() == it.last() } == true
+            }
             if (drawProgress < stepsInPath - 1f) {
                 completionTimeOfAnim = null
             } else if (completionTimeOfAnim == null) {
@@ -378,13 +381,14 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             val segmentColor = computeComposeColor(
                                 settings = settings,
                                 idx = lastAddedP.originalIndex,
-                                total = settings.drawLengthSteps,
+                                total = stepsInPath,
                                 pt = lastAddedP,
                                 width = width,
                                 height = height,
                                 hueOffset = timeHueOffset,
                                 settingsHash = settingsHash,
-                                animTime = animTime
+                                animTime = animTime,
+                                isClosedLoop = isClosedLoop
                             )
                             
                             val baseThickness = settings.lineThickness.current
@@ -411,13 +415,14 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             computeComposeColor(
                                 settings = settings,
                                 idx = tip.originalIndex,
-                                total = settings.drawLengthSteps,
+                                total = stepsInPath,
                                 pt = tip,
                                 width = width,
                                 height = height,
                                 hueOffset = timeHueOffset,
                                 settingsHash = settingsHash,
-                                animTime = animTime
+                                animTime = animTime,
+                                isClosedLoop = isClosedLoop
                             )
                         }
                         tipsList.add(Pair(tip, tipColor))
@@ -454,7 +459,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
                         timeHueOffset = timeHueOffset,
-                        totalSteps = stepsCount,
+                        totalSteps = stepsInPath,
                         settings = settings,
                         scaleFactor = scaleFactor,
                         centerPathPoints = centerPath,
@@ -463,7 +468,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         animTime = animTime,
                         drawProgress = drawProgress,
                         drawList = drawList,
-                        settingsHash = settingsHash
+                        settingsHash = settingsHash,
+                        isClosedLoop = isClosedLoop
                     )
                 }
 
@@ -3747,7 +3753,8 @@ private fun computeComposeColor(
     height: Float,
     hueOffset: Long,
     settingsHash: Long,
-    animTime: Long
+    animTime: Long,
+    isClosedLoop: Boolean = false
 ): Color {
     val sat = settings.saturation.current
     val minHue = settings.hueShiftRange.actualSelectedMin
@@ -3795,7 +3802,10 @@ private fun computeComposeColor(
             adjustComposeColor(Color(settings.solidColor), sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
         "length" -> {
-            val ratio = idx.toFloat() / total.coerceAtLeast(1)
+            var ratio = idx.toFloat() / total.coerceAtLeast(1)
+            if (isClosedLoop) {
+                ratio = if (ratio < 0.5f) ratio * 2f else (1.0f - ratio) * 2f
+            }
             val colorVal = interpolateComposeColor(Color(settings.gradientStartColor), Color(settings.gradientEndColor), ratio)
             adjustComposeColor(colorVal, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
         }
@@ -3814,9 +3824,17 @@ private fun computeComposeColor(
             val seed2 = ((settingsHash / 7919L) % 65537L).toFloat() / 65537f
             val seed3 = ((settingsHash / 524287L) % 100003L).toFloat() / 100003f
             
-            val theta1 = idx.toFloat() * 0.0051f + seed1 * 100f
-            val theta2 = idx.toFloat() * 0.0139f + seed2 * 200f
-            val theta3 = idx.toFloat() * 0.0383f + seed3 * 300f
+            val effectiveIdx = if (isClosedLoop) {
+                val ratio = idx.toFloat() / total.coerceAtLeast(1)
+                val symRatio = if (ratio < 0.5f) ratio * 2f else (1.0f - ratio) * 2f
+                (symRatio * (total / 2f)).toInt()
+            } else {
+                idx
+            }
+            
+            val theta1 = effectiveIdx.toFloat() * 0.0051f + seed1 * 100f
+            val theta2 = effectiveIdx.toFloat() * 0.0139f + seed2 * 200f
+            val theta3 = effectiveIdx.toFloat() * 0.0383f + seed3 * 300f
             
             val rHueVal = 0.5f + 0.3f * kotlin.math.sin(theta1) + 0.15f * kotlin.math.cos(theta2) + 0.05f * kotlin.math.sin(theta3)
             
@@ -3829,7 +3847,11 @@ private fun computeComposeColor(
             Color.hsv(finalHue, sat, 0.95f, segmentAlpha)
         }
         else -> {
-            val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
+            var ratio = idx.toFloat() / total.coerceAtLeast(1)
+            if (isClosedLoop) {
+                ratio = if (ratio < 0.5f) ratio * 2f else (1.0f - ratio) * 2f
+            }
+            val baseHue = (settings.rainbowHue.current + ratio * settings.rainbowColorRange.current) % 360f
             val shiftedHue = (baseHue + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 120f)) % 360f
             val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
             Color.hsv(finalHue, sat, 0.95f, segmentAlpha)
@@ -3999,7 +4021,8 @@ private fun addComposeOrthogonalShapeToDrawList(
     animTime: Long = 0L,
     drawProgress: Float,
     drawList: MutableList<UIInstruction>,
-    settingsHash: Long
+    settingsHash: Long,
+    isClosedLoop: Boolean = false
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -4047,7 +4070,7 @@ private fun addComposeOrthogonalShapeToDrawList(
             coasterOrbitSpeed = settings.coasterOrbitSpeed.current
         )
         val centerPtScreen = centerProj.firstOrNull() ?: continue
-        val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash, animTime)
+        val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash, animTime, isClosedLoop)
 
         if (shape.shapeType == "cross") {
             // Draw dual crossing lines pointing outward on orthogonal axes

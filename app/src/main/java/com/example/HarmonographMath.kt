@@ -271,9 +271,22 @@ object HarmonographMath {
         var prevBasePt: Point3D? = null
         var prevDir: Point3D? = null
         
+        val startBasePt = fastCalculatePointAtT(0f)
+        var maxDistFromStart = 0f
+        var loopDetectedAt = -1
+        
         for (k in 0 until totalSteps) {
             val t = ts[k]
             val basePt = fastCalculatePointAtT(t)
+            
+            val distToStart = (basePt - startBasePt).length()
+            if (distToStart > maxDistFromStart) {
+                maxDistFromStart = distToStart
+            }
+            if (k > 100 && maxDistFromStart > 20f && distToStart < 1.5f) {
+                loopDetectedAt = k
+                break
+            }
             
             if (settings.penCount.current == 1) {
                 paths[0].add(basePt)
@@ -365,6 +378,14 @@ object HarmonographMath {
                     paths[0].add(basePt + dirOffset * settings.penOffset.current)
                     paths[1].add(basePt + dirOffset2 * settings.penOffset.current)
                     paths[2].add(basePt + dirOffset3 * settings.penOffset.current)
+                }
+            }
+        }
+        
+        if (loopDetectedAt != -1) {
+            for (p in 0 until settings.penCount.current) {
+                if (paths[p].isNotEmpty()) {
+                    paths[p].add(paths[p][0])
                 }
             }
         }
@@ -523,9 +544,21 @@ object HarmonographMath {
         var prevBasePt: Point3D? = null
         var prevDir: Point3D? = null
         
+        val startBasePt = fastCalculatePointAtT(0f)
+        var maxDistFromStart = 0f
+        
         for (k in 0 until totalSteps) {
             val t = ts[k]
             val basePt = fastCalculatePointAtT(t)
+            
+            val distToStart = (basePt - startBasePt).length()
+            if (distToStart > maxDistFromStart) {
+                maxDistFromStart = distToStart
+            }
+            if (k > 100 && maxDistFromStart > 20f && distToStart < 1.5f) {
+                break
+            }
+            
             val nextPt = fastCalculatePointAtT(ts[k + 1])
             val rawDir = (nextPt - basePt).normalized()
             

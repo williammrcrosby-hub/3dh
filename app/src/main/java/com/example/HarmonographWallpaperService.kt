@@ -600,6 +600,7 @@ class HarmonographWallpaperService : WallpaperService() {
 
                 val stepsCount = settings.drawLengthSteps
                 val stepsInPath = rawPaths.firstOrNull()?.size ?: stepsCount
+                val isClosedLoop = rawPaths.firstOrNull()?.let { it.size > 1 && it.first() == it.last() } == true
                 if (drawProgress < stepsInPath - 1f) {
                     completionTimeOfAnim = null
                 } else if (completionTimeOfAnim == null) {
@@ -680,7 +681,7 @@ class HarmonographWallpaperService : WallpaperService() {
                             }
                             
                             // Compute color styled dynamically once per segment
-                            val segmentColor = computeDynamicColor(lastAddedP.originalIndex, settings.drawLengthSteps, lastAddedP, width, height, timeHueOffset, settingsHash)
+                            val segmentColor = computeDynamicColor(lastAddedP.originalIndex, stepsInPath, lastAddedP, width, height, timeHueOffset, settingsHash, isClosedLoop)
                             val baseThickness = settings.lineThickness.current
                             val strokeWidth = baseThickness + (0.5f * baseThickness * (lastAddedP.depth / 500f).coerceIn(-1f, 1f))
                             
@@ -697,12 +698,13 @@ class HarmonographWallpaperService : WallpaperService() {
                         } else {
                             computeDynamicColor(
                                 tip.originalIndex,
-                                settings.drawLengthSteps,
+                                stepsInPath,
                                 tip,
                                 width,
                                 height,
                                 timeHueOffset,
-                                settingsHash
+                                settingsHash,
+                                isClosedLoop
                             )
                         }
                         tipsList.add(Pair(tip, tipColor))
@@ -742,14 +744,15 @@ class HarmonographWallpaperService : WallpaperService() {
                         angularLock = settings.isAngularLockEnabled,
                         angularLockAxis = settings.angularLockAxis,
                         hueOffset = timeHueOffset,
-                        totalSteps = stepsCount,
+                        totalSteps = stepsInPath,
                         centerPathPoints = centerPath,
                         mainPathPoints = rawPaths.getOrNull(shape.penIndex) ?: rawPaths.firstOrNull() ?: emptyList(),
                         cameraTargetIndex = cameraTargetIndex,
                         animTime = elapsedMs,
                         drawProgress = drawProgress,
                         drawList = drawList,
-                        settingsHash = settingsHash
+                        settingsHash = settingsHash,
+                        isClosedLoop = isClosedLoop
                     )
                 }
 
@@ -891,7 +894,8 @@ class HarmonographWallpaperService : WallpaperService() {
             width: Float,
             height: Float,
             hueOffset: Long,
-            settingsHash: Long
+            settingsHash: Long,
+            isClosedLoop: Boolean = false
         ): Int {
             val sat = settings.saturation.current
             val minHue = settings.hueShiftRange.actualSelectedMin
@@ -939,7 +943,10 @@ class HarmonographWallpaperService : WallpaperService() {
                     adjustSaturationAndHue(settings.solidColor, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
                 }
                 "length" -> {
-                    val ratio = idx.toFloat() / total.coerceAtLeast(1)
+                    var ratio = idx.toFloat() / total.coerceAtLeast(1)
+                    if (isClosedLoop) {
+                        ratio = if (ratio < 0.5f) ratio * 2f else (1.0f - ratio) * 2f
+                    }
                     val color = interpolateColor(settings.gradientStartColor, settings.gradientEndColor, ratio)
                     adjustSaturationAndHue(color, sat, hueOffset, minHue, maxHue, segmentChromaticShift, pt, segmentAlpha)
                 }
@@ -958,9 +965,17 @@ class HarmonographWallpaperService : WallpaperService() {
                     val seed2 = ((settingsHash / 7919L) % 65537L).toFloat() / 65537f
                     val seed3 = ((settingsHash / 524287L) % 100003L).toFloat() / 100003f
                     
-                    val theta1 = idx.toFloat() * 0.0051f + seed1 * 100f
-                    val theta2 = idx.toFloat() * 0.0139f + seed2 * 200f
-                    val theta3 = idx.toFloat() * 0.0383f + seed3 * 300f
+                    val effectiveIdx = if (isClosedLoop) {
+                        val ratio = idx.toFloat() / total.coerceAtLeast(1)
+                        val symRatio = if (ratio < 0.5f) ratio * 2f else (1.0f - ratio) * 2f
+                        (symRatio * (total / 2f)).toInt()
+                    } else {
+                        idx
+                    }
+                    
+                    val theta1 = effectiveIdx.toFloat() * 0.0051f + seed1 * 100f
+                    val theta2 = effectiveIdx.toFloat() * 0.0139f + seed2 * 200f
+                    val theta3 = effectiveIdx.toFloat() * 0.0383f + seed3 * 300f
                     
                     val rHueVal = 0.5f + 0.3f * kotlin.math.sin(theta1) + 0.15f * kotlin.math.cos(theta2) + 0.05f * kotlin.math.sin(theta3)
                     
@@ -974,7 +989,11 @@ class HarmonographWallpaperService : WallpaperService() {
                     Color.HSVToColor(alpha, floatArrayOf(finalHue, sat, 0.95f))
                 }
                 else -> {
-                    val baseHue = (settings.rainbowHue.current + (idx.toFloat() / total.coerceAtLeast(1)) * settings.rainbowColorRange.current) % 360f
+                    var ratio = idx.toFloat() / total.coerceAtLeast(1)
+                    if (isClosedLoop) {
+                        ratio = if (ratio < 0.5f) ratio * 2f else (1.0f - ratio) * 2f
+                    }
+                    val baseHue = (settings.rainbowHue.current + ratio * settings.rainbowColorRange.current) % 360f
                     val shiftedHue = (baseHue + Math.abs(hueOffset) + segmentChromaticShift * (pt.depth / 120f)) % 360f
                     val finalHue = mapHueIntoRange(shiftedHue, minHue, maxHue)
                     val alpha = (255 * segmentAlpha).toInt().coerceIn(0, 255)
@@ -1092,7 +1111,8 @@ class HarmonographWallpaperService : WallpaperService() {
             animTime: Long = 0L,
             drawProgress: Float,
             drawList: MutableList<WPInstruction>,
-            settingsHash: Long
+            settingsHash: Long,
+            isClosedLoop: Boolean = false
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -1141,7 +1161,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
-                val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset, settingsHash)
+                val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset, settingsHash, isClosedLoop)
                 
                 if (shape.shapeType == "cross") {
                     val p1 = centerPt3D + shape.uVector * size
