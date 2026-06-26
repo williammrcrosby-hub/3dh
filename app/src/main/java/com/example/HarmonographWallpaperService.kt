@@ -542,8 +542,15 @@ class HarmonographWallpaperService : WallpaperService() {
                 var activeYaw = baseYaw
                 var activePitch = basePitch
                 if (settings.cameraAutoRotationEnabled) {
-                    activeYaw = (baseYaw + timeSec * settings.cameraAutoRotationSpeed * 25f) % 360f
-                    activePitch = basePitch + (sin(timeSec * settings.cameraAutoRotationSpeed * 0.5f) * 15f)
+                    val speedMult = settings.cameraAutoRotationSpeed * 10f
+                    val theta = speedMult * (
+                        (-kotlin.math.cos(0.07f * timeSec) + 1f) / 0.07f +
+                        1.2f * kotlin.math.sin(0.03f * timeSec) / 0.03f -
+                        0.8f * (kotlin.math.cos(0.013f * timeSec) - 1f) / 0.013f
+                    )
+                    val pitchOffset = 12f * (kotlin.math.sin(0.05f * timeSec) + 0.5f * (kotlin.math.cos(0.022f * timeSec) - 1f))
+                    activeYaw = (baseYaw + theta) % 360f
+                    activePitch = basePitch + pitchOffset
                 }
                 
                 // Incorporate gyroscopic offsets if enabled

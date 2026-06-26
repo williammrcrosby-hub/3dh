@@ -138,13 +138,22 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
 
     // Dynamic rotation angle calculation driven by the animation timer state
     val animatedYaw = if (settings.cameraAutoRotationEnabled) {
-        (yaw + animTime * 0.001f * settings.cameraAutoRotationSpeed * 25f + viewModel.gyroYawOffset.value) % 360f
+        val t = animTime * 0.001f
+        val speedMult = settings.cameraAutoRotationSpeed * 10f
+        val theta = speedMult * (
+            (-kotlin.math.cos(0.07f * t) + 1f) / 0.07f +
+            1.2f * kotlin.math.sin(0.03f * t) / 0.03f -
+            0.8f * (kotlin.math.cos(0.013f * t) - 1f) / 0.013f
+        )
+        (yaw + theta + viewModel.gyroYawOffset.value) % 360f
     } else {
         yaw + viewModel.gyroYawOffset.value
     }
 
     val animatedPitch = if (settings.cameraAutoRotationEnabled) {
-        pitch + (sin(animTime * 0.001f * settings.cameraAutoRotationSpeed * 0.5f) * 15f) + viewModel.gyroPitchOffset.value
+        val t = animTime * 0.001f
+        val pitchOffset = 12f * (kotlin.math.sin(0.05f * t) + 0.5f * (kotlin.math.cos(0.022f * t) - 1f))
+        pitch + pitchOffset + viewModel.gyroPitchOffset.value
     } else {
         pitch + viewModel.gyroPitchOffset.value
     }
