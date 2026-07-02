@@ -85,26 +85,26 @@ class HarmonographWallpaperService : WallpaperService() {
         private var sharedPrefs: SharedPreferences? = null
         private val randomShift = java.util.Random()
         private val parameterShifters = listOf(
-            ParameterShifter({ it.ampX }, { s, p -> s.copy(ampX = p) }, { true }),
-            ParameterShifter({ it.freqX }, { s, p -> s.copy(freqX = p) }, { true }),
-            ParameterShifter({ it.phaseX }, { s, p -> s.copy(phaseX = p) }, { true }),
-            
-            ParameterShifter({ it.ampY }, { s, p -> s.copy(ampY = p) }, { true }),
-            ParameterShifter({ it.freqY }, { s, p -> s.copy(freqY = p) }, { true }),
-            ParameterShifter({ it.phaseY }, { s, p -> s.copy(phaseY = p) }, { true }),
-            
-            ParameterShifter({ it.ampZ }, { s, p -> s.copy(ampZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }),
-            ParameterShifter({ it.freqZ }, { s, p -> s.copy(freqZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }),
-            ParameterShifter({ it.phaseZ }, { s, p -> s.copy(phaseZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }),
-            
-            ParameterShifter({ it.ampSubX }, { s, p -> s.copy(ampSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }),
-            ParameterShifter({ it.phaseSubX }, { s, p -> s.copy(phaseSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }),
-            
-            ParameterShifter({ it.ampSubY }, { s, p -> s.copy(ampSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }),
-            ParameterShifter({ it.phaseSubY }, { s, p -> s.copy(phaseSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }),
-            
-            ParameterShifter({ it.ampSubZ }, { s, p -> s.copy(ampSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f }),
-            ParameterShifter({ it.phaseSubZ }, { s, p -> s.copy(phaseSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f })
+            // Amplitudes (6 to 15 mins)
+            ParameterShifter({ it.ampX }, { s, p -> s.copy(ampX = p) }, { true }, 360f, 900f),
+            ParameterShifter({ it.ampY }, { s, p -> s.copy(ampY = p) }, { true }, 360f, 900f),
+            ParameterShifter({ it.ampZ }, { s, p -> s.copy(ampZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }, 360f, 900f),
+            ParameterShifter({ it.ampSubX }, { s, p -> s.copy(ampSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }, 360f, 900f),
+            ParameterShifter({ it.ampSubY }, { s, p -> s.copy(ampSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }, 360f, 900f),
+            ParameterShifter({ it.ampSubZ }, { s, p -> s.copy(ampSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f }, 360f, 900f),
+
+            // Frequencies (30 to 75 mins - extremely slow, prevents chaotic phase-velocity buildup over large t)
+            ParameterShifter({ it.freqX }, { s, p -> s.copy(freqX = p) }, { true }, 1800f, 4500f),
+            ParameterShifter({ it.freqY }, { s, p -> s.copy(freqY = p) }, { true }, 1800f, 4500f),
+            ParameterShifter({ it.freqZ }, { s, p -> s.copy(freqZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }, 1800f, 4500f),
+
+            // Phases (9 to 20 mins)
+            ParameterShifter({ it.phaseX }, { s, p -> s.copy(phaseX = p) }, { true }, 540f, 1200f),
+            ParameterShifter({ it.phaseY }, { s, p -> s.copy(phaseY = p) }, { true }, 540f, 1200f),
+            ParameterShifter({ it.phaseZ }, { s, p -> s.copy(phaseZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }, 540f, 1200f),
+            ParameterShifter({ it.phaseSubX }, { s, p -> s.copy(phaseSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }, 540f, 1200f),
+            ParameterShifter({ it.phaseSubY }, { s, p -> s.copy(phaseSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }, 540f, 1200f),
+            ParameterShifter({ it.phaseSubZ }, { s, p -> s.copy(phaseSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f }, 540f, 1200f)
         )
 
         @Volatile private var drawProgress = 0f

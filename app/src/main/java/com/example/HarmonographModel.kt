@@ -616,7 +616,9 @@ abstract class AppDatabase : RoomDatabase() {
 class ParameterShifter(
     val getParam: (HarmonographSettings) -> FloatParameter,
     val setParam: (HarmonographSettings, FloatParameter) -> HarmonographSettings,
-    val isOscillatorActive: (HarmonographSettings) -> Boolean
+    val isOscillatorActive: (HarmonographSettings) -> Boolean,
+    val durationMin: Float = 200f,
+    val durationMax: Float = 500f
 ) {
     var targetValue: Float? = null
     var currentSpeed: Float = 0f
@@ -638,7 +640,7 @@ class ParameterShifter(
         if (target == null || kotlin.math.abs(param.current - target) < 0.005f) {
             target = safeMin + random.nextFloat() * (safeMax - safeMin)
             targetValue = target
-            val duration = 25.0f + random.nextFloat() * 45.0f
+            val duration = durationMin + random.nextFloat() * (durationMax - durationMin)
             currentSpeed = kotlin.math.abs(target - param.current) / duration
         }
         
