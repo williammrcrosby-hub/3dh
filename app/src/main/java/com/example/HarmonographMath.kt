@@ -1015,7 +1015,7 @@ object HarmonographMath {
                 // Smoothly interpolate lookAtTarget based on cameraTargetIndex (floating-point parameter) or currentDrawProgress!
                 val idxInt = floor(targetIdx).toInt().coerceIn(0, refPts.size - 1)
                 val idxFrac = (targetIdx - idxInt).coerceIn(0f, 1f)
-                val lookAtTargetLocal = if (idxFrac > 0.001f && idxInt < refPts.size - 1) {
+                val lookAtTargetLocal = if (idxInt < refPts.size - 1) {
                     val p1 = refPts[idxInt]
                     val p2 = refPts[idxInt + 1]
                     Point3D(
@@ -1039,7 +1039,7 @@ object HarmonographMath {
                     fun getInterpolatedPoint(list: List<Point3D>, t: Float): Point3D {
                         val iInt = floor(t).toInt().coerceIn(0, list.size - 1)
                         val iFrac = (t - iInt).coerceIn(0f, 1f)
-                        return if (iFrac > 0.001f && iInt < list.size - 1) {
+                        return if (iInt < list.size - 1) {
                             val p1 = list[iInt]
                             val p2 = list[iInt + 1]
                             Point3D(
@@ -1048,20 +1048,29 @@ object HarmonographMath {
                                 p1.z + (p2.z - p1.z) * iFrac
                             )
                         } else {
-                            list[iInt]
+                            list[list.size - 1]
                         }
                     }
 
-                    // Symmetrically smooth tangent vector computed over a wider sliding window
-                    val windowSize = 25f
-                    val startT = (targetIdx - windowSize).coerceAtLeast(0f)
-                    val endT = (targetIdx + windowSize).coerceAtMost((refPts.size - 1).toFloat())
-                    
-                    val pStart = getInterpolatedPoint(refPts, startT)
-                    val pEnd = getInterpolatedPoint(refPts, endT)
-                    
-                    val rawDiff = pEnd - pStart
-                    val T = if (rawDiff.length() > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
+                    // Compute a multi-scale smooth tangent to completely eliminate rotational jitter
+                    var rawDiff = Point3D(0f, 0f, 0f)
+                    val scales = floatArrayOf(15f, 30f, 60f, 100f)
+                    var totalWeight = 0f
+                    for (scaleSize in scales) {
+                        val startT = (targetIdx - scaleSize).coerceAtLeast(0f)
+                        val endT = (targetIdx + scaleSize).coerceAtMost((refPts.size - 1).toFloat())
+                        if (endT > startT) {
+                            val pStart = getInterpolatedPoint(refPts, startT)
+                            val pEnd = getInterpolatedPoint(refPts, endT)
+                            val diff = pEnd - pStart
+                            if (diff.length() > 0.001f) {
+                                val weight = 1f / scaleSize
+                                rawDiff = rawDiff + diff.normalized() * weight
+                                totalWeight += weight
+                            }
+                        }
+                    }
+                    val T = if (totalWeight > 0.001f) rawDiff.normalized() else Point3D(1f, 0f, 0f)
                     
                     // Construct extremely stable and smooth local frame analytically (loop-free O(1) calculation)
                     val upRef = Point3D(0f, 0f, 1f)

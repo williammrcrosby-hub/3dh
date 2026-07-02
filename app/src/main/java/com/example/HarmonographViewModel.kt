@@ -52,6 +52,29 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private var drawingJob: Job? = null
     private val random = Random()
 
+    private val parameterShifters = listOf(
+        ParameterShifter({ it.ampX }, { s, p -> s.copy(ampX = p) }, { true }),
+        ParameterShifter({ it.freqX }, { s, p -> s.copy(freqX = p) }, { true }),
+        ParameterShifter({ it.phaseX }, { s, p -> s.copy(phaseX = p) }, { true }),
+        
+        ParameterShifter({ it.ampY }, { s, p -> s.copy(ampY = p) }, { true }),
+        ParameterShifter({ it.freqY }, { s, p -> s.copy(freqY = p) }, { true }),
+        ParameterShifter({ it.phaseY }, { s, p -> s.copy(phaseY = p) }, { true }),
+        
+        ParameterShifter({ it.ampZ }, { s, p -> s.copy(ampZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }),
+        ParameterShifter({ it.freqZ }, { s, p -> s.copy(freqZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }),
+        ParameterShifter({ it.phaseZ }, { s, p -> s.copy(phaseZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }),
+        
+        ParameterShifter({ it.ampSubX }, { s, p -> s.copy(ampSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }),
+        ParameterShifter({ it.phaseSubX }, { s, p -> s.copy(phaseSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }),
+        
+        ParameterShifter({ it.ampSubY }, { s, p -> s.copy(ampSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }),
+        ParameterShifter({ it.phaseSubY }, { s, p -> s.copy(phaseSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }),
+        
+        ParameterShifter({ it.ampSubZ }, { s, p -> s.copy(ampSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f }),
+        ParameterShifter({ it.phaseSubZ }, { s, p -> s.copy(phaseSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f })
+    )
+
     private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
         if (key == "active_settings") {
             loadActiveSettingsFromPrefs()
@@ -105,8 +128,20 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
             while (true) {
                 delay(16) // ~60fps ticker loop
                 
-                val settings = _uiState.value
+                var settings = _uiState.value
                 val isPlay = _isDrawing.value
+                
+                if (settings.globalLiveShifting.current && isPlay) {
+                    var shiftedSettings = settings
+                    for (shifter in parameterShifters) {
+                        shiftedSettings = shifter.update(shiftedSettings, 0.016f, random)
+                    }
+                    if (shiftedSettings != settings) {
+                        _uiState.value = shiftedSettings
+                        settings = shiftedSettings
+                    }
+                }
+                
                 val progress = _currentDrawProgress.value
                 val maxSteps = (settings.drawLengthSteps * settings.drawLengthFactor)
 

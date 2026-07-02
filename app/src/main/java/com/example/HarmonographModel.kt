@@ -287,7 +287,10 @@ data class HarmonographSettings(
     
     // Live Transparency (Alpha) Shift Option
     val liveAlphaShiftEnabled: BooleanParameter = BooleanParameter(false, locked = true),
-    val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f)
+    val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
+    
+    // Global Live Shifting
+    val globalLiveShifting: BooleanParameter = BooleanParameter(false)
 ) {
     fun normalize(): HarmonographSettings {
         return if (penTipSizeLocked) {
@@ -407,7 +410,8 @@ data class HarmonographSettings(
             monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = true),
             monoWaveEffectiveRange = monoWaveEffectiveRange.copy(locked = true),
             monoWaveRandomness = monoWaveRandomness.copy(locked = true),
-            liveAlphaShiftSpeed = liveAlphaShiftSpeed.copy(locked = true)
+            liveAlphaShiftSpeed = liveAlphaShiftSpeed.copy(locked = true),
+            globalLiveShifting = globalLiveShifting.copy(locked = true)
         )
     }
 
@@ -569,7 +573,8 @@ data class HarmonographSettings(
             monoWaveRandomness = monoWaveRandomness.randomize(random),
             
             liveAlphaShiftEnabled = liveAlphaShiftEnabled.randomize(random),
-            liveAlphaShiftSpeed = liveAlphaShiftSpeed.randomize(random)
+            liveAlphaShiftSpeed = liveAlphaShiftSpeed.randomize(random),
+            globalLiveShifting = globalLiveShifting.randomize(random)
         )
     }
 
@@ -606,4 +611,44 @@ interface HarmonographDao {
 @Database(entities = [HarmonographPreset::class], version = 1, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): HarmonographDao
+}
+
+class ParameterShifter(
+    val getParam: (HarmonographSettings) -> FloatParameter,
+    val setParam: (HarmonographSettings, FloatParameter) -> HarmonographSettings,
+    val isOscillatorActive: (HarmonographSettings) -> Boolean
+) {
+    var targetValue: Float? = null
+    var currentSpeed: Float = 0f
+    
+    fun update(settings: HarmonographSettings, dtSec: Float, random: java.util.Random): HarmonographSettings {
+        val param = getParam(settings)
+        if (param.locked || !isOscillatorActive(settings)) {
+            targetValue = null
+            return settings
+        }
+        
+        val valMin = if (param.rangeLocked) param.actualSelectedMin else param.rangeMin
+        val valMax = if (param.rangeLocked) param.actualSelectedMax else param.rangeMax
+        val safeMin = minOf(valMin, valMax)
+        val safeMax = maxOf(valMin, valMax)
+        if (safeMax <= safeMin) return settings
+        
+        var target = targetValue
+        if (target == null || kotlin.math.abs(param.current - target) < 0.005f) {
+            target = safeMin + random.nextFloat() * (safeMax - safeMin)
+            targetValue = target
+            val duration = 25.0f + random.nextFloat() * 45.0f
+            currentSpeed = kotlin.math.abs(target - param.current) / duration
+        }
+        
+        val currentVal = param.current
+        val nextVal = if (currentVal < target) {
+            minOf(target, currentVal + currentSpeed * dtSec)
+        } else {
+            maxOf(target, currentVal - currentSpeed * dtSec)
+        }
+        
+        return setParam(settings, param.copy(current = nextVal))
+    }
 }

@@ -893,6 +893,36 @@ fun OscillatorConfigTab(
                         )
                     }
 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("Global Live Shifting", color = Color.White, fontSize = 12.sp)
+                            Text(
+                                if (settings.globalLiveShifting.locked) "Locked in generation" else "Randomized",
+                                color = Color(0xFFA0AEC0),
+                                fontSize = 10.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        IconButton(
+                            onClick = {
+                                onUpdate(settings.copy(globalLiveShifting = settings.globalLiveShifting.withLocked(!settings.globalLiveShifting.locked)))
+                            },
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (settings.globalLiveShifting.locked) Icons.Default.Lock else Icons.Default.LockOpen,
+                                contentDescription = "Lock Global Live Shifting",
+                                tint = if (settings.globalLiveShifting.locked) Color(0xFF00E5FF) else Color.Gray,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                        Switch(
+                            checked = settings.globalLiveShifting.current,
+                            onCheckedChange = { onUpdate(settings.copy(globalLiveShifting = settings.globalLiveShifting.withValue(it))) },
+                            modifier = Modifier.scale(0.75f).testTag("global_live_shifting_switch")
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(6.dp))
 
                     ParameterSliderRow(
