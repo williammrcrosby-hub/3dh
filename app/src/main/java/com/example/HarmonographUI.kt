@@ -246,6 +246,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
         ) {
             var completionTimeOfAnim by remember { mutableStateOf<Long?>(null) }
+            val uiScaleHolder = remember { HarmonographScaleHolder() }
             val stepsCount = settings.drawLengthSteps
 
             val paths = remember(settings) {
@@ -353,7 +354,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         } else {
                             settings.instantDrawLengthLimit.current
                         },
-                        globalLiveShifting = settings.globalLiveShifting.current
+                        globalLiveShifting = settings.globalLiveShifting.current,
+                        previousScale = uiScaleHolder.value,
+                        onScaleCalculated = { uiScaleHolder.value = it }
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -470,7 +473,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         drawProgress = drawProgress,
                         drawList = drawList,
                         settingsHash = settingsHash,
-                        isClosedLoop = isClosedLoop
+                        isClosedLoop = isClosedLoop,
+                        previousScale = uiScaleHolder.value
                     )
                 }
 
@@ -3906,6 +3910,7 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     ), hsv)
     
     val baseSat = hsv[1]
+    val baseValue = hsv[2]
     
     val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
         val sweepMin: Float
@@ -3978,12 +3983,12 @@ private fun applyMonoScaleShiftToComposeColor(color: Color, settings: Harmonogra
     val shiftCoerced = shiftVal.coerceIn(-1.0f, 1.0f)
     if (shiftCoerced < 0f) {
         val ratio = (shiftCoerced + 1.0f).coerceIn(0f, 1f)
-        hsv[1] = (0.15f + ratio * (baseSat - 0.15f)).coerceIn(0.05f, 1.0f)
-        hsv[2] = 0.98f
+        hsv[1] = (ratio * baseSat).coerceIn(0.0f, 1.0f)
+        hsv[2] = (baseValue + (1.0f - ratio) * (1.0f - baseValue)).coerceIn(0.0f, 1.0f)
     } else {
         val ratio = (1.0f - shiftCoerced).coerceIn(0f, 1f)
         hsv[1] = baseSat
-        hsv[2] = (0.15f + ratio * (0.95f - 0.15f)).coerceIn(0.05f, 1.0f)
+        hsv[2] = (baseValue * (0.15f + 0.85f * ratio)).coerceIn(0.0f, 1.0f)
     }
     
     val alphaInt = (color.alpha * 255).roundToInt().coerceIn(0, 255)
@@ -4053,7 +4058,8 @@ private fun addComposeOrthogonalShapeToDrawList(
     drawProgress: Float,
     drawList: MutableList<UIInstruction>,
     settingsHash: Long,
-    isClosedLoop: Boolean = false
+    isClosedLoop: Boolean = false,
+    previousScale: Float = 1f
 ) {
     val concentricLevels = shape.concentric
     val baseSize = shape.size
@@ -4099,7 +4105,8 @@ private fun addComposeOrthogonalShapeToDrawList(
             animTime = animTime,
             coasterDeviationAngle = settings.coasterDeviationAngle.current,
             coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-            globalLiveShifting = settings.globalLiveShifting.current
+            globalLiveShifting = settings.globalLiveShifting.current,
+            previousScale = previousScale
         )
         val centerPtScreen = centerProj.firstOrNull() ?: continue
         val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash, animTime, isClosedLoop)
@@ -4129,7 +4136,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 animTime = animTime,
                 coasterDeviationAngle = settings.coasterDeviationAngle.current,
                 coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                globalLiveShifting = settings.globalLiveShifting.current
+                globalLiveShifting = settings.globalLiveShifting.current,
+                previousScale = previousScale
             )
 
             if (projPts.size == 4) {
@@ -4204,7 +4212,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 animTime = animTime,
                 coasterDeviationAngle = settings.coasterDeviationAngle.current,
                 coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                globalLiveShifting = settings.globalLiveShifting.current
+                globalLiveShifting = settings.globalLiveShifting.current,
+                previousScale = previousScale
             )
 
             if (projPts.size >= 2) {

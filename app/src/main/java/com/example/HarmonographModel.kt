@@ -672,6 +672,10 @@ class ParameterShifter(
         if (safeMax <= safeMin) return settings
         
         var target = targetValue
+        if (target != null && (target < safeMin || target > safeMax)) {
+            target = null
+            targetValue = null
+        }
         if (target == null || kotlin.math.abs(param.current - target) < 0.005f) {
             target = safeMin + random.nextFloat() * (safeMax - safeMin)
             targetValue = target

@@ -22,6 +22,8 @@ data class Point3D(val x: Float, val y: Float, val z: Float) {
     )
 }
 
+class HarmonographScaleHolder(var value: Float = 1f)
+
 data class ProjectedPoint(
     val x: Float,
     val y: Float,
@@ -68,9 +70,6 @@ private data class CameraFrame(
 object HarmonographMath {
 
     private val cameraCache = java.util.concurrent.ConcurrentHashMap<CameraCacheKey, CameraFrame>()
-
-    @Volatile
-    var lastCalculatedFitMultiplier = 1f
 
     /**
      * Generates standard Harmonograph timeline base point at index/step k
@@ -804,7 +803,9 @@ object HarmonographMath {
         coasterOrbitSpeed: Float = 1.2f,
         isPrimaryPath: Boolean = false,
         tailLengthLimit: Int = -1,
-        globalLiveShifting: Boolean = false
+        globalLiveShifting: Boolean = false,
+        previousScale: Float = 1f,
+        onScaleCalculated: ((Float) -> Unit)? = null
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -861,9 +862,11 @@ object HarmonographMath {
                             "Y" -> Triple(pt.x, pt.z, pt.y)
                             else -> Triple(pt.x, pt.y, pt.z) // "Z"
                         }
-                        val scale = dFocal / (dFocal + depth)
-                        val rx = projX * scale * dFocalScale
-                        val ry = -projY * scale * dFocalScale
+                        // Clamp depth to >= 0f for camera-zoom fitting calculations to prevent ballooning
+                        val depthForFit = depth.coerceAtLeast(0f)
+                        val scaleForFit = dFocal / (dFocal + depthForFit).coerceAtLeast(100f)
+                        val rx = projX * scaleForFit * dFocalScale
+                        val ry = -projY * scaleForFit * dFocalScale
                         val absX = abs(rx)
                         val absY = abs(ry)
                         if (absX > maxAbsX) maxAbsX = absX
@@ -877,13 +880,17 @@ object HarmonographMath {
                         "Y" -> Triple(pt.x, pt.z, pt.y)
                         else -> Triple(pt.x, pt.y, pt.z) // "Z"
                     }
-                    val scale = dFocal / (dFocal + depth)
+                    val scale = dFocal / (dFocal + depth).coerceAtLeast(100f)
                     val rx = projX * scale * dFocalScale
                     val ry = -projY * scale * dFocalScale
                     
                     if (!globalLiveShifting) {
-                        val absX = abs(rx)
-                        val absY = abs(ry)
+                        val depthForFit = depth.coerceAtLeast(0f)
+                        val scaleForFit = dFocal / (dFocal + depthForFit).coerceAtLeast(100f)
+                        val rxFit = projX * scaleForFit * dFocalScale
+                        val ryFit = -projY * scaleForFit * dFocalScale
+                        val absX = abs(rxFit)
+                        val absY = abs(ryFit)
                         if (absX > maxAbsX) maxAbsX = absX
                         if (absY > maxAbsY) maxAbsY = absY
                     }
@@ -894,17 +901,18 @@ object HarmonographMath {
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
-                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
-                    val m = if (lastCalculatedFitMultiplier == 1f) {
+                    // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
+                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, 15f)
+                    val m = if (previousScale == 1f) {
                         targetM
                     } else {
                         val lerpFactor = if (globalLiveShifting) 0.02f else 0.15f
-                        lastCalculatedFitMultiplier + (targetM - lastCalculatedFitMultiplier) * lerpFactor
+                        previousScale + (targetM - previousScale) * lerpFactor
                     }
-                    lastCalculatedFitMultiplier = m
+                    onScaleCalculated?.invoke(m)
                     m
                 } else {
-                    lastCalculatedFitMultiplier
+                    previousScale
                 }
                 
                 return rawProj.mapIndexed { idx, (rx, ry, depth) ->
@@ -927,7 +935,7 @@ object HarmonographMath {
                         "Y" -> Triple(pt.x, pt.z, pt.y)
                         else -> Triple(pt.x, pt.y, pt.z) // "Z"
                     }
-                    val scale = (dFocal / (dFocal + depth)) * dFocalScale
+                    val scale = (dFocal / (dFocal + depth).coerceAtLeast(100f)) * dFocalScale
                     val u = screenWidth / 2f + projX * scale
                     val v = screenHeight / 2f - projY * scale
                     ProjectedPoint(
@@ -968,9 +976,11 @@ object HarmonographMath {
                         val yRot2 = yRot1 * cyY - zRot1 * syY
                         val zRot2 = yRot1 * syY + zRot1 * cyY
                         
-                        val scale = dFocal / (dFocal + zRot2)
-                        val rx = xRot2 * scale * dFocalScale
-                        val ry = -yRot2 * scale * dFocalScale
+                        // Clamp depth to >= 0f for camera-zoom fitting calculations to prevent ballooning
+                        val depthForFit = zRot2.coerceAtLeast(0f)
+                        val scaleForFit = dFocal / (dFocal + depthForFit).coerceAtLeast(100f)
+                        val rx = xRot2 * scaleForFit * dFocalScale
+                        val ry = -yRot2 * scaleForFit * dFocalScale
                         
                         val absX = abs(rx)
                         val absY = abs(ry)
@@ -988,13 +998,17 @@ object HarmonographMath {
                     val yRot2 = yRot1 * cyY - zRot1 * syY
                     val zRot2 = yRot1 * syY + zRot1 * cyY
                     
-                    val scale = dFocal / (dFocal + zRot2)
+                    val scale = dFocal / (dFocal + zRot2).coerceAtLeast(100f)
                     val rx = xRot2 * scale * dFocalScale
                     val ry = -yRot2 * scale * dFocalScale
                     
                     if (!globalLiveShifting) {
-                        val absX = abs(rx)
-                        val absY = abs(ry)
+                        val depthForFit = zRot2.coerceAtLeast(0f)
+                        val scaleForFit = dFocal / (dFocal + depthForFit).coerceAtLeast(100f)
+                        val rxFit = xRot2 * scaleForFit * dFocalScale
+                        val ryFit = -yRot2 * scaleForFit * dFocalScale
+                        val absX = abs(rxFit)
+                        val absY = abs(ryFit)
                         if (absX > maxAbsX) maxAbsX = absX
                         if (absY > maxAbsY) maxAbsY = absY
                     }
@@ -1005,17 +1019,18 @@ object HarmonographMath {
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
-                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
-                    val m = if (lastCalculatedFitMultiplier == 1f) {
+                    // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
+                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, 15f)
+                    val m = if (previousScale == 1f) {
                         targetM
                     } else {
                         val lerpFactor = if (globalLiveShifting) 0.02f else 0.15f
-                        lastCalculatedFitMultiplier + (targetM - lastCalculatedFitMultiplier) * lerpFactor
+                        previousScale + (targetM - previousScale) * lerpFactor
                     }
-                    lastCalculatedFitMultiplier = m
+                    onScaleCalculated?.invoke(m)
                     m
                 } else {
-                    lastCalculatedFitMultiplier
+                    previousScale
                 }
                 
                 rawProj.mapIndexed { idx, (rx, ry, depth) ->
@@ -1047,7 +1062,7 @@ object HarmonographMath {
                     val yRot2 = yRot1 * cyY - zRot1 * syY
                     val zRot2 = yRot1 * syY + zRot1 * cyY
                     
-                    val scale = (dFocal / (dFocal + zRot2)) * dFocalScale
+                    val scale = (dFocal / (dFocal + zRot2).coerceAtLeast(100f)) * dFocalScale
                     val u = screenWidth / 2f + xRot2 * scale
                     val v = screenHeight / 2f - yRot2 * scale
                     ProjectedPoint(

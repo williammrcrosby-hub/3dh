@@ -111,6 +111,7 @@ class HarmonographWallpaperService : WallpaperService() {
         @Volatile private var animTime = 0L
         @Volatile private var isVisible = false
         private var completionTimeOfAnim: Long? = null
+        private val wallpaperScaleHolder = HarmonographScaleHolder()
         private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         private var handlerThread: android.os.HandlerThread? = null
         private var backgroundHandler: android.os.Handler? = null
@@ -657,7 +658,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     val path3D = rawPaths[pIdx]
                     if (path3D.isEmpty()) continue
 
-                      val projPoints = HarmonographMath.project3DTo2D(
+                       val projPoints = HarmonographMath.project3DTo2D(
                         points = path3D,
                         yaw = activeYaw,
                         pitch = activePitch,
@@ -687,7 +688,9 @@ class HarmonographWallpaperService : WallpaperService() {
                         } else {
                             settings.instantDrawLengthLimit.current
                         },
-                        globalLiveShifting = settings.globalLiveShifting.current
+                        globalLiveShifting = settings.globalLiveShifting.current,
+                        previousScale = wallpaperScaleHolder.value,
+                        onScaleCalculated = { wallpaperScaleHolder.value = it }
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -712,8 +715,8 @@ class HarmonographWallpaperService : WallpaperService() {
                                 continue
                             }
                             
-                            // Compute color styled dynamically once per segment
-                            val segmentColor = computeDynamicColor(lastAddedP.originalIndex, stepsInPath, lastAddedP, width, height, timeHueOffset, settingsHash, isClosedLoop)
+                            // Compute color styled dynamically once per segment (using animTime for deterministic, smooth phases)
+                            val segmentColor = computeDynamicColor(lastAddedP.originalIndex, stepsInPath, lastAddedP, width, height, timeHueOffset, settingsHash, animTime, isClosedLoop)
                             val baseThickness = settings.lineThickness.current
                             val strokeWidth = baseThickness + (0.5f * baseThickness * (lastAddedP.depth / 500f).coerceIn(-1f, 1f))
                             
@@ -736,6 +739,7 @@ class HarmonographWallpaperService : WallpaperService() {
                                 height,
                                 timeHueOffset,
                                 settingsHash,
+                                animTime,
                                 isClosedLoop
                             )
                         }
@@ -784,7 +788,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         drawProgress = drawProgress,
                         drawList = drawList,
                         settingsHash = settingsHash,
-                        isClosedLoop = isClosedLoop
+                        isClosedLoop = isClosedLoop,
+                        previousScale = wallpaperScaleHolder.value
                     )
                 }
 
@@ -927,14 +932,15 @@ class HarmonographWallpaperService : WallpaperService() {
             height: Float,
             hueOffset: Long,
             settingsHash: Long,
+            animTime: Long,
             isClosedLoop: Boolean = false
         ): Int {
             val sat = settings.saturation.current
             val minHue = settings.hueShiftRange.actualSelectedMin
             val maxHue = settings.hueShiftRange.actualSelectedMax
             
-            // Prevent float precision loss of System.currentTimeMillis() by using Double for progress calculation
-            val timeSecDouble = System.currentTimeMillis().toDouble() / 1000.0
+            // Prevent float precision loss and clock mismatch by using continuous animTime for progress calculation
+            val timeSecDouble = animTime.toDouble() / 1000.0
             
             val csMin = settings.chromaticShift.actualSelectedMin
             val csMax = settings.chromaticShift.actualSelectedMax
@@ -1034,16 +1040,17 @@ class HarmonographWallpaperService : WallpaperService() {
             }
 
             return if (settings.monoScaleEnabled.current) {
-                applyMonoScaleShiftToColorInt(finalColor, settings, idx, settingsHash)
+                applyMonoScaleShiftToColorInt(finalColor, settings, idx, settingsHash, animTime)
             } else {
                 finalColor
             }
         }
 
-        private fun applyMonoScaleShiftToColorInt(colorInt: Int, settings: HarmonographSettings, idx: Int, settingsHash: Long): Int {
+        private fun applyMonoScaleShiftToColorInt(colorInt: Int, settings: HarmonographSettings, idx: Int, settingsHash: Long, animTime: Long): Int {
             val hsv = FloatArray(3)
             Color.colorToHSV(colorInt, hsv)
             val baseSat = hsv[1]
+            val baseValue = hsv[2]
             val shiftVal = if (settings.monoScaleLiveShiftEnabled.current) {
                 val sweepMin: Float
                 val sweepMax: Float
@@ -1056,7 +1063,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     sweepMax = halfRange
                 }
                 val speed = settings.monoScaleLiveShiftSpeed.current / 12f // extremely calming pace
-                val timeSecDouble = System.currentTimeMillis().toDouble() / 1000.0
+                val timeSecDouble = animTime.toDouble() / 1000.0
                 val baseWavelength = 1200f // wide, smooth waves
                 val randomness = settings.monoWaveRandomness.current
                 
@@ -1115,12 +1122,12 @@ class HarmonographWallpaperService : WallpaperService() {
             val shiftCoerced = shiftVal.coerceIn(-1.0f, 1.0f)
             if (shiftCoerced < 0f) {
                 val ratio = (shiftCoerced + 1.0f).coerceIn(0f, 1f)
-                hsv[1] = (0.15f + ratio * (baseSat - 0.15f)).coerceIn(0.05f, 1.0f)
-                hsv[2] = 0.98f
+                hsv[1] = (ratio * baseSat).coerceIn(0.0f, 1.0f)
+                hsv[2] = (baseValue + (1.0f - ratio) * (1.0f - baseValue)).coerceIn(0.0f, 1.0f)
             } else {
                 val ratio = (1.0f - shiftCoerced).coerceIn(0f, 1f)
                 hsv[1] = baseSat
-                hsv[2] = (0.15f + ratio * (0.95f - 0.15f)).coerceIn(0.05f, 1.0f)
+                hsv[2] = (baseValue * (0.15f + 0.85f * ratio)).coerceIn(0.0f, 1.0f)
             }
             val alpha = Color.alpha(colorInt)
             return Color.HSVToColor(alpha, hsv)
@@ -1144,7 +1151,8 @@ class HarmonographWallpaperService : WallpaperService() {
             drawProgress: Float,
             drawList: MutableList<WPInstruction>,
             settingsHash: Long,
-            isClosedLoop: Boolean = false
+            isClosedLoop: Boolean = false,
+            previousScale: Float = 1f
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -1190,11 +1198,12 @@ class HarmonographWallpaperService : WallpaperService() {
                     animTime = animTime,
                     coasterDeviationAngle = settings.coasterDeviationAngle.current,
                     coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                    globalLiveShifting = settings.globalLiveShifting.current
+                    globalLiveShifting = settings.globalLiveShifting.current,
+                    previousScale = previousScale
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
-                val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset, settingsHash, isClosedLoop)
+                val shapeColor = computeDynamicColor(shape.colorIndex, totalSteps, centerPtScreen, width, height, hueOffset, settingsHash, animTime, isClosedLoop)
                 
                 if (shape.shapeType == "cross") {
                     val p1 = centerPt3D + shape.uVector * size
@@ -1220,7 +1229,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         animTime = animTime,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                        globalLiveShifting = settings.globalLiveShifting.current
+                        globalLiveShifting = settings.globalLiveShifting.current,
+                        previousScale = previousScale
                     )
 
                     if (projPts.size == 4) {
@@ -1279,7 +1289,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         animTime = animTime,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
-                        globalLiveShifting = settings.globalLiveShifting.current
+                        globalLiveShifting = settings.globalLiveShifting.current,
+                        previousScale = previousScale
                     )
 
                     if (projPts.size >= 2) {
