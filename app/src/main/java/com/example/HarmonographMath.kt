@@ -154,7 +154,14 @@ object HarmonographMath {
         }
         
         // Dynamically compute adaptive dt: for higher frequencies, sample with a much finer steps to preserve smooth curves.
-        val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
+        // During global live shifting, use a stable reference frequency to keep dt perfectly constant and eliminate jitter.
+        val isLiveShifting = settings.globalLiveShifting.current
+        val dt = if (isLiveShifting) {
+            val baseMaxFreq = 12f * mult
+            minOf(0.0075f, 0.22f / baseMaxFreq)
+        } else {
+            minOf(0.0075f, 0.22f / maxActiveFreq)
+        }
  
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
         
@@ -229,7 +236,7 @@ object HarmonographMath {
         for (k in 0..totalSteps + 1) {
             ts[k] = tLocal
             val pt = fastCalculatePointAtT(tLocal)
-            val dtUsed = if (settings.perfVelocitySampling) {
+            val dtUsed = if (settings.perfVelocitySampling && !settings.globalLiveShifting.current) {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
                 if (estimatedSpeed <= 1e-6f) {
@@ -424,7 +431,14 @@ object HarmonographMath {
         }
         
         // Dynamically compute adaptive dt to match the path point sampling perfectly
-        val dt = minOf(0.0075f, 0.22f / maxActiveFreq)
+        // During global live shifting, use a stable reference frequency to keep dt perfectly constant and eliminate jitter.
+        val isLiveShifting = settings.globalLiveShifting.current
+        val dt = if (isLiveShifting) {
+            val baseMaxFreq = 12f * mult
+            minOf(0.0075f, 0.22f / baseMaxFreq)
+        } else {
+            minOf(0.0075f, 0.22f / maxActiveFreq)
+        }
 
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
         
@@ -496,7 +510,7 @@ object HarmonographMath {
         for (k in 0..totalSteps + 1) {
             ts[k] = tLocal
             val pt = fastCalculatePointAtT(tLocal)
-            val dtUsed = if (settings.perfVelocitySampling) {
+            val dtUsed = if (settings.perfVelocitySampling && !settings.globalLiveShifting.current) {
                 val nextEstimate = fastCalculatePointAtT(tLocal + 0.002f)
                 val estimatedSpeed = (nextEstimate - pt).length() / 0.002f
                 if (estimatedSpeed <= 1e-6f) {
@@ -789,10 +803,13 @@ object HarmonographMath {
         coasterDeviationAngle: Float = 25f,
         coasterOrbitSpeed: Float = 1.2f,
         isPrimaryPath: Boolean = false,
-        tailLengthLimit: Int = -1
+        tailLengthLimit: Int = -1,
+        globalLiveShifting: Boolean = false
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
+        val effectivePerspective = if (globalLiveShifting) 1 else perspective
+
         // Find fractional progress index and fractional parts to avoid "jumpy / choppy" front tip steps!
         val progressCoerced = if (tailLengthLimit > 0) {
             currentDrawProgress.coerceAtMost((points.size - 1).toFloat())
@@ -830,13 +847,30 @@ object HarmonographMath {
         val dFocal = 550f 
         
         // Dynamic Lock View Perpendicular to Plane (directly projections bypass rotation triggers)
-        if (angularLock && perspective == 1) {
+        if (angularLock && effectivePerspective == 1) {
             val dFocalScale = 300f / cameraDistance
             val useDynamicZoom = true // always on dynamic camera mode for full view
             if (useDynamicZoom) {
                 var maxAbsX = 0.01f
                 var maxAbsY = 0.01f
                 
+                if (globalLiveShifting) {
+                    for (pt in points) {
+                        val (projX, projY, depth) = when (angularLockAxis) {
+                            "X" -> Triple(pt.y, pt.z, pt.x)
+                            "Y" -> Triple(pt.x, pt.z, pt.y)
+                            else -> Triple(pt.x, pt.y, pt.z) // "Z"
+                        }
+                        val scale = dFocal / (dFocal + depth)
+                        val rx = projX * scale * dFocalScale
+                        val ry = -projY * scale * dFocalScale
+                        val absX = abs(rx)
+                        val absY = abs(ry)
+                        if (absX > maxAbsX) maxAbsX = absX
+                        if (absY > maxAbsY) maxAbsY = absY
+                    }
+                }
+
                 val rawProj = activePoints.map { pt ->
                     val (projX, projY, depth) = when (angularLockAxis) {
                         "X" -> Triple(pt.y, pt.z, pt.x)
@@ -847,10 +881,12 @@ object HarmonographMath {
                     val rx = projX * scale * dFocalScale
                     val ry = -projY * scale * dFocalScale
                     
-                    val absX = abs(rx)
-                    val absY = abs(ry)
-                    if (absX > maxAbsX) maxAbsX = absX
-                    if (absY > maxAbsY) maxAbsY = absY
+                    if (!globalLiveShifting) {
+                        val absX = abs(rx)
+                        val absY = abs(ry)
+                        if (absX > maxAbsX) maxAbsX = absX
+                        if (absY > maxAbsY) maxAbsY = absY
+                    }
                     
                     Triple(rx, ry, depth)
                 }
@@ -858,7 +894,13 @@ object HarmonographMath {
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
-                    val m = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                    val m = if (lastCalculatedFitMultiplier == 1f) {
+                        targetM
+                    } else {
+                        val lerpFactor = if (globalLiveShifting) 0.02f else 0.15f
+                        lastCalculatedFitMultiplier + (targetM - lastCalculatedFitMultiplier) * lerpFactor
+                    }
                     lastCalculatedFitMultiplier = m
                     m
                 } else {
@@ -903,7 +945,7 @@ object HarmonographMath {
         val yawRad = Math.toRadians(yaw.toDouble()).toFloat()
         val pitchRad = Math.toRadians(pitch.toDouble()).toFloat()
         
-        return if (perspective == 1) {
+        return if (effectivePerspective == 1) {
             val dFocalScale = 300f / cameraDistance
             val useDynamicZoom = true // always on dynamic camera mode for full view
             if (useDynamicZoom) {
@@ -916,6 +958,27 @@ object HarmonographMath {
                 val cyY = cos(pitchRad)
                 val syY = sin(pitchRad)
                 
+                if (globalLiveShifting) {
+                    for (pt in points) {
+                        val xRot1 = pt.x * cxX - pt.y * sxX
+                        val yRot1 = pt.x * sxX + pt.y * cxX
+                        val zRot1 = pt.z
+                        
+                        val xRot2 = xRot1
+                        val yRot2 = yRot1 * cyY - zRot1 * syY
+                        val zRot2 = yRot1 * syY + zRot1 * cyY
+                        
+                        val scale = dFocal / (dFocal + zRot2)
+                        val rx = xRot2 * scale * dFocalScale
+                        val ry = -yRot2 * scale * dFocalScale
+                        
+                        val absX = abs(rx)
+                        val absY = abs(ry)
+                        if (absX > maxAbsX) maxAbsX = absX
+                        if (absY > maxAbsY) maxAbsY = absY
+                    }
+                }
+
                 val rawProj = activePoints.map { pt ->
                     val xRot1 = pt.x * cxX - pt.y * sxX
                     val yRot1 = pt.x * sxX + pt.y * cxX
@@ -929,10 +992,12 @@ object HarmonographMath {
                     val rx = xRot2 * scale * dFocalScale
                     val ry = -yRot2 * scale * dFocalScale
                     
-                    val absX = abs(rx)
-                    val absY = abs(ry)
-                    if (absX > maxAbsX) maxAbsX = absX
-                    if (absY > maxAbsY) maxAbsY = absY
+                    if (!globalLiveShifting) {
+                        val absX = abs(rx)
+                        val absY = abs(ry)
+                        if (absX > maxAbsX) maxAbsX = absX
+                        if (absY > maxAbsY) maxAbsY = absY
+                    }
                     
                     Triple(rx, ry, zRot2)
                 }
@@ -940,7 +1005,13 @@ object HarmonographMath {
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
-                    val m = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.1f, 15f)
+                    val m = if (lastCalculatedFitMultiplier == 1f) {
+                        targetM
+                    } else {
+                        val lerpFactor = if (globalLiveShifting) 0.02f else 0.15f
+                        lastCalculatedFitMultiplier + (targetM - lastCalculatedFitMultiplier) * lerpFactor
+                    }
                     lastCalculatedFitMultiplier = m
                     m
                 } else {

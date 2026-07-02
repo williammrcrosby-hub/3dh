@@ -317,7 +317,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
 
                 // Project and gather line segments across all paths for unified depth sorting
-                val settingsHash = settings.hashCode().toLong()
+                val settingsHash = settings.getStableHash()
                 val drawList = mutableListOf<UIInstruction>()
                 val tipsList = mutableListOf<Pair<ProjectedPoint, Color>>()
 
@@ -352,7 +352,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             }
                         } else {
                             settings.instantDrawLengthLimit.current
-                        }
+                        },
+                        globalLiveShifting = settings.globalLiveShifting.current
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -4097,7 +4098,8 @@ private fun addComposeOrthogonalShapeToDrawList(
             coasterDirectionFacing = settings.coasterDirectionFacing,
             animTime = animTime,
             coasterDeviationAngle = settings.coasterDeviationAngle.current,
-            coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+            coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+            globalLiveShifting = settings.globalLiveShifting.current
         )
         val centerPtScreen = centerProj.firstOrNull() ?: continue
         val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash, animTime, isClosedLoop)
@@ -4126,7 +4128,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 coasterDirectionFacing = settings.coasterDirectionFacing,
                 animTime = animTime,
                 coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                globalLiveShifting = settings.globalLiveShifting.current
             )
 
             if (projPts.size == 4) {
@@ -4200,7 +4203,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 coasterDirectionFacing = settings.coasterDirectionFacing,
                 animTime = animTime,
                 coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                globalLiveShifting = settings.globalLiveShifting.current
             )
 
             if (projPts.size >= 2) {

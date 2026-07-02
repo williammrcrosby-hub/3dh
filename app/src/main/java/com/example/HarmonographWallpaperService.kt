@@ -620,7 +620,7 @@ class HarmonographWallpaperService : WallpaperService() {
                 val rawPaths = cachedPaths!!
                 val rawShapes = cachedShapes!!
                 val centerPath = cachedCenterPath!!
-                val settingsHash = settings.hashCode().toLong()
+                val settingsHash = settings.getStableHash()
                 
                 // Color hue cycle using elapsed elapsedMs
                 val timeHueOffset = if (settings.hueShiftingEnabled.current) {
@@ -657,7 +657,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     val path3D = rawPaths[pIdx]
                     if (path3D.isEmpty()) continue
 
-                     val projPoints = HarmonographMath.project3DTo2D(
+                      val projPoints = HarmonographMath.project3DTo2D(
                         points = path3D,
                         yaw = activeYaw,
                         pitch = activePitch,
@@ -686,7 +686,8 @@ class HarmonographWallpaperService : WallpaperService() {
                             }
                         } else {
                             settings.instantDrawLengthLimit.current
-                        }
+                        },
+                        globalLiveShifting = settings.globalLiveShifting.current
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -1188,7 +1189,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     coasterDirectionFacing = settings.coasterDirectionFacing,
                     animTime = animTime,
                     coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                    coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                    coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                    globalLiveShifting = settings.globalLiveShifting.current
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
@@ -1217,7 +1219,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDirectionFacing = settings.coasterDirectionFacing,
                         animTime = animTime,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                        globalLiveShifting = settings.globalLiveShifting.current
                     )
 
                     if (projPts.size == 4) {
@@ -1275,7 +1278,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDirectionFacing = settings.coasterDirectionFacing,
                         animTime = animTime,
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
-                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current
+                        coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
+                        globalLiveShifting = settings.globalLiveShifting.current
                     )
 
                     if (projPts.size >= 2) {

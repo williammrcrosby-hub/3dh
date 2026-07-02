@@ -300,6 +300,41 @@ data class HarmonographSettings(
         }
     }
 
+    fun getStableHash(): Long {
+        var h = 1125899906842597L // Large prime start
+        h = h * 31 + styleMode.hashCode()
+        h = h * 31 + solidColor
+        h = h * 31 + gradientStartColor
+        h = h * 31 + gradientEndColor
+        h = h * 31 + penCount.current
+        h = h * 31 + penTipShape.hashCode()
+        h = h * 31 + penTipColorMode.hashCode()
+        h = h * 31 + penTipColor
+        h = h * 31 + penTipSize.hashCode()
+        h = h * 31 + periodicShape.hashCode()
+        h = h * 31 + if (periodicShapeSolid) 1 else 0
+        h = h * 31 + periodicShapeConcentric
+        h = h * 31 + periodicShapeDeployment.hashCode()
+        h = h * 31 + cameraPerspective
+        h = h * 31 + if (cameraAngleLock) 1 else 0
+        h = h * 31 + if (cameraAutoRotationEnabled) 1 else 0
+        h = h * 31 + if (isAngularLockEnabled) 1 else 0
+        h = h * 31 + angularLockAxis.hashCode()
+        h = h * 31 + ampX.rangeMin.hashCode() + ampX.rangeMax.hashCode()
+        h = h * 31 + ampY.rangeMin.hashCode() + ampY.rangeMax.hashCode()
+        h = h * 31 + ampZ.rangeMin.hashCode() + ampZ.rangeMax.hashCode()
+        h = h * 31 + freqX.rangeMin.hashCode() + freqX.rangeMax.hashCode()
+        h = h * 31 + freqY.rangeMin.hashCode() + freqY.rangeMax.hashCode()
+        h = h * 31 + freqZ.rangeMin.hashCode() + freqZ.rangeMax.hashCode()
+        h = h * 31 + phaseX.rangeMin.hashCode() + phaseX.rangeMax.hashCode()
+        h = h * 31 + phaseY.rangeMin.hashCode() + phaseY.rangeMax.hashCode()
+        h = h * 31 + phaseZ.rangeMin.hashCode() + phaseZ.rangeMax.hashCode()
+        h = h * 31 + decayX.rangeMin.hashCode() + decayX.rangeMax.hashCode()
+        h = h * 31 + decayY.rangeMin.hashCode() + decayY.rangeMax.hashCode()
+        h = h * 31 + decayZ.rangeMin.hashCode() + decayZ.rangeMax.hashCode()
+        return h
+    }
+
     fun toggleAllowedPreset(presetNameOrId: String): HarmonographSettings {
         val currentList = allowedPresets.split(",").filter { it.isNotEmpty() }.toMutableList()
         if (currentList.contains(presetNameOrId)) {
@@ -424,11 +459,11 @@ data class HarmonographSettings(
     }
 
     val activeFreqX: Float
-        get() = if (rationalFrequenciesEnabled.current) roundToRational(freqX.current) else freqX.current
+        get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqX.current) else freqX.current
     val activeFreqY: Float
-        get() = if (rationalFrequenciesEnabled.current) roundToRational(freqY.current) else freqY.current
+        get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqY.current) else freqY.current
     val activeFreqZ: Float
-        get() = if (rationalFrequenciesEnabled.current) roundToRational(freqZ.current) else freqZ.current
+        get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqZ.current) else freqZ.current
 
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
