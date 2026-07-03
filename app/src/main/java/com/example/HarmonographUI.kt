@@ -61,9 +61,10 @@ private data class ComposeSegment(
 @Composable
 fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     val context = LocalContext.current
-    val settings by viewModel.uiState.collectAsStateWithLifecycle()
-    val drawProgress by viewModel.currentDrawProgress.collectAsStateWithLifecycle()
-    val isDrawing by viewModel.isDrawing.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val settings = uiState.settings
+    val drawProgress = uiState.drawProgress
+    val isDrawing = uiState.isDrawing
     val presets by viewModel.savedPresets.collectAsStateWithLifecycle()
     val currentFps by viewModel.currentFps.collectAsStateWithLifecycle()
 

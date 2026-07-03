@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     override fun onSensorChanged(event: SensorEvent?) {
         if (event == null || event.sensor.type != Sensor.TYPE_GYROSCOPE) return
         val vm = viewModelInstance ?: return
-        val settings = vm.uiState.value
+        val settings = vm.uiState.value.settings
         if (settings.gyroEnabled) {
             val sensitivity = settings.gyroSensitivity.current
             val pyDelta = Math.toDegrees(event.values[0].toDouble()).toFloat() * 0.016f * sensitivity * 2.5f

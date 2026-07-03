@@ -305,10 +305,21 @@ class HarmonographWallpaperService : WallpaperService() {
         }
 
         override fun onSharedPreferenceChanged(sharedPreferences: SharedPreferences?, key: String?) {
-            if (key == "active_settings") {
-                loadActiveSettings()
-            } else if (key == "draw_progress" || key == "is_drawing" || key == "anim_time") {
-                loadProgressAndState()
+            val handler = backgroundHandler
+            if (handler != null) {
+                handler.post {
+                    if (key == "active_settings") {
+                        loadActiveSettings()
+                    } else if (key == "draw_progress" || key == "is_drawing" || key == "anim_time") {
+                        loadProgressAndState()
+                    }
+                }
+            } else {
+                if (key == "active_settings") {
+                    loadActiveSettings()
+                } else if (key == "draw_progress" || key == "is_drawing" || key == "anim_time") {
+                    loadProgressAndState()
+                }
             }
         }
 
