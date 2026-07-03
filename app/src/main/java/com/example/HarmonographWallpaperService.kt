@@ -190,71 +190,73 @@ class HarmonographWallpaperService : WallpaperService() {
             override fun run() {
                 drawFrame()
                 if (isVisible) {
-                    val appActive = sharedPrefs?.getBoolean("app_active", false) ?: false
+                    val appActive = MainActivity.isAppVisible || (sharedPrefs?.getBoolean("app_active", false) ?: false)
                     val isPlay = if (appActive) {
                         sharedPrefs?.getBoolean("is_drawing", true) ?: true
                     } else {
                         true
                     }
 
-                    if (isPlay && settings.globalLiveShifting.current) {
-                        var shiftedSettings = settings
-                        for (shifter in parameterShifters) {
-                            shiftedSettings = shifter.update(shiftedSettings, 0.016f, randomShift)
+                    if (!appActive) {
+                        if (isPlay && settings.globalLiveShifting.current) {
+                            var shiftedSettings = settings
+                            for (shifter in parameterShifters) {
+                                shiftedSettings = shifter.update(shiftedSettings, 0.016f, randomShift)
+                            }
+                            settings = shiftedSettings
                         }
-                        settings = shiftedSettings
-                    }
 
-                    if (isPlay) {
-                        val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
-                        if (settings.drawSpeedInstant) {
-                            if (drawProgress < maxSteps) {
-                                drawProgress = maxSteps
+                        if (isPlay) {
+                            val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
+                            if (settings.drawSpeedInstant) {
+                                if (drawProgress < maxSteps) {
+                                    drawProgress = maxSteps
+                                } else {
+                                    val dt = 0.016f // step time
+                                    val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
+                                    val nextVal = drawProgress + stepsPerSec * dt
+                                    
+                                    val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                                    if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
+                                        val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                        drawProgress = 0f
+                                        randomizeUnlockedSettings()
+                                        backgroundHandler?.postDelayed(this, postResetDelay)
+                                        saveWallpaperProgressToPrefs()
+                                        return
+                                    } else {
+                                        drawProgress = nextVal
+                                    }
+                                }
                             } else {
                                 val dt = 0.016f // step time
                                 val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
-                                val nextVal = drawProgress + stepsPerSec * dt
-                                
-                                val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
-                                if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
-                                    val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
-                                    drawProgress = 0f
-                                    randomizeUnlockedSettings()
-                                    backgroundHandler?.postDelayed(this, postResetDelay)
-                                    saveWallpaperProgressToPrefs()
-                                    return
-                                } else {
-                                    drawProgress = nextVal
-                                }
-                            }
-                        } else {
-                            val dt = 0.016f // step time
-                            val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
-                            drawProgress += stepsPerSec * dt
-                            if (drawProgress >= maxSteps) {
-                                if (settings.postCompletionAutoReset) {
-                                    val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
-                                    drawProgress = 0f
-                                    randomizeUnlockedSettings()
-                                    backgroundHandler?.postDelayed(this, postResetDelay)
-                                    saveWallpaperProgressToPrefs()
-                                    return
-                                } else if (settings.drawLengthLooping) {
-                                    drawProgress = 0f
-                                } else {
-                                    drawProgress = maxSteps
+                                drawProgress += stepsPerSec * dt
+                                if (drawProgress >= maxSteps) {
+                                    if (settings.postCompletionAutoReset) {
+                                        val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                        drawProgress = 0f
+                                        randomizeUnlockedSettings()
+                                        backgroundHandler?.postDelayed(this, postResetDelay)
+                                        saveWallpaperProgressToPrefs()
+                                        return
+                                    } else if (settings.drawLengthLooping) {
+                                        drawProgress = 0f
+                                    } else {
+                                        drawProgress = maxSteps
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    // Increment animTime by 16ms each frames so camera & color rotates continuously when visible
-                    animTime += 16L
+                        // Increment animTime by 16ms each frames so camera & color rotates continuously when visible
+                        animTime += 16L
 
-                    val now = System.currentTimeMillis()
-                    if (!appActive && now - lastSaveTime > 200L) {
-                        lastSaveTime = now
-                        saveWallpaperProgressToPrefs()
+                        val now = System.currentTimeMillis()
+                        if (now - lastSaveTime > 200L) {
+                            lastSaveTime = now
+                            saveWallpaperProgressToPrefs()
+                        }
                     }
 
                     backgroundHandler?.postDelayed(this, 16) // ~60fps Limit
@@ -311,10 +313,9 @@ class HarmonographWallpaperService : WallpaperService() {
         }
 
         private fun loadProgressAndState() {
-            val appActive = sharedPrefs?.getBoolean("app_active", false) ?: false
+            val appActive = MainActivity.isAppVisible || (sharedPrefs?.getBoolean("app_active", false) ?: false)
             if (appActive) {
                 drawProgress = sharedPrefs?.getFloat("draw_progress", drawProgress) ?: drawProgress
-                animTime = sharedPrefs?.getLong("anim_time", animTime) ?: animTime
             }
         }
 

@@ -75,12 +75,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         ParameterShifter({ it.phaseSubZ }, { s, p -> s.copy(phaseSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f }, 540f, 1200f)
     )
 
-    private val prefsListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == "active_settings") {
-            loadActiveSettingsFromPrefs()
-        }
-    }
-
     fun loadActiveSettingsFromPrefs() {
         val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
         val savedJson = prefs.getString("active_settings", null)
@@ -99,7 +93,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     init {
         // Load active settings from prefs on VM creation to ensure all settings persist and translate.
         val prefs = application.getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
-        prefs.registerOnSharedPreferenceChangeListener(prefsListener)
         val savedJson = prefs.getString("active_settings", null)
         if (savedJson != null) {
             try {
@@ -267,7 +260,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
 
         val u = baseSettings.randomizeAll(random).normalize()
         _uiState.value = u
-        _currentDrawProgress.value = 0f
+        val nextMaxSteps = (u.drawLengthSteps * u.drawLengthFactor).toFloat()
+        _currentDrawProgress.value = if (u.drawSpeedInstant) nextMaxSteps else 0f
         saveSettingsToPrefs(u)
         startDrawingLoop()
     }
@@ -334,8 +328,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
 
     override fun onCleared() {
         super.onCleared()
-        val prefs = getApplication<Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
-        prefs.unregisterOnSharedPreferenceChangeListener(prefsListener)
     }
 
     /**

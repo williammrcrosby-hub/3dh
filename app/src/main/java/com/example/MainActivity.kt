@@ -48,12 +48,14 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onResume() {
         super.onResume()
+        isAppVisible = true
         val prefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("app_active", true).apply()
         
         val proj = prefs.getFloat("draw_progress", 0f)
         val isD = prefs.getBoolean("is_drawing", true)
         viewModelInstance?.let { vm ->
+            vm.loadActiveSettingsFromPrefs()
             vm.setDrawingState(isD)
             vm.jumpToProgress(proj)
         }
@@ -65,6 +67,7 @@ class MainActivity : ComponentActivity(), SensorEventListener {
 
     override fun onPause() {
         super.onPause()
+        isAppVisible = false
         val prefs = getSharedPreferences("harmonograph_prefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("app_active", false).apply()
         sensorManager.unregisterListener(this)
@@ -83,4 +86,8 @@ class MainActivity : ComponentActivity(), SensorEventListener {
     }
 
     override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+
+    companion object {
+        @Volatile var isAppVisible = false
+    }
 }
