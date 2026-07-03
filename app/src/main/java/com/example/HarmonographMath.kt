@@ -807,7 +807,8 @@ object HarmonographMath {
         tailLengthLimit: Int = -1,
         globalLiveShifting: Boolean = false,
         previousScale: Float = 1f,
-        onScaleCalculated: ((Float) -> Unit)? = null
+        onScaleCalculated: ((Float) -> Unit)? = null,
+        drawSpeedInstant: Boolean = false
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -905,7 +906,7 @@ object HarmonographMath {
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
                     // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
                     val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, 15f)
-                    val m = if (previousScale == 1f) {
+                    val m = if (previousScale == 1f || drawSpeedInstant) {
                         targetM
                     } else {
                         val lerpFactor = if (globalLiveShifting) 0.02f else 0.15f
@@ -1023,7 +1024,7 @@ object HarmonographMath {
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
                     // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
                     val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, 15f)
-                    val m = if (previousScale == 1f) {
+                    val m = if (previousScale == 1f || drawSpeedInstant) {
                         targetM
                     } else {
                         val lerpFactor = if (globalLiveShifting) 0.02f else 0.15f

@@ -261,7 +261,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 }
         ) {
             var completionTimeOfAnim by remember { mutableStateOf<Long?>(null) }
-            val uiScaleHolder = remember { HarmonographScaleHolder() }
+            val uiScaleHolder = remember(settingsSnapshot.getStableHash()) { HarmonographScaleHolder() }
             val stepsCount = settingsSnapshot.drawLengthSteps
             
             val stepsInPath = remember(paths) { paths.firstOrNull()?.size ?: stepsCount }
@@ -354,7 +354,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.instantDrawLengthInfinite.current) {
+                        tailLengthLimit = if (settings.drawSpeedInstant || settings.instantDrawLengthInfinite.current) {
                             -1
                         } else if (settings.perfRemoveTailEnabled) {
                             if (dynamicTailLimit == -1 || dynamicTailLimit == -2) {
@@ -367,7 +367,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         },
                         globalLiveShifting = settings.globalLiveShifting.current,
                         previousScale = uiScaleHolder.value,
-                        onScaleCalculated = { uiScaleHolder.value = it }
+                        onScaleCalculated = { uiScaleHolder.value = it },
+                        drawSpeedInstant = settings.drawSpeedInstant
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -936,6 +937,25 @@ fun OscillatorConfigTab(
                             checked = settings.globalLiveShifting.current,
                             onCheckedChange = { onUpdate(settings.copy(globalLiveShifting = settings.globalLiveShifting.withValue(it))) },
                             modifier = Modifier.scale(0.75f).testTag("global_live_shifting_switch")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column {
+                            Text("Closed Loop Detection", color = Color.White, fontSize = 12.sp)
+                            Text(
+                                "Auto-detect closed loops when global shifting is off",
+                                color = Color(0xFFA0AEC0),
+                                fontSize = 10.sp
+                            )
+                        }
+                        Spacer(modifier = Modifier.weight(1f))
+                        Switch(
+                            checked = settings.drawLengthLooping,
+                            onCheckedChange = { onUpdate(settings.copy(drawLengthLooping = it)) },
+                            modifier = Modifier.scale(0.75f).testTag("loop_detection_switch")
                         )
                     }
 
