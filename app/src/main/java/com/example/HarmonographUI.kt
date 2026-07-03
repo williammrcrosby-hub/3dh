@@ -68,27 +68,41 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     val presets by viewModel.savedPresets.collectAsStateWithLifecycle()
     val currentFps by viewModel.currentFps.collectAsStateWithLifecycle()
 
-    var dynamicTailLimit by remember(settings) { mutableStateOf(-1) }
+    // Stable drawingData holds the exact snapshot of settings from which paths and shapes were computed.
+    // This prevents mismatch flickers between the updated path geometries and the raw settings during 60 FPS live shifts.
+    val drawingData = remember(settings) {
+        val stepsCount = settings.drawLengthSteps
+        Triple(
+            settings,
+            HarmonographMath.generatePathPoints(settings, stepsCount),
+            HarmonographMath.generatePeriodicShapes(settings, stepsCount)
+        )
+    }
+    val settingsSnapshot = drawingData.first
+    val paths = drawingData.second
+    val shapes = drawingData.third
+
+    var dynamicTailLimit by remember(settingsSnapshot) { mutableStateOf(-1) }
 
     LaunchedEffect(currentFps) {
-        if (settings.perfRemoveTailEnabled && !settings.instantDrawLengthInfinite.current) {
-            val targetFps = settings.perfTargetFps.current
+        if (settingsSnapshot.perfRemoveTailEnabled && !settingsSnapshot.instantDrawLengthInfinite.current) {
+            val targetFps = settingsSnapshot.perfTargetFps.current
             if (currentFps < targetFps) {
-                val currentLimit = if (dynamicTailLimit == -1) settings.instantDrawLengthLimit.current else dynamicTailLimit
+                val currentLimit = if (dynamicTailLimit == -1) settingsSnapshot.instantDrawLengthLimit.current else dynamicTailLimit
                 val diff = targetFps - currentFps
                 val drop = if (diff > 10f) 200 else 100
                 dynamicTailLimit = (currentLimit - drop).coerceAtLeast(200)
             } else if (dynamicTailLimit != -1) {
                 if (currentFps >= targetFps + 10f) {
                     val nextLimit = dynamicTailLimit + 250
-                    if (nextLimit >= settings.instantDrawLengthLimit.current) {
+                    if (nextLimit >= settingsSnapshot.instantDrawLengthLimit.current) {
                         dynamicTailLimit = -1
                     } else {
                         dynamicTailLimit = nextLimit
                     }
                 } else if (currentFps >= targetFps + 5f) {
                     val nextLimit = dynamicTailLimit + 100
-                    if (nextLimit >= settings.instantDrawLengthLimit.current) {
+                    if (nextLimit >= settingsSnapshot.instantDrawLengthLimit.current) {
                         dynamicTailLimit = -1
                     } else {
                         dynamicTailLimit = nextLimit
@@ -138,9 +152,9 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     }
 
     // Dynamic rotation angle calculation driven by the animation timer state
-    val animatedYaw = if (settings.cameraAutoRotationEnabled) {
+    val animatedYaw = if (settingsSnapshot.cameraAutoRotationEnabled) {
         val t = animTime * 0.001f
-        val speedMult = settings.cameraAutoRotationSpeed * 10f
+        val speedMult = settingsSnapshot.cameraAutoRotationSpeed * 10f
         val theta = speedMult * (
             (-kotlin.math.cos(0.07f * t) + 1f) / 0.07f +
             1.2f * kotlin.math.sin(0.03f * t) / 0.03f -
@@ -151,7 +165,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
         yaw + viewModel.gyroYawOffset.value
     }
 
-    val animatedPitch = if (settings.cameraAutoRotationEnabled) {
+    val animatedPitch = if (settingsSnapshot.cameraAutoRotationEnabled) {
         val t = animTime * 0.001f
         val pitchOffset = 12f * (kotlin.math.sin(0.05f * t) + 0.5f * (kotlin.math.cos(0.022f * t) - 1f))
         pitch + pitchOffset + viewModel.gyroPitchOffset.value
@@ -248,14 +262,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
         ) {
             var completionTimeOfAnim by remember { mutableStateOf<Long?>(null) }
             val uiScaleHolder = remember { HarmonographScaleHolder() }
-            val stepsCount = settings.drawLengthSteps
-
-            val paths = remember(settings) {
-                HarmonographMath.generatePathPoints(settings, stepsCount)
-            }
-            val shapes = remember(settings) {
-                HarmonographMath.generatePeriodicShapes(settings, stepsCount)
-            }
+            val stepsCount = settingsSnapshot.drawLengthSteps
             
             val stepsInPath = remember(paths) { paths.firstOrNull()?.size ?: stepsCount }
             val isClosedLoop = remember(paths) {
@@ -267,13 +274,16 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                 completionTimeOfAnim = animTime
             }
 
-            val timeHueOffset = if (settings.hueShiftingEnabled.current) {
-                (animTime * settings.hueShiftSpeed.current / 360).toLong() % 360
+            val timeHueOffset = if (settingsSnapshot.hueShiftingEnabled.current) {
+                (animTime * settingsSnapshot.hueShiftSpeed.current / 360).toLong() % 360
             } else {
                 0L
             }
 
             Canvas(modifier = Modifier.fillMaxSize().testTag("3d_harmonograph_canvas")) {
+                // Shadow-override settings inside the Canvas to guarantee perfect synchronization
+                // with the exact stable frame snapshot of path/shape geometries.
+                val settings = settingsSnapshot
                 val drawLimit = drawProgress.roundToInt()
                 var width = size.width
                 var height = size.height
