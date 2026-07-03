@@ -119,89 +119,153 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     }
 
     private fun startDrawingLoop() {
-        drawingJob?.cancel()
+        if (drawingJob != null && drawingJob?.isActive == true) return
         drawingJob = viewModelScope.launch(Dispatchers.Default) {
             var completionTimeMs = 0L
             var lastSaveTime = 0L
             while (true) {
                 delay(16) // ~60fps ticker loop
                 
-                val stateSnapshot = _uiState.value
-                var settings = stateSnapshot.settings
-                val isPlay = stateSnapshot.isDrawing
+                var shouldReset = false
+                var shouldSetCompletionTime = false
+                var shouldClearCompletionTime = false
+                var updatedSettings: HarmonographSettings? = null
+                var finalProgress = 0f
+                var isCurrentlyDrawing = true
                 
-                if (settings.globalLiveShifting.current && isPlay) {
-                    var shiftedSettings = settings
-                    for (shifter in parameterShifters) {
-                        shiftedSettings = shifter.update(shiftedSettings, 0.016f, random)
+                _uiState.update { current ->
+                    var settings = current.settings
+                    val isPlay = current.isDrawing
+                    
+                    if (settings.globalLiveShifting.current && isPlay) {
+                        var shiftedSettings = settings
+                        for (shifter in parameterShifters) {
+                            shiftedSettings = shifter.update(shiftedSettings, 0.016f, random)
+                        }
+                        if (shiftedSettings != settings) {
+                            settings = shiftedSettings
+                        }
                     }
-                    if (shiftedSettings != settings) {
-                        settings = shiftedSettings
-                    }
-                }
-                
-                val progress = stateSnapshot.drawProgress
-                val maxSteps = (settings.drawLengthSteps * settings.drawLengthFactor)
-                var nextProgress = progress
-                var shouldResetAndRandomize = false
+                    
+                    val progress = current.drawProgress
+                    val maxSteps = (settings.drawLengthSteps * settings.drawLengthFactor)
+                    var nextProgress = progress
+                    var triggerReset = false
 
-                if (isPlay) {
-                    if (settings.drawSpeedInstant) {
-                        completionTimeMs = 0L
-                        if (progress < maxSteps) {
-                            // Instantly jump to completed shape
-                            nextProgress = maxSteps
+                    if (isPlay) {
+                        if (settings.drawSpeedInstant) {
+                            if (progress < maxSteps) {
+                                nextProgress = maxSteps
+                            } else {
+                                val totalDurationSec = settings.drawSpeedMinutes.current * 60f
+                                val stepsPerSec = maxSteps / totalDurationSec
+                                val stepsPerFrame = stepsPerSec * 0.016f
+                                val nextVal = progress + stepsPerFrame
+                                
+                                val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                                if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
+                                    triggerReset = true
+                                } else {
+                                    nextProgress = nextVal
+                                }
+                            }
                         } else {
-                            // It is in phase 2: animate/slide along the path
                             val totalDurationSec = settings.drawSpeedMinutes.current * 60f
                             val stepsPerSec = maxSteps / totalDurationSec
                             val stepsPerFrame = stepsPerSec * 0.016f
+                            val sumProgress = progress + stepsPerFrame
+                            val newProgress = if (sumProgress > maxSteps) maxSteps else sumProgress
+                            nextProgress = newProgress
                             
-                            val nextVal = progress + stepsPerFrame
-                            
-                            // Check auto-reset if enabled
-                            val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
-                            if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
-                                shouldResetAndRandomize = true
+                            if (newProgress >= maxSteps && settings.postCompletionAutoReset) {
+                                if (completionTimeMs == 0L) {
+                                    shouldSetCompletionTime = true
+                                }
+                                val currentCompletionTime = if (completionTimeMs == 0L) System.currentTimeMillis() else completionTimeMs
+                                val waitDurationMs = ((totalDurationSec * settings.postCompletionResetTimeFactor) * 1000).toLong().coerceAtLeast(100L)
+                                if (System.currentTimeMillis() - currentCompletionTime >= waitDurationMs) {
+                                    triggerReset = true
+                                    shouldClearCompletionTime = true
+                                }
                             } else {
-                                nextProgress = nextVal
+                                shouldClearCompletionTime = true
                             }
                         }
-                    } else {
-                        completionTimeMs = 0L
-                        val totalDurationSec = settings.drawSpeedMinutes.current * 60f
-                        val stepsPerSec = maxSteps / totalDurationSec
-                        val stepsPerFrame = stepsPerSec * 0.016f
-                        
-                        val sumProgress = progress + stepsPerFrame
-                        val newProgress = if (sumProgress > maxSteps) maxSteps else sumProgress
-                        nextProgress = newProgress
-                        
-                        if (newProgress >= maxSteps && settings.postCompletionAutoReset) {
-                            val waitSec = totalDurationSec * settings.postCompletionResetTimeFactor
-                            delay((waitSec * 1000).toLong().coerceAtLeast(100L))
-                            shouldResetAndRandomize = true
-                        }
                     }
-                } else {
-                    completionTimeMs = 0L
-                }
 
-                if (shouldResetAndRandomize) {
-                    resetAndRandomize()
-                } else {
-                    _uiState.update { 
-                        it.copy(
+                    if (triggerReset) {
+                        shouldReset = true
+                        val allowedKeys = settings.allowedPresets.split(",").filter { it.isNotEmpty() }
+                        var baseSettings = settings
+
+                        if (settings.enablePresetRotation && allowedKeys.isNotEmpty()) {
+                            val allPresets = savedPresets.value
+                            val valid = allPresets.filter { preset ->
+                                val key = if (preset.isUserPreset) "u_${preset.id}" else "f_${preset.name}"
+                                allowedKeys.contains(key)
+                            }
+                            if (valid.isNotEmpty()) {
+                                val chosen = valid[random.nextInt(valid.size)]
+                                try {
+                                    val s = adapter.fromJson(chosen.settingsJson)
+                                    if (s != null) {
+                                        baseSettings = s.copy(
+                                            allowedPresets = settings.allowedPresets,
+                                            allowedStyleModes = settings.allowedStyleModes,
+                                            allowedPerspectives = settings.allowedPerspectives
+                                        )
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                        }
+
+                        val u = baseSettings.randomizeAll(random).normalize()
+                        val nextMaxSteps = (u.drawLengthSteps * u.drawLengthFactor).toFloat()
+                        val randomizedProgress = if (u.drawSpeedInstant) nextMaxSteps else 0f
+                        
+                        updatedSettings = u
+                        finalProgress = randomizedProgress
+                        isCurrentlyDrawing = true
+                        
+                        current.copy(
+                            settings = u,
+                            drawProgress = randomizedProgress,
+                            isDrawing = true
+                        )
+                    } else {
+                        updatedSettings = settings
+                        finalProgress = nextProgress
+                        isCurrentlyDrawing = isPlay
+                        
+                        current.copy(
                             settings = settings,
                             drawProgress = nextProgress
                         )
                     }
                 }
 
+                if (shouldSetCompletionTime && completionTimeMs == 0L) {
+                    completionTimeMs = System.currentTimeMillis()
+                }
+                if (shouldClearCompletionTime) {
+                    completionTimeMs = 0L
+                }
+                if (shouldReset) {
+                    gyroYawOffset.value = 0f
+                    gyroPitchOffset.value = 0f
+                }
+
                 val now = System.currentTimeMillis()
-                if (now - lastSaveTime > 200L) {
+                // If a reset just happened, save immediately to ensure persistent state.
+                // Otherwise, throttle preference writes to once every 500ms to avoid blocking background threads.
+                if (shouldReset || now - lastSaveTime > 500L) {
                     lastSaveTime = now
-                    saveProgressAndStateToPrefs(nextProgress, isPlay)
+                    updatedSettings?.let {
+                        saveSettingsToPrefs(it)
+                    }
+                    saveProgressAndStateToPrefs(finalProgress, isCurrentlyDrawing)
                 }
             }
         }
@@ -384,7 +448,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     )
                 }
                 saveSettingsToPrefs(randomizedSettings)
-                startDrawingLoop()
             }
         } catch (e: Exception) {
             e.printStackTrace()

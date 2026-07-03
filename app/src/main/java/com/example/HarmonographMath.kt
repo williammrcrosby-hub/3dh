@@ -289,7 +289,8 @@ object HarmonographMath {
             if (distToStart > maxDistFromStart) {
                 maxDistFromStart = distToStart
             }
-            if (k > 100 && maxDistFromStart > 20f && distToStart < 1.5f) {
+            val checkLoop = settings.drawLengthLooping && !settings.globalLiveShifting.current
+            if (checkLoop && k > 100 && maxDistFromStart > 20f && distToStart < 1.5f) {
                 loopDetectedAt = k
                 break
             }
@@ -568,7 +569,8 @@ object HarmonographMath {
             if (distToStart > maxDistFromStart) {
                 maxDistFromStart = distToStart
             }
-            if (k > 100 && maxDistFromStart > 20f && distToStart < 1.5f) {
+            val checkLoop = settings.drawLengthLooping && !settings.globalLiveShifting.current
+            if (checkLoop && k > 100 && maxDistFromStart > 20f && distToStart < 1.5f) {
                 break
             }
             
