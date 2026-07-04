@@ -693,3 +693,125 @@ class ParameterShifter(
         return setParam(settings, param.copy(current = nextVal))
     }
 }
+
+class JointFrequencyShifter(
+    val durationMin: Float = 120f,
+    val durationMax: Float = 300f
+) {
+    var targetX: Float? = null
+    var targetY: Float? = null
+    var targetZ: Float? = null
+    
+    var startX: Float? = null
+    var startY: Float? = null
+    var startZ: Float? = null
+    
+    var transitionDuration: Float = 0f
+    var timeElapsed: Float = 0f
+    
+    fun update(settings: HarmonographSettings, dtSec: Float, random: java.util.Random): HarmonographSettings {
+        val xActive = !settings.freqX.locked
+        val yActive = !settings.freqY.locked
+        val zActive = !settings.freqZ.locked && (settings.ampZ.current > 0f || settings.ampZ.actualSelectedMax > 1f)
+        
+        if (!xActive && !yActive && !zActive) {
+            targetX = null
+            targetY = null
+            targetZ = null
+            startX = null
+            startY = null
+            startZ = null
+            return settings
+        }
+        
+        val validRationals = listOf(
+            1f/12f, 1f/11f, 1f/10f, 1f/9f, 1f/8f, 1f/7f, 1f/6f, 1f/5f, 1f/4f, 1f/3f, 1f/2f,
+            1f, 2f, 3f, 4f, 5f, 6f, 7f, 8f, 9f, 10f, 11f, 12f
+        )
+        
+        fun pickRandomRational(param: FloatParameter, random: java.util.Random): Float {
+            val valMin = if (param.rangeLocked) param.actualSelectedMin else param.rangeMin
+            val valMax = if (param.rangeLocked) param.actualSelectedMax else param.rangeMax
+            val safeMin = minOf(valMin, valMax)
+            val safeMax = maxOf(valMin, valMax)
+            
+            val candidates = validRationals.filter { it in (safeMin - 0.001f)..(safeMax + 0.001f) }
+            return if (candidates.isNotEmpty()) {
+                candidates[random.nextInt(candidates.size)]
+            } else {
+                val rVal = safeMin + random.nextFloat() * (safeMax - safeMin)
+                validRationals.minByOrNull { kotlin.math.abs(it - rVal) } ?: rVal
+            }
+        }
+        
+        fun checkParamValid(param: FloatParameter, target: Float?): Boolean {
+            if (target == null) return false
+            val valMin = if (param.rangeLocked) param.actualSelectedMin else param.rangeMin
+            val valMax = if (param.rangeLocked) param.actualSelectedMax else param.rangeMax
+            val safeMin = minOf(valMin, valMax)
+            val safeMax = maxOf(valMin, valMax)
+            return target >= (safeMin - 0.001f) && target <= (safeMax + 0.001f)
+        }
+        
+        val xValid = xActive && checkParamValid(settings.freqX, targetX)
+        val yValid = yActive && checkParamValid(settings.freqY, targetY)
+        val zValid = zActive && checkParamValid(settings.freqZ, targetZ)
+        
+        val needsNewTransition = (xActive && !xValid) || 
+                                 (yActive && !yValid) || 
+                                 (zActive && !zValid) || 
+                                 (timeElapsed >= transitionDuration) || 
+                                 (targetX == null && xActive) || 
+                                 (targetY == null && yActive) || 
+                                 (targetZ == null && zActive)
+                                 
+        if (needsNewTransition) {
+            transitionDuration = durationMin + random.nextFloat() * (durationMax - durationMin)
+            timeElapsed = 0f
+            
+            if (xActive) {
+                startX = settings.freqX.current
+                targetX = pickRandomRational(settings.freqX, random)
+            } else {
+                startX = null
+                targetX = null
+            }
+            
+            if (yActive) {
+                startY = settings.freqY.current
+                targetY = pickRandomRational(settings.freqY, random)
+            } else {
+                startY = null
+                targetY = null
+            }
+            
+            if (zActive) {
+                startZ = settings.freqZ.current
+                targetZ = pickRandomRational(settings.freqZ, random)
+            } else {
+                startZ = null
+                targetZ = null
+            }
+        }
+        
+        timeElapsed += dtSec
+        val t = if (transitionDuration > 0f) (timeElapsed / transitionDuration).coerceIn(0f, 1f) else 1f
+        
+        var newSettings = settings
+        if (xActive && startX != null && targetX != null) {
+            val curr = startX!! + (targetX!! - startX!!) * t
+            newSettings = newSettings.copy(freqX = settings.freqX.copy(current = curr))
+        }
+        if (yActive && startY != null && targetY != null) {
+            val curr = startY!! + (targetY!! - startY!!) * t
+            newSettings = newSettings.copy(freqY = settings.freqY.copy(current = curr))
+        }
+        if (zActive && startZ != null && targetZ != null) {
+            val curr = startZ!! + (targetZ!! - startZ!!) * t
+            newSettings = newSettings.copy(freqZ = settings.freqZ.copy(current = curr))
+        }
+        
+        return newSettings
+    }
+}
+

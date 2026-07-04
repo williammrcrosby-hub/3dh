@@ -57,6 +57,8 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
     private var drawingJob: Job? = null
     private val random = Random()
 
+    private val jointFrequencyShifter = JointFrequencyShifter(120f, 300f)
+
     private val parameterShifters = listOf(
         // Amplitudes (6 to 15 mins)
         ParameterShifter({ it.ampX }, { s, p -> s.copy(ampX = p) }, { true }, 360f, 900f),
@@ -65,11 +67,6 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         ParameterShifter({ it.ampSubX }, { s, p -> s.copy(ampSubX = p) }, { s -> s.ampSubX.enabled && s.ampSubX.current > 0f }, 360f, 900f),
         ParameterShifter({ it.ampSubY }, { s, p -> s.copy(ampSubY = p) }, { s -> s.ampSubY.enabled && s.ampSubY.current > 0f }, 360f, 900f),
         ParameterShifter({ it.ampSubZ }, { s, p -> s.copy(ampSubZ = p) }, { s -> s.ampSubZ.enabled && s.ampSubZ.current > 0f }, 360f, 900f),
-
-        // Frequencies (30 to 75 mins - extremely slow, prevents chaotic phase-velocity buildup over large t)
-        ParameterShifter({ it.freqX }, { s, p -> s.copy(freqX = p) }, { true }, 1800f, 4500f),
-        ParameterShifter({ it.freqY }, { s, p -> s.copy(freqY = p) }, { true }, 1800f, 4500f),
-        ParameterShifter({ it.freqZ }, { s, p -> s.copy(freqZ = p) }, { s -> s.ampZ.current > 0f || s.ampZ.actualSelectedMax > 1f }, 1800f, 4500f),
 
         // Phases (9 to 20 mins)
         ParameterShifter({ it.phaseX }, { s, p -> s.copy(phaseX = p) }, { true }, 540f, 1200f),
@@ -148,6 +145,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         for (shifter in parameterShifters) {
                             shiftedSettings = shifter.update(shiftedSettings, 0.016f, random)
                         }
+                        shiftedSettings = jointFrequencyShifter.update(shiftedSettings, 0.016f, random)
                         if (shiftedSettings != settings) {
                             settings = shiftedSettings
                         }
