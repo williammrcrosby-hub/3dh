@@ -808,7 +808,8 @@ object HarmonographMath {
         globalLiveShifting: Boolean = false,
         previousScale: Float = 1f,
         onScaleCalculated: ((Float) -> Unit)? = null,
-        drawSpeedInstant: Boolean = false
+        drawSpeedInstant: Boolean = false,
+        decayEnabled: Boolean = true
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -859,7 +860,10 @@ object HarmonographMath {
                 var maxAbsY = 0.01f
                 
                 if (globalLiveShifting) {
-                    for (pt in points) {
+                    val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                    val startIndexForFit = if (points.size > 100) (points.size * decayFraction).toInt() else 0
+                    for (idx in startIndexForFit until points.size) {
+                        val pt = points[idx]
                         val (projX, projY, depth) = when (angularLockAxis) {
                             "X" -> Triple(pt.y, pt.z, pt.x)
                             "Y" -> Triple(pt.x, pt.z, pt.y)
@@ -877,7 +881,7 @@ object HarmonographMath {
                     }
                 }
 
-                val rawProj = activePoints.map { pt ->
+                val rawProj = activePoints.mapIndexed { idx, pt ->
                     val (projX, projY, depth) = when (angularLockAxis) {
                         "X" -> Triple(pt.y, pt.z, pt.x)
                         "Y" -> Triple(pt.x, pt.z, pt.y)
@@ -894,8 +898,14 @@ object HarmonographMath {
                         val ryFit = -projY * scaleForFit * dFocalScale
                         val absX = abs(rxFit)
                         val absY = abs(ryFit)
-                        if (absX > maxAbsX) maxAbsX = absX
-                        if (absY > maxAbsY) maxAbsY = absY
+                        // Ignore the initial points for zoom-fitting calculation to allow beautiful 
+                        // decay-aware framing without the huge outer loop forcing the camera way too far back.
+                        val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                        val startIndexForFit = if (activePoints.size > 100) (activePoints.size * decayFraction).toInt() else 0
+                        if (idx >= startIndexForFit) {
+                            if (absX > maxAbsX) maxAbsX = absX
+                            if (absY > maxAbsY) maxAbsY = absY
+                        }
                     }
                     
                     Triple(rx, ry, depth)
@@ -904,8 +914,9 @@ object HarmonographMath {
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
+                    val maxZoomLimit = if (drawSpeedInstant || currentDrawProgress > 200f) 250f else 15f
                     // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
-                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, 15f)
+                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, maxZoomLimit)
                     val m = if (previousScale == 1f || drawSpeedInstant) {
                         targetM
                     } else {
@@ -970,7 +981,10 @@ object HarmonographMath {
                 val syY = sin(pitchRad)
                 
                 if (globalLiveShifting) {
-                    for (pt in points) {
+                    val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                    val startIndexForFit = if (points.size > 100) (points.size * decayFraction).toInt() else 0
+                    for (idx in startIndexForFit until points.size) {
+                        val pt = points[idx]
                         val xRot1 = pt.x * cxX - pt.y * sxX
                         val yRot1 = pt.x * sxX + pt.y * cxX
                         val zRot1 = pt.z
@@ -992,7 +1006,7 @@ object HarmonographMath {
                     }
                 }
 
-                val rawProj = activePoints.map { pt ->
+                val rawProj = activePoints.mapIndexed { idx, pt ->
                     val xRot1 = pt.x * cxX - pt.y * sxX
                     val yRot1 = pt.x * sxX + pt.y * cxX
                     val zRot1 = pt.z
@@ -1012,8 +1026,14 @@ object HarmonographMath {
                         val ryFit = -yRot2 * scaleForFit * dFocalScale
                         val absX = abs(rxFit)
                         val absY = abs(ryFit)
-                        if (absX > maxAbsX) maxAbsX = absX
-                        if (absY > maxAbsY) maxAbsY = absY
+                        // Ignore the initial points for zoom-fitting calculation to allow beautiful 
+                        // decay-aware framing without the huge outer loop forcing the camera way too far back.
+                        val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                        val startIndexForFit = if (activePoints.size > 100) (activePoints.size * decayFraction).toInt() else 0
+                        if (idx >= startIndexForFit) {
+                            if (absX > maxAbsX) maxAbsX = absX
+                            if (absY > maxAbsY) maxAbsY = absY
+                        }
                     }
                     
                     Triple(rx, ry, zRot2)
@@ -1022,8 +1042,9 @@ object HarmonographMath {
                 val allowedWidth = (screenWidth * 0.9f) / 2f
                 val allowedHeight = (screenHeight * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
+                    val maxZoomLimit = if (drawSpeedInstant || currentDrawProgress > 200f) 250f else 15f
                     // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
-                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, 15f)
+                    val targetM = minOf(allowedWidth / maxAbsX, allowedHeight / maxAbsY).coerceIn(0.35f, maxZoomLimit)
                     val m = if (previousScale == 1f || drawSpeedInstant) {
                         targetM
                     } else {

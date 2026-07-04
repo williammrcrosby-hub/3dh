@@ -115,6 +115,14 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
     var isPanelExpanded by remember { mutableStateOf(true) }
     var activeTab by remember { mutableStateOf(0) } // 0: Oscillators, 1: Style & Pen, 2: Camera & Setup, 3: Presets
 
+    var isUiIdleHidden by remember { mutableStateOf(false) }
+    var interactionCount by remember { mutableStateOf(0) }
+
+    LaunchedEffect(interactionCount) {
+        delay(20_000L)
+        isUiIdleHidden = true
+    }
+
     // Interaction state variables
     var yaw by remember { mutableStateOf(35f) }
     var pitch by remember { mutableStateOf(25f) }
@@ -177,6 +185,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black) // Completely black
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        awaitPointerEvent(PointerEventPass.Initial)
+                        isUiIdleHidden = false
+                        interactionCount++
+                    }
+                }
+            }
     ) {
         // Core 3D drawing Canvas
         Box(
@@ -354,7 +371,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         isPrimaryPath = (pIdx == 0),
-                        tailLengthLimit = if (settings.drawSpeedInstant || settings.instantDrawLengthInfinite.current) {
+                        tailLengthLimit = if (settings.instantDrawLengthInfinite.current) {
                             -1
                         } else if (settings.perfRemoveTailEnabled) {
                             if (dynamicTailLimit == -1 || dynamicTailLimit == -2) {
@@ -368,7 +385,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         globalLiveShifting = settings.globalLiveShifting.current,
                         previousScale = uiScaleHolder.value,
                         onScaleCalculated = { uiScaleHolder.value = it },
-                        drawSpeedInstant = settings.drawSpeedInstant
+                        drawSpeedInstant = settings.drawSpeedInstant,
+                        decayEnabled = settings.decayEnabled.current
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -584,94 +602,104 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             }
         }
 
-        // Floating Telemetry Phase display
-        if (showTelemetryOverlay) {
-            Box(
-                modifier = Modifier
-                    .padding(top = 44.dp, start = 16.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color(0xD91E293B)) // Slate 800
-                    .padding(12.dp)
-                    .align(Alignment.TopStart)
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("TELEMETRY", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    TelemetryRow("XYZ Amps", "${settings.ampX.current.roundToInt()}, ${settings.ampY.current.roundToInt()}, ${settings.ampZ.current.roundToInt()}")
-                    TelemetryRow("XYZ Freqs", "${"%.3f".format(settings.activeFreqX)}x, ${"%.3f".format(settings.activeFreqY)}x, ${"%.3f".format(settings.activeFreqZ)}x")
-                    TelemetryRow("Decays", "${"%.4f".format(settings.decayX.current)}, ${"%.4f".format(settings.decayY.current)}, ${"%.4f".format(settings.decayZ.current)}")
-                    TelemetryRow("Phases", "${settings.phaseX.current.roundToInt()}°, ${settings.phaseY.current.roundToInt()}°, ${settings.phaseZ.current.roundToInt()}°")
-                    if (settings.ampSubX.current > 0 || settings.ampSubY.current > 0 || settings.ampSubZ.current > 0) {
-                        TelemetryRow("SubAmps", "${settings.ampSubX.current.roundToInt()}, ${settings.ampSubY.current.roundToInt()}, ${settings.ampSubZ.current.roundToInt()}")
-                    }
-                    TelemetryRow("Pen Mode", if (settings.penCount.current > 1) "${settings.penCount.current} Pens (${if (settings.penRotationEnabled.current) "Rotational" else "Parallel"})" else "1 Pen")
-                }
-            }
-        }
-
-        // Upper action buttons (Telemetry toggle, Reset, Install wallpaper, Info help)
-        Row(
-            modifier = Modifier
-                .padding(top = 44.dp, end = 16.dp)
-                .align(Alignment.TopEnd),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // Floating Telemetry & Upper action buttons wrapped in auto-hide container
+        AnimatedVisibility(
+            visible = !isUiIdleHidden,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
         ) {
-            IconButton(
-                onClick = { showTelemetryOverlay = !showTelemetryOverlay },
-                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B))
-            ) {
-                Icon(
-                    imageVector = if (showTelemetryOverlay) Icons.Default.Info else Icons.Default.Info,
-                    contentDescription = "Toggle Telemetry",
-                    tint = if (showTelemetryOverlay) Color(0xFF00E5FF) else Color.White
-                )
-            }
-            
-            IconButton(
-                onClick = {
-                    try {
-                        val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
-                            putExtra(
-                                WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
-                                ComponentName(context, HarmonographWallpaperService::class.java)
-                            )
+            Box(modifier = Modifier.fillMaxSize()) {
+                // Floating Telemetry Phase display
+                if (showTelemetryOverlay) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 44.dp, start = 16.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xD91E293B)) // Slate 800
+                            .padding(12.dp)
+                            .align(Alignment.TopStart)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("TELEMETRY", fontSize = 11.sp, color = Color(0xFF64748B), fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            TelemetryRow("XYZ Amps", "${settings.ampX.current.roundToInt()}, ${settings.ampY.current.roundToInt()}, ${settings.ampZ.current.roundToInt()}")
+                            TelemetryRow("XYZ Freqs", "${"%.3f".format(settings.activeFreqX)}x, ${"%.3f".format(settings.activeFreqY)}x, ${"%.3f".format(settings.activeFreqZ)}x")
+                            TelemetryRow("Decays", "${"%.4f".format(settings.decayX.current)}, ${"%.4f".format(settings.decayY.current)}, ${"%.4f".format(settings.decayZ.current)}")
+                            TelemetryRow("Phases", "${settings.phaseX.current.roundToInt()}°, ${settings.phaseY.current.roundToInt()}°, ${settings.phaseZ.current.roundToInt()}°")
+                            if (settings.ampSubX.current > 0 || settings.ampSubY.current > 0 || settings.ampSubZ.current > 0) {
+                                TelemetryRow("SubAmps", "${settings.ampSubX.current.roundToInt()}, ${settings.ampSubY.current.roundToInt()}, ${settings.ampSubZ.current.roundToInt()}")
+                            }
+                            TelemetryRow("Pen Mode", if (settings.penCount.current > 1) "${settings.penCount.current} Pens (${if (settings.penRotationEnabled.current) "Rotational" else "Parallel"})" else "1 Pen")
                         }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        Toast.makeText(context, "To set background: Long press Android home screen -> Wallpapers", Toast.LENGTH_LONG).show()
                     }
-                },
-                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Wallpaper,
-                    contentDescription = "Install Wallpaper",
-                    tint = Color(0xFFFFB300)
-                )
-            }
+                }
 
-            IconButton(
-                onClick = { viewModel.resetAndRandomize() },
-                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B)),
-                modifier = Modifier.testTag("app_randomize_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Refresh,
-                    contentDescription = "Randomize drawing",
-                    tint = Color.White
-                )
-            }
+                // Upper action buttons (Telemetry toggle, Reset, Install wallpaper, Info help)
+                Row(
+                    modifier = Modifier
+                        .padding(top = 44.dp, end = 16.dp)
+                        .align(Alignment.TopEnd),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    IconButton(
+                        onClick = { showTelemetryOverlay = !showTelemetryOverlay },
+                        colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B))
+                    ) {
+                        Icon(
+                            imageVector = if (showTelemetryOverlay) Icons.Default.Info else Icons.Default.Info,
+                            contentDescription = "Toggle Telemetry",
+                            tint = if (showTelemetryOverlay) Color(0xFF00E5FF) else Color.White
+                        )
+                    }
+                    
+                    IconButton(
+                        onClick = {
+                            try {
+                                val intent = Intent(WallpaperManager.ACTION_CHANGE_LIVE_WALLPAPER).apply {
+                                    putExtra(
+                                        WallpaperManager.EXTRA_LIVE_WALLPAPER_COMPONENT,
+                                        ComponentName(context, HarmonographWallpaperService::class.java)
+                                    )
+                                }
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "To set background: Long press Android home screen -> Wallpapers", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Wallpaper,
+                            contentDescription = "Install Wallpaper",
+                            tint = Color(0xFFFFB300)
+                        )
+                    }
 
-            IconButton(
-                onClick = { showHelpDialog = true },
-                colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B)),
-                modifier = Modifier.testTag("app_help_button")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Help,
-                    contentDescription = "Show Help Guide",
-                    tint = Color(0xFF00E5FF)
-                )
+                    IconButton(
+                        onClick = { viewModel.resetAndRandomize() },
+                        colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B)),
+                        modifier = Modifier.testTag("app_randomize_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Refresh,
+                            contentDescription = "Randomize drawing",
+                            tint = Color.White
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { showHelpDialog = true },
+                        colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xCC1E293B)),
+                        modifier = Modifier.testTag("app_help_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Help,
+                            contentDescription = "Show Help Guide",
+                            tint = Color(0xFF00E5FF)
+                        )
+                    }
+                }
             }
         }
 
@@ -679,11 +707,15 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
             HelpContentDialog(onDismiss = { showHelpDialog = false })
         }
 
-         // Drawing progress controllers (Only shown when settings panel is collapsed)
-         if (!isPanelExpanded) {
+         // Drawing progress controllers (Only shown when settings panel is collapsed and UI is not hidden)
+         AnimatedVisibility(
+             visible = !isUiIdleHidden && !isPanelExpanded,
+             enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
+             exit = fadeOut() + slideOutVertically(targetOffsetY = { it / 2 }),
+             modifier = Modifier.align(Alignment.BottomCenter)
+         ) {
              Column(
                  modifier = Modifier
-                     .align(Alignment.BottomCenter)
                      .padding(bottom = 40.dp)
                      .fillMaxWidth(0.92f)
                      .clip(RoundedCornerShape(16.dp))
@@ -743,7 +775,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
  
          // Expanded Control Panel Drawer (Full-Screen Sliding Layout)
          AnimatedVisibility(
-             visible = isPanelExpanded,
+             visible = isPanelExpanded && !isUiIdleHidden,
              enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
              exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
              modifier = Modifier
@@ -3703,19 +3735,40 @@ fun PerformanceAndQualityTab(
                         color = Color(0xFF94A3B8),
                         fontSize = 10.sp
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Sliding Segment Window Limit:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
-                        Text("${settings.instantDrawLengthLimit.current} pts", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Slider(
-                        value = settings.instantDrawLengthLimit.current.toFloat(),
-                        onValueChange = { onUpdate(settings.copy(instantDrawLengthLimit = settings.instantDrawLengthLimit.copy(current = it.roundToInt()))) },
-                        valueRange = settings.instantDrawLengthLimit.rangeMin.toFloat()..settings.instantDrawLengthLimit.rangeMax.toFloat(),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color(0xFF00E5FF),
-                            activeTrackColor = Color(0xFF00E5FF)
+                    
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Draw Entire Completed Path:", color = Color.White, fontSize = 11.sp)
+                            Text("Bypasses sliding window to display the complete harmonograph curve.", color = Color(0xFF94A3B8), fontSize = 9.sp)
+                        }
+                        Switch(
+                            checked = settings.instantDrawLengthInfinite.current,
+                            onCheckedChange = { onUpdate(settings.copy(instantDrawLengthInfinite = settings.instantDrawLengthInfinite.copy(current = it))) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00E5FF),
+                                checkedTrackColor = Color(0xFF00E5FF).copy(alpha = 0.5f)
+                            )
                         )
-                    )
+                    }
+
+                    if (!settings.instantDrawLengthInfinite.current) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("Sliding Segment Window Limit:", color = Color.White, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                            Text("${settings.instantDrawLengthLimit.current} pts", color = Color(0xFF00E5FF), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Slider(
+                            value = settings.instantDrawLengthLimit.current.toFloat(),
+                            onValueChange = { onUpdate(settings.copy(instantDrawLengthLimit = settings.instantDrawLengthLimit.copy(current = it.roundToInt()))) },
+                            valueRange = settings.instantDrawLengthLimit.rangeMin.toFloat()..settings.instantDrawLengthLimit.rangeMax.toFloat(),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color(0xFF00E5FF),
+                                activeTrackColor = Color(0xFF00E5FF)
+                            )
+                        )
+                    }
                 }
             }
         }
@@ -4137,7 +4190,8 @@ private fun addComposeOrthogonalShapeToDrawList(
             coasterDeviationAngle = settings.coasterDeviationAngle.current,
             coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
             globalLiveShifting = settings.globalLiveShifting.current,
-            previousScale = previousScale
+            previousScale = previousScale,
+            decayEnabled = settings.decayEnabled.current
         )
         val centerPtScreen = centerProj.firstOrNull() ?: continue
         val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash, animTime, isClosedLoop)
@@ -4168,7 +4222,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 coasterDeviationAngle = settings.coasterDeviationAngle.current,
                 coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                 globalLiveShifting = settings.globalLiveShifting.current,
-                previousScale = previousScale
+                previousScale = previousScale,
+                decayEnabled = settings.decayEnabled.current
             )
 
             if (projPts.size == 4) {
@@ -4244,7 +4299,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 coasterDeviationAngle = settings.coasterDeviationAngle.current,
                 coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                 globalLiveShifting = settings.globalLiveShifting.current,
-                previousScale = previousScale
+                previousScale = previousScale,
+                decayEnabled = settings.decayEnabled.current
             )
 
             if (projPts.size >= 2) {

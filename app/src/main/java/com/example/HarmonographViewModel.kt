@@ -124,6 +124,12 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
             var completionTimeMs = 0L
             var lastSaveTime = 0L
             while (true) {
+                val prefs = getApplication<android.app.Application>().getSharedPreferences("harmonograph_prefs", android.content.Context.MODE_PRIVATE)
+                val isActive = prefs.getBoolean("app_active", false)
+                if (!isActive) {
+                    delay(250)
+                    continue
+                }
                 delay(16) // ~60fps ticker loop
                 
                 var shouldReset = false
@@ -148,7 +154,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     }
                     
                     val progress = current.drawProgress
-                    val maxSteps = (settings.drawLengthSteps * settings.drawLengthFactor)
+                    val maxSteps = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
+                        settings.instantDrawLengthLimit.current.toFloat()
+                    } else {
+                        (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                    }
                     var nextProgress = progress
                     var triggerReset = false
 
@@ -171,13 +181,14 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                             }
                         } else {
                             val totalDurationSec = settings.drawSpeedMinutes.current * 60f
-                            val stepsPerSec = maxSteps / totalDurationSec
+                            val stepsPerSec = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat() / totalDurationSec
                             val stepsPerFrame = stepsPerSec * 0.016f
                             val sumProgress = progress + stepsPerFrame
-                            val newProgress = if (sumProgress > maxSteps) maxSteps else sumProgress
+                            val fullMaxSteps = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                            val newProgress = if (sumProgress > fullMaxSteps) fullMaxSteps else sumProgress
                             nextProgress = newProgress
                             
-                            if (newProgress >= maxSteps && settings.postCompletionAutoReset) {
+                            if (newProgress >= fullMaxSteps && settings.postCompletionAutoReset) {
                                 if (completionTimeMs == 0L) {
                                     shouldSetCompletionTime = true
                                 }
@@ -222,7 +233,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         }
 
                         val u = baseSettings.randomizeAll(random).normalize()
-                        val nextMaxSteps = (u.drawLengthSteps * u.drawLengthFactor).toFloat()
+                        val nextMaxSteps = if (u.drawSpeedInstant && !u.instantDrawLengthInfinite.current) {
+                            u.instantDrawLengthLimit.current.toFloat()
+                        } else {
+                            (u.drawLengthSteps * u.drawLengthFactor).toFloat()
+                        }
                         val randomizedProgress = if (u.drawSpeedInstant) nextMaxSteps else 0f
                         
                         updatedSettings = u
@@ -348,7 +363,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         }
 
         val u = baseSettings.randomizeAll(random).normalize()
-        val nextMaxSteps = (u.drawLengthSteps * u.drawLengthFactor).toFloat()
+        val nextMaxSteps = if (u.drawSpeedInstant && !u.instantDrawLengthInfinite.current) {
+            u.instantDrawLengthLimit.current.toFloat()
+        } else {
+            (u.drawLengthSteps * u.drawLengthFactor).toFloat()
+        }
         val nextProgress = if (u.drawSpeedInstant) nextMaxSteps else 0f
         
         _uiState.update { 

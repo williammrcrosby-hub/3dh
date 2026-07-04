@@ -45,22 +45,13 @@ class HarmonographWallpaperService : WallpaperService() {
     }
 
     private fun HarmonographSettings.isDrawingFormEquivalent(other: HarmonographSettings): Boolean {
-        return this.freqX.current == other.freqX.current &&
+        val baseEq = this.freqX.current == other.freqX.current &&
                this.freqY.current == other.freqY.current &&
                this.freqZ.current == other.freqZ.current &&
-               this.ampX.current == other.ampX.current &&
-               this.ampY.current == other.ampY.current &&
-               this.ampZ.current == other.ampZ.current &&
                this.decayX.current == other.decayX.current &&
                this.decayY.current == other.decayY.current &&
                this.decayZ.current == other.decayZ.current &&
-               this.phaseX.current == other.phaseX.current &&
-               this.phaseY.current == other.phaseY.current &&
-               this.phaseZ.current == other.phaseZ.current &&
                this.decayEnabled.current == other.decayEnabled.current &&
-               this.ampSubX.current == other.ampSubX.current &&
-               this.ampSubY.current == other.ampSubY.current &&
-               this.ampSubZ.current == other.ampSubZ.current &&
                this.penCount.current == other.penCount.current &&
                this.penOffset.current == other.penOffset.current &&
                this.penRotationEnabled.current == other.penRotationEnabled.current &&
@@ -68,6 +59,21 @@ class HarmonographWallpaperService : WallpaperService() {
                this.drawLengthFactor == other.drawLengthFactor &&
                this.rationalFrequenciesEnabled.current == other.rationalFrequenciesEnabled.current &&
                this.rationalFrequenciesEnabled.locked == other.rationalFrequenciesEnabled.locked
+
+        if (this.globalLiveShifting.current && other.globalLiveShifting.current) {
+            return baseEq
+        } else {
+            return baseEq &&
+                   this.ampX.current == other.ampX.current &&
+                   this.ampY.current == other.ampY.current &&
+                   this.ampZ.current == other.ampZ.current &&
+                   this.phaseX.current == other.phaseX.current &&
+                   this.phaseY.current == other.phaseY.current &&
+                   this.phaseZ.current == other.phaseZ.current &&
+                   this.ampSubX.current == other.ampSubX.current &&
+                   this.ampSubY.current == other.ampSubY.current &&
+                   this.ampSubZ.current == other.ampSubZ.current
+        }
     }
 
     private val moshi = Moshi.Builder()
@@ -207,7 +213,11 @@ class HarmonographWallpaperService : WallpaperService() {
                         }
 
                         if (isPlay) {
-                            val maxSteps = settings.drawLengthSteps * settings.drawLengthFactor
+                            val maxSteps = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
+                                settings.instantDrawLengthLimit.current.toFloat()
+                            } else {
+                                (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                            }
                             if (settings.drawSpeedInstant) {
                                 if (drawProgress < maxSteps) {
                                     drawProgress = maxSteps
@@ -230,7 +240,8 @@ class HarmonographWallpaperService : WallpaperService() {
                                 }
                             } else {
                                 val dt = 0.016f // step time
-                                val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
+                                val fullMaxSteps = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                                val stepsPerSec = fullMaxSteps / (settings.drawSpeedMinutes.current * 60f)
                                 drawProgress += stepsPerSec * dt
                                 if (drawProgress >= maxSteps) {
                                     if (settings.postCompletionAutoReset) {
@@ -702,7 +713,9 @@ class HarmonographWallpaperService : WallpaperService() {
                         },
                         globalLiveShifting = settings.globalLiveShifting.current,
                         previousScale = wallpaperScaleHolder.value,
-                        onScaleCalculated = { wallpaperScaleHolder.value = it }
+                        onScaleCalculated = { wallpaperScaleHolder.value = it },
+                        drawSpeedInstant = settings.drawSpeedInstant,
+                        decayEnabled = settings.decayEnabled.current
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -1211,7 +1224,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     coasterDeviationAngle = settings.coasterDeviationAngle.current,
                     coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                     globalLiveShifting = settings.globalLiveShifting.current,
-                    previousScale = previousScale
+                    previousScale = previousScale,
+                    decayEnabled = settings.decayEnabled.current
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
@@ -1223,7 +1237,7 @@ class HarmonographWallpaperService : WallpaperService() {
                     val p3 = centerPt3D + shape.wVector * size
                     val p4 = centerPt3D - shape.wVector * size
 
-                    val projPts = HarmonographMath.project3DTo2D(
+                     val projPts = HarmonographMath.project3DTo2D(
                         points = listOf(p1, p2, p3, p4),
                         yaw = yawVal,
                         pitch = pitchVal,
@@ -1242,7 +1256,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         globalLiveShifting = settings.globalLiveShifting.current,
-                        previousScale = previousScale
+                        previousScale = previousScale,
+                        decayEnabled = settings.decayEnabled.current
                     )
 
                     if (projPts.size == 4) {
@@ -1283,7 +1298,7 @@ class HarmonographWallpaperService : WallpaperService() {
                         shape3DPoints.add(shape3DPoints[0])
                     }
 
-                    val projPts = HarmonographMath.project3DTo2D(
+                     val projPts = HarmonographMath.project3DTo2D(
                         points = shape3DPoints,
                         yaw = yawVal,
                         pitch = pitchVal,
@@ -1302,7 +1317,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterDeviationAngle = settings.coasterDeviationAngle.current,
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         globalLiveShifting = settings.globalLiveShifting.current,
-                        previousScale = previousScale
+                        previousScale = previousScale,
+                        decayEnabled = settings.decayEnabled.current
                     )
 
                     if (projPts.size >= 2) {
