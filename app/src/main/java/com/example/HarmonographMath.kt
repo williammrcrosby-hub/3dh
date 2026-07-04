@@ -157,9 +157,9 @@ object HarmonographMath {
         val isLiveShifting = settings.globalLiveShifting.current
         val dt = if (isLiveShifting) {
             val baseMaxFreq = 12f * mult
-            minOf(0.0075f, 0.22f / baseMaxFreq)
+            minOf(0.004f, 0.06f / baseMaxFreq)
         } else {
-            minOf(0.0075f, 0.22f / maxActiveFreq)
+            minOf(0.004f, 0.06f / maxActiveFreq)
         }
  
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
@@ -258,11 +258,11 @@ object HarmonographMath {
                             targetDt /= (1f + angularTerm * settings.perfAngularModifier.current * 180f)
                         }
                     }
-                    val scaledTargetDt = targetDt * (mult / 2.0f)
+                    val scaledTargetDt = targetDt
                     scaledTargetDt.coerceIn(0f, 0.25f)
                 }
             } else {
-                dt * (mult / 2.0f)
+                dt
             }
             tLocal += dtUsed
         }
@@ -435,9 +435,9 @@ object HarmonographMath {
         val isLiveShifting = settings.globalLiveShifting.current
         val dt = if (isLiveShifting) {
             val baseMaxFreq = 12f * mult
-            minOf(0.0075f, 0.22f / baseMaxFreq)
+            minOf(0.004f, 0.06f / baseMaxFreq)
         } else {
-            minOf(0.0075f, 0.22f / maxActiveFreq)
+            minOf(0.004f, 0.06f / maxActiveFreq)
         }
 
         val totalSteps = (maxSteps * settings.drawLengthFactor).roundToInt().coerceIn(100, 100000)
@@ -533,11 +533,11 @@ object HarmonographMath {
                             targetDt /= (1f + angularTerm * settings.perfAngularModifier.current * 180f)
                         }
                     }
-                    val scaledTargetDt = targetDt * (mult / 2.0f)
+                    val scaledTargetDt = targetDt
                     scaledTargetDt.coerceIn(0f, 0.25f)
                 }
             } else {
-                dt * (mult / 2.0f)
+                dt
             }
             tLocal += dtUsed
         }
@@ -860,7 +860,7 @@ object HarmonographMath {
                 var maxAbsY = 0.01f
                 
                 if (globalLiveShifting) {
-                    val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                    val decayFraction = 0.0f
                     val startIndexForFit = if (points.size > 100) (points.size * decayFraction).toInt() else 0
                     for (idx in startIndexForFit until points.size) {
                         val pt = points[idx]
@@ -900,7 +900,7 @@ object HarmonographMath {
                         val absY = abs(ryFit)
                         // Ignore the initial points for zoom-fitting calculation to allow beautiful 
                         // decay-aware framing without the huge outer loop forcing the camera way too far back.
-                        val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                        val decayFraction = 0.0f
                         val startIndexForFit = if (activePoints.size > 100) (activePoints.size * decayFraction).toInt() else 0
                         if (idx >= startIndexForFit) {
                             if (absX > maxAbsX) maxAbsX = absX
@@ -981,7 +981,7 @@ object HarmonographMath {
                 val syY = sin(pitchRad)
                 
                 if (globalLiveShifting) {
-                    val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                    val decayFraction = 0.0f
                     val startIndexForFit = if (points.size > 100) (points.size * decayFraction).toInt() else 0
                     for (idx in startIndexForFit until points.size) {
                         val pt = points[idx]
@@ -1028,7 +1028,7 @@ object HarmonographMath {
                         val absY = abs(ryFit)
                         // Ignore the initial points for zoom-fitting calculation to allow beautiful 
                         // decay-aware framing without the huge outer loop forcing the camera way too far back.
-                        val decayFraction = if (decayEnabled) 0.45f else 0.20f
+                        val decayFraction = 0.0f
                         val startIndexForFit = if (activePoints.size > 100) (activePoints.size * decayFraction).toInt() else 0
                         if (idx >= startIndexForFit) {
                             if (absX > maxAbsX) maxAbsX = absX
