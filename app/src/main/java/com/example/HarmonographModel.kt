@@ -14,7 +14,8 @@ data class FloatParameter(
     val selectedMin: Float = -1e9f,
     val selectedMax: Float = 1e9f,
     val enabled: Boolean = true,
-    val enabledLocked: Boolean = false
+    val enabledLocked: Boolean = false,
+    val isLogarithmic: Boolean = false
 ) {
     val actualSelectedMin: Float
         get() {
@@ -59,12 +60,20 @@ data class FloatParameter(
         return copy(rangeLocked = locked, current = newCurrent)
     }
 
-    fun randomize(random: java.util.Random): FloatParameter {
+    fun randomize(random: java.util.Random, forceLog: Boolean = false): FloatParameter {
         if (locked) return this
         val valMin = if (rangeLocked) actualSelectedMin else rangeMin
         val valMax = if (rangeLocked) actualSelectedMax else rangeMax
         if (valMax <= valMin) return copy(current = valMin)
-        val v = valMin + random.nextFloat() * (valMax - valMin)
+        val useLog = isLogarithmic || forceLog
+        val v = if (useLog && valMin > 0f && valMax > 0f) {
+            val logMin = kotlin.math.log10(valMin.toDouble())
+            val logMax = kotlin.math.log10(valMax.toDouble())
+            val logVal = logMin + random.nextFloat() * (logMax - logMin)
+            java.lang.Math.pow(10.0, logVal).toFloat()
+        } else {
+            valMin + random.nextFloat() * (valMax - valMin)
+        }
         return copy(current = v)
     }
 }
@@ -148,9 +157,9 @@ data class HarmonographSettings(
     val ampY: FloatParameter = FloatParameter(120f, rangeMin = 10f, rangeMax = 250f),
     val ampZ: FloatParameter = FloatParameter(80f, rangeMin = 0f, rangeMax = 250f),
     
-    val freqX: FloatParameter = FloatParameter(1.001f, rangeMin = 1f/12f, rangeMax = 12f),
-    val freqY: FloatParameter = FloatParameter(1.503f, rangeMin = 1f/12f, rangeMax = 12f),
-    val freqZ: FloatParameter = FloatParameter(2.002f, rangeMin = 1f/12f, rangeMax = 12f),
+    val freqX: FloatParameter = FloatParameter(1.001f, rangeMin = 1f/12f, rangeMax = 12f, isLogarithmic = true),
+    val freqY: FloatParameter = FloatParameter(1.503f, rangeMin = 1f/12f, rangeMax = 12f, isLogarithmic = true),
+    val freqZ: FloatParameter = FloatParameter(2.002f, rangeMin = 1f/12f, rangeMax = 12f, isLogarithmic = true),
     val xyzFreqMultiplier: FloatParameter = FloatParameter(2.0f, rangeMin = 0.5f, rangeMax = 18.0f, locked = true, selectedMin = 0.5f, selectedMax = 18.0f),
     
     val decayX: FloatParameter = FloatParameter(0.0015f, rangeMin = 0.0001f, rangeMax = 0.02f),
@@ -298,10 +307,15 @@ data class HarmonographSettings(
     val globalLiveShiftSpeedMultiplier: FloatParameter = FloatParameter(4.0f, rangeMin = 4.0f, rangeMax = 20.0f, locked = true)
 ) {
     fun normalize(): HarmonographSettings {
+        val withLogFreqs = copy(
+            freqX = freqX.copy(isLogarithmic = true),
+            freqY = freqY.copy(isLogarithmic = true),
+            freqZ = freqZ.copy(isLogarithmic = true)
+        )
         return if (penTipSizeLocked) {
-            copy(penTipSize = 6f)
+            withLogFreqs.copy(penTipSize = 6f)
         } else {
-            this
+            withLogFreqs
         }
     }
 
@@ -601,9 +615,9 @@ data class HarmonographSettings(
         val activeGradStart = hsvToColorInt(randGradStartHue.current, randSat.current)
         val activeGradEnd = hsvToColorInt(randGradEndHue.current, randSat.current)
 
-        var randFreqX = freqX.randomize(random)
-        var randFreqY = freqY.randomize(random)
-        var randFreqZ = freqZ.randomize(random)
+        var randFreqX = freqX.randomize(random, forceLog = true)
+        var randFreqY = freqY.randomize(random, forceLog = true)
+        var randFreqZ = freqZ.randomize(random, forceLog = true)
         if (rationalFrequenciesEnabled.current) {
             randFreqX = randFreqX.copy(current = roundToRational(randFreqX.current))
             randFreqY = randFreqY.copy(current = roundToRational(randFreqY.current))

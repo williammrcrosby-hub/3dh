@@ -182,7 +182,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                                 val stepsPerFrame = stepsPerSec * 0.016f
                                 val nextVal = progress + stepsPerFrame
                                 
-                                val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                                val resetThreshold = maxSteps * 2f
                                 if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
                                     triggerReset = true
                                 } else {

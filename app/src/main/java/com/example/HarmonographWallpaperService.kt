@@ -235,9 +235,9 @@ class HarmonographWallpaperService : WallpaperService() {
                                     val stepsPerSec = maxSteps / (settings.drawSpeedMinutes.current * 60f)
                                     val nextVal = drawProgress + stepsPerSec * dt
                                     
-                                    val resetThreshold = maxSteps * (1f + settings.postCompletionResetTimeFactor)
+                                    val resetThreshold = maxSteps * 2f
                                     if (settings.postCompletionAutoReset && nextVal >= resetThreshold) {
-                                        val postResetDelay = (settings.drawSpeedMinutes.current * 60f * settings.postCompletionResetTimeFactor * 1000f).toLong().coerceAtLeast(100L)
+                                        val postResetDelay = 100L
                                         drawProgress = 0f
                                         randomizeUnlockedSettings()
                                         backgroundHandler?.postDelayed(this, postResetDelay)
