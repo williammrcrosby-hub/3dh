@@ -395,11 +395,11 @@ class HarmonographWallpaperService : WallpaperService() {
             val db = DatabaseProvider.getDatabase(context)
             val dao = db.dao()
             
-            val locked = settings.lockAllLockable().normalize()
-            settings = locked
-            saveSettingsToPrefs(locked)
+            val snapshotSettings = settings.toSnapshotSettings().normalize()
+            settings = snapshotSettings
+            saveSettingsToPrefs(snapshotSettings)
             
-            val json = adapter.toJson(locked) ?: ""
+            val json = adapter.toJson(snapshotSettings) ?: ""
             val displayName = "Wallpaper Snapshot #${System.currentTimeMillis() % 10000}"
             
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {

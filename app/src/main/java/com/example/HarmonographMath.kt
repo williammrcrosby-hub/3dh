@@ -99,7 +99,7 @@ object HarmonographMath {
         
         // Sublayer X'
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
-            val factor = settings.subXFreqFactor.current.toFloat()
+            val factor = settings.activeSubXFreqFactor
             val freqSubX = if (settings.subXFreqIsMultiply.current) (settings.activeFreqX * mult) * factor else (settings.activeFreqX * mult) / factor
             val pSubX = Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat()
             xRaw += settings.ampSubX.current * decayFactorX * sin(freqSubX * t + px + pSubX)
@@ -107,7 +107,7 @@ object HarmonographMath {
         
         // Sublayer Y'
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
-            val factor = settings.subYFreqFactor.current.toFloat()
+            val factor = settings.activeSubYFreqFactor
             val freqSubY = if (settings.subYFreqIsMultiply.current) (settings.activeFreqY * mult) * factor else (settings.activeFreqY * mult) / factor
             val pSubY = Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat()
             yRaw += settings.ampSubY.current * decayFactorY * sin(freqSubY * t + py + pSubY)
@@ -115,7 +115,7 @@ object HarmonographMath {
         
         // Sublayer Z'
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
-            val factor = settings.subZFreqFactor.current.toFloat()
+            val factor = settings.activeSubZFreqFactor
             val freqSubZ = if (settings.subZFreqIsMultiply.current) (settings.activeFreqZ * mult) * factor else (settings.activeFreqZ * mult) / factor
             val pSubZ = Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat()
             // Let sublayer Z' influence the depth
@@ -137,17 +137,17 @@ object HarmonographMath {
         val mult = settings.xyzFreqMultiplier.current
         var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
-            val factor = settings.subXFreqFactor.current.toFloat()
+            val factor = settings.activeSubXFreqFactor
             val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
             if (f > maxActiveFreq) maxActiveFreq = f
         }
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
-            val factor = settings.subYFreqFactor.current.toFloat()
+            val factor = settings.activeSubYFreqFactor
             val f = if (settings.subYFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
             if (f > maxActiveFreq) maxActiveFreq = f
         }
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
-            val factor = settings.subZFreqFactor.current.toFloat()
+            val factor = settings.activeSubZFreqFactor
             val f = if (settings.subZFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
             if (f > maxActiveFreq) maxActiveFreq = f
         }
@@ -185,7 +185,7 @@ object HarmonographMath {
         val subXEnabled = settings.ampSubX.enabled && settings.ampSubX.current > 0f
         val subXAmp = settings.ampSubX.current
         val subXFreq = if (subXEnabled) {
-            val factor = settings.subXFreqFactor.current.toFloat()
+            val factor = settings.activeSubXFreqFactor
             if (settings.subXFreqIsMultiply.current) fX * factor else fX / factor
         } else 0f
         val subXP = if (subXEnabled) Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat() else 0f
@@ -194,7 +194,7 @@ object HarmonographMath {
         val subYEnabled = settings.ampSubY.enabled && settings.ampSubY.current > 0f
         val subYAmp = settings.ampSubY.current
         val subYFreq = if (subYEnabled) {
-            val factor = settings.subYFreqFactor.current.toFloat()
+            val factor = settings.activeSubYFreqFactor
             if (settings.subYFreqIsMultiply.current) fY * factor else fY / factor
         } else 0f
         val subYP = if (subYEnabled) Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat() else 0f
@@ -203,7 +203,7 @@ object HarmonographMath {
         val subZEnabled = settings.ampSubZ.enabled && settings.ampSubZ.current > 0f
         val subZAmp = settings.ampSubZ.current
         val subZFreq = if (subZEnabled) {
-            val factor = settings.subZFreqFactor.current.toFloat()
+            val factor = settings.activeSubZFreqFactor
             if (settings.subZFreqIsMultiply.current) fZ * factor else fZ / factor
         } else 0f
         val subZP = if (subZEnabled) Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat() else 0f
@@ -415,17 +415,17 @@ object HarmonographMath {
         // Calculate max active frequency in the system to determine optimal dt
         var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
-            val factor = settings.subXFreqFactor.current.toFloat()
+            val factor = settings.activeSubXFreqFactor
             val f = if (settings.subXFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
             if (f > maxActiveFreq) maxActiveFreq = f
         }
         if (settings.ampSubY.enabled && settings.ampSubY.current > 0f) {
-            val factor = settings.subYFreqFactor.current.toFloat()
+            val factor = settings.activeSubYFreqFactor
             val f = if (settings.subYFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
             if (f > maxActiveFreq) maxActiveFreq = f
         }
         if (settings.ampSubZ.enabled && settings.ampSubZ.current > 0f) {
-            val factor = settings.subZFreqFactor.current.toFloat()
+            val factor = settings.activeSubZFreqFactor
             val f = if (settings.subZFreqIsMultiply.current) maxActiveFreq * factor else maxActiveFreq / factor
             if (f > maxActiveFreq) maxActiveFreq = f
         }
@@ -463,7 +463,7 @@ object HarmonographMath {
             val subXEnabled = settings.ampSubX.enabled && settings.ampSubX.current > 0f
             val subXAmp = settings.ampSubX.current
             val subXFreq = if (subXEnabled) {
-                val factor = settings.subXFreqFactor.current.toFloat()
+                val factor = settings.activeSubXFreqFactor
                 if (settings.subXFreqIsMultiply.current) fX * factor else fX / factor
             } else 0f
             val subXP = if (subXEnabled) Math.toRadians(settings.phaseSubX.current.toDouble()).toFloat() else 0f
@@ -471,7 +471,7 @@ object HarmonographMath {
             val subYEnabled = settings.ampSubY.enabled && settings.ampSubY.current > 0f
             val subYAmp = settings.ampSubY.current
             val subYFreq = if (subYEnabled) {
-                val factor = settings.subYFreqFactor.current.toFloat()
+                val factor = settings.activeSubYFreqFactor
                 if (settings.subYFreqIsMultiply.current) fY * factor else fY / factor
             } else 0f
             val subYP = if (subYEnabled) Math.toRadians(settings.phaseSubY.current.toDouble()).toFloat() else 0f
@@ -479,7 +479,7 @@ object HarmonographMath {
             val subZEnabled = settings.ampSubZ.enabled && settings.ampSubZ.current > 0f
             val subZAmp = settings.ampSubZ.current
             val subZFreq = if (subZEnabled) {
-                val factor = settings.subZFreqFactor.current.toFloat()
+                val factor = settings.activeSubZFreqFactor
                 if (settings.subZFreqIsMultiply.current) fZ * factor else fZ / factor
             } else 0f
             val subZP = if (subZEnabled) Math.toRadians(settings.phaseSubZ.current.toDouble()).toFloat() else 0f

@@ -177,6 +177,10 @@ data class HarmonographSettings(
     val subZFreqFactor: IntParameter = IntParameter(4, rangeMin = 1, rangeMax = 8),
     val subZFreqIsMultiply: BooleanParameter = BooleanParameter(true),
     
+    val liveSubXFreqFactor: Float? = null,
+    val liveSubYFreqFactor: Float? = null,
+    val liveSubZFreqFactor: Float? = null,
+    
     val drawSpeedMinutes: FloatParameter = FloatParameter(3.0f, rangeMin = 3.0f, rangeMax = 10.0f),
     val drawSpeedInstant: Boolean = false,
     val drawLengthSteps: Int = 3000, 
@@ -367,6 +371,85 @@ data class HarmonographSettings(
         return copy(allowedPerspectives = listStr.joinToString(","))
     }
 
+    fun toSnapshotSettings(): HarmonographSettings {
+        return copy(
+            ampX = ampX.copy(locked = false, rangeLocked = false),
+            ampY = ampY.copy(locked = false, rangeLocked = false),
+            ampZ = ampZ.copy(locked = false, rangeLocked = false),
+            
+            freqX = freqX.copy(locked = false, rangeLocked = false, current = activeFreqX),
+            freqY = freqY.copy(locked = false, rangeLocked = false, current = activeFreqY),
+            freqZ = freqZ.copy(locked = false, rangeLocked = false, current = activeFreqZ),
+            xyzFreqMultiplier = xyzFreqMultiplier.copy(locked = false, rangeLocked = false),
+            
+            decayX = decayX.copy(locked = false, rangeLocked = false),
+            decayY = decayY.copy(locked = false, rangeLocked = false),
+            decayZ = decayZ.copy(locked = false, rangeLocked = false),
+            
+            phaseX = phaseX.copy(locked = false, rangeLocked = false),
+            phaseY = phaseY.copy(locked = false, rangeLocked = false),
+            phaseZ = phaseZ.copy(locked = false, rangeLocked = false),
+            
+            phaseSubX = phaseSubX.copy(locked = false, rangeLocked = false),
+            phaseSubY = phaseSubY.copy(locked = false, rangeLocked = false),
+            phaseSubZ = phaseSubZ.copy(locked = false, rangeLocked = false),
+            
+            ampSubX = ampSubX.copy(locked = false, rangeLocked = false),
+            ampSubY = ampSubY.copy(locked = false, rangeLocked = false),
+            ampSubZ = ampSubZ.copy(locked = false, rangeLocked = false),
+            
+            subXFreqFactor = subXFreqFactor.copy(locked = false, rangeLocked = false, current = kotlin.math.round(activeSubXFreqFactor).toInt()),
+            subXFreqIsMultiply = subXFreqIsMultiply.copy(locked = false),
+            subYFreqFactor = subYFreqFactor.copy(locked = false, rangeLocked = false, current = kotlin.math.round(activeSubYFreqFactor).toInt()),
+            subYFreqIsMultiply = subYFreqIsMultiply.copy(locked = false),
+            subZFreqFactor = subZFreqFactor.copy(locked = false, rangeLocked = false, current = kotlin.math.round(activeSubZFreqFactor).toInt()),
+            subZFreqIsMultiply = subZFreqIsMultiply.copy(locked = false),
+            
+            saturation = saturation.copy(locked = false, rangeLocked = false),
+            solidColorHue = solidColorHue.copy(locked = false, rangeLocked = false),
+            gradientStartHue = gradientStartHue.copy(locked = false, rangeLocked = false),
+            gradientEndHue = gradientEndHue.copy(locked = false, rangeLocked = false),
+            
+            hueShiftSpeed = hueShiftSpeed.copy(locked = false, rangeLocked = false),
+            hueShiftRange = hueShiftRange.copy(locked = false, rangeLocked = false),
+            hueShiftingEnabled = hueShiftingEnabled.copy(locked = false),
+            
+            rainbowHue = rainbowHue.copy(locked = false, rangeLocked = false),
+            rainbowColorRange = rainbowColorRange.copy(locked = false, rangeLocked = false),
+            spicyHue = spicyHue.copy(locked = false, rangeLocked = false),
+            spicyColorRange = spicyColorRange.copy(locked = false, rangeLocked = false),
+            chromaticShift = chromaticShift.copy(locked = false, rangeLocked = false),
+            liveChromaticShiftEnabled = liveChromaticShiftEnabled.copy(locked = false),
+            chromaticShiftSpeed = chromaticShiftSpeed.copy(locked = false, rangeLocked = false),
+            
+            penCount = penCount.copy(locked = false, rangeLocked = false),
+            penRotationEnabled = penRotationEnabled.copy(locked = false),
+            penRotationMultiplier = penRotationMultiplier.copy(locked = false, rangeLocked = false),
+            penRotationIsMultiply = penRotationIsMultiply.copy(locked = false),
+            drawSpeedMinutes = drawSpeedMinutes.copy(locked = false, rangeLocked = false),
+            
+            penOffset = penOffset.copy(locked = false, rangeLocked = false),
+            periodicShapeSize = periodicShapeSize.copy(locked = false, rangeLocked = false),
+            periodicProgressiveDelay = periodicProgressiveDelay.copy(locked = false, rangeLocked = false),
+            periodicShapeFreqFactor = periodicShapeFreqFactor.copy(locked = false, rangeLocked = false),
+            lineThickness = lineThickness.copy(locked = false, rangeLocked = false),
+            cameraDistance = cameraDistance.copy(locked = false, rangeLocked = false),
+            coasterDeviationAngle = coasterDeviationAngle.copy(locked = false, rangeLocked = false),
+            coasterOrbitSpeed = coasterOrbitSpeed.copy(locked = false, rangeLocked = false),
+            decayEnabled = decayEnabled.copy(locked = false),
+            rationalFrequenciesEnabled = rationalFrequenciesEnabled.copy(locked = false),
+            gyroSensitivity = gyroSensitivity.copy(locked = false, rangeLocked = false),
+            lineAlpha = lineAlpha.copy(locked = false, rangeLocked = false),
+            perfVelocityModifier = perfVelocityModifier.copy(locked = false, rangeLocked = false),
+            perfAngularModifier = perfAngularModifier.copy(locked = false, rangeLocked = false),
+            
+            monoScaleEnabled = monoScaleEnabled.copy(locked = false),
+            monoScaleShift = monoScaleShift.copy(locked = false, rangeLocked = false),
+            monoScaleLiveShiftEnabled = monoScaleLiveShiftEnabled.copy(locked = false),
+            monoScaleLiveShiftSpeed = monoScaleLiveShiftSpeed.copy(locked = false, rangeLocked = false)
+        )
+    }
+
     fun lockAllLockable(): HarmonographSettings {
         return copy(
             ampX = ampX.copy(locked = true),
@@ -464,6 +547,13 @@ data class HarmonographSettings(
         get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqY.current) else freqY.current
     val activeFreqZ: Float
         get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqZ.current) else freqZ.current
+
+    val activeSubXFreqFactor: Float
+        get() = liveSubXFreqFactor ?: subXFreqFactor.current.toFloat()
+    val activeSubYFreqFactor: Float
+        get() = liveSubYFreqFactor ?: subYFreqFactor.current.toFloat()
+    val activeSubZFreqFactor: Float
+        get() = liveSubZFreqFactor ?: subZFreqFactor.current.toFloat()
 
     fun randomizeAll(random: java.util.Random): HarmonographSettings {
         val randAmpSubX = if (ampSubX.locked) ampSubX else {
@@ -706,6 +796,14 @@ class JointFrequencyShifter(
     var startY: Float? = null
     var startZ: Float? = null
     
+    var targetSubX: Float? = null
+    var targetSubY: Float? = null
+    var targetSubZ: Float? = null
+    
+    var startSubX: Float? = null
+    var startSubY: Float? = null
+    var startSubZ: Float? = null
+    
     var transitionDuration: Float = 0f
     var timeElapsed: Float = 0f
     
@@ -714,13 +812,15 @@ class JointFrequencyShifter(
         val yActive = !settings.freqY.locked
         val zActive = !settings.freqZ.locked && (settings.ampZ.current > 0f || settings.ampZ.actualSelectedMax > 1f)
         
-        if (!xActive && !yActive && !zActive) {
-            targetX = null
-            targetY = null
-            targetZ = null
-            startX = null
-            startY = null
-            startZ = null
+        val subXActive = !settings.subXFreqFactor.locked && settings.ampSubX.enabled && settings.ampSubX.current > 0f
+        val subYActive = !settings.subYFreqFactor.locked && settings.ampSubY.enabled && settings.ampSubY.current > 0f
+        val subZActive = !settings.subZFreqFactor.locked && settings.ampSubZ.enabled && settings.ampSubZ.current > 0f
+        
+        if (!xActive && !yActive && !zActive && !subXActive && !subYActive && !subZActive) {
+            targetX = null; targetY = null; targetZ = null
+            startX = null; startY = null; startZ = null
+            targetSubX = null; targetSubY = null; targetSubZ = null
+            startSubX = null; startSubY = null; startSubZ = null
             return settings
         }
         
@@ -744,7 +844,28 @@ class JointFrequencyShifter(
             }
         }
         
+        fun pickRandomWholeNumber(param: IntParameter, random: java.util.Random): Float {
+            val valMin = if (param.rangeLocked) param.actualSelectedMin else param.rangeMin
+            val valMax = if (param.rangeLocked) param.actualSelectedMax else param.rangeMax
+            val safeMin = minOf(valMin, valMax)
+            val safeMax = maxOf(valMin, valMax)
+            return if (safeMax > safeMin) {
+                (safeMin + random.nextInt(safeMax - safeMin + 1)).toFloat()
+            } else {
+                safeMin.toFloat()
+            }
+        }
+        
         fun checkParamValid(param: FloatParameter, target: Float?): Boolean {
+            if (target == null) return false
+            val valMin = if (param.rangeLocked) param.actualSelectedMin else param.rangeMin
+            val valMax = if (param.rangeLocked) param.actualSelectedMax else param.rangeMax
+            val safeMin = minOf(valMin, valMax)
+            val safeMax = maxOf(valMin, valMax)
+            return target >= (safeMin - 0.001f) && target <= (safeMax + 0.001f)
+        }
+        
+        fun checkIntParamValid(param: IntParameter, target: Float?): Boolean {
             if (target == null) return false
             val valMin = if (param.rangeLocked) param.actualSelectedMin else param.rangeMin
             val valMax = if (param.rangeLocked) param.actualSelectedMax else param.rangeMax
@@ -757,41 +878,64 @@ class JointFrequencyShifter(
         val yValid = yActive && checkParamValid(settings.freqY, targetY)
         val zValid = zActive && checkParamValid(settings.freqZ, targetZ)
         
+        val subXValid = subXActive && checkIntParamValid(settings.subXFreqFactor, targetSubX)
+        val subYValid = subYActive && checkIntParamValid(settings.subYFreqFactor, targetSubY)
+        val subZValid = subZActive && checkIntParamValid(settings.subZFreqFactor, targetSubZ)
+        
         val needsNewTransition = (xActive && !xValid) || 
                                  (yActive && !yValid) || 
                                  (zActive && !zValid) || 
+                                 (subXActive && !subXValid) ||
+                                 (subYActive && !subYValid) ||
+                                 (subZActive && !subZValid) ||
                                  (timeElapsed >= transitionDuration) || 
                                  (targetX == null && xActive) || 
                                  (targetY == null && yActive) || 
-                                 (targetZ == null && zActive)
+                                 (targetZ == null && zActive) ||
+                                 (targetSubX == null && subXActive) ||
+                                 (targetSubY == null && subYActive) ||
+                                 (targetSubZ == null && subZActive)
                                  
         if (needsNewTransition) {
-            transitionDuration = durationMin + random.nextFloat() * (durationMax - durationMin)
+            val sX = if (xActive) settings.freqX.current else null
+            val tX = if (xActive) pickRandomRational(settings.freqX, random) else null
+            
+            val sY = if (yActive) settings.freqY.current else null
+            val tY = if (yActive) pickRandomRational(settings.freqY, random) else null
+            
+            val sZ = if (zActive) settings.freqZ.current else null
+            val tZ = if (zActive) pickRandomRational(settings.freqZ, random) else null
+            
+            val sSubX = if (subXActive) settings.activeSubXFreqFactor else null
+            val tSubX = if (subXActive) pickRandomWholeNumber(settings.subXFreqFactor, random) else null
+            
+            val sSubY = if (subYActive) settings.activeSubYFreqFactor else null
+            val tSubY = if (subYActive) pickRandomWholeNumber(settings.subYFreqFactor, random) else null
+            
+            val sSubZ = if (subZActive) settings.activeSubZFreqFactor else null
+            val tSubZ = if (subZActive) pickRandomWholeNumber(settings.subZFreqFactor, random) else null
+            
+            val diffX = if (xActive && sX != null && tX != null) kotlin.math.abs(tX - sX) else 0f
+            val diffY = if (yActive && sY != null && tY != null) kotlin.math.abs(tY - sY) else 0f
+            val diffZ = if (zActive && sZ != null && tZ != null) kotlin.math.abs(tZ - sZ) else 0f
+            val diffSubX = if (subXActive && sSubX != null && tSubX != null) kotlin.math.abs(tSubX - sSubX) else 0f
+            val diffSubY = if (subYActive && sSubY != null && tSubY != null) kotlin.math.abs(tSubY - sSubY) else 0f
+            val diffSubZ = if (subZActive && sSubZ != null && tSubZ != null) kotlin.math.abs(tSubZ - sSubZ) else 0f
+            
+            val maxDiff = maxOf(diffX, diffY, diffZ, diffSubX, diffSubY, diffSubZ)
+            
+            val baseDuration = durationMin + random.nextFloat() * (durationMax - durationMin)
+            val durationDampening = 1f + maxDiff * 15f
+            transitionDuration = baseDuration * durationDampening
             timeElapsed = 0f
             
-            if (xActive) {
-                startX = settings.freqX.current
-                targetX = pickRandomRational(settings.freqX, random)
-            } else {
-                startX = null
-                targetX = null
-            }
+            startX = sX; targetX = tX
+            startY = sY; targetY = tY
+            startZ = sZ; targetZ = tZ
             
-            if (yActive) {
-                startY = settings.freqY.current
-                targetY = pickRandomRational(settings.freqY, random)
-            } else {
-                startY = null
-                targetY = null
-            }
-            
-            if (zActive) {
-                startZ = settings.freqZ.current
-                targetZ = pickRandomRational(settings.freqZ, random)
-            } else {
-                startZ = null
-                targetZ = null
-            }
+            startSubX = sSubX; targetSubX = tSubX
+            startSubY = sSubY; targetSubY = tSubY
+            startSubZ = sSubZ; targetSubZ = tSubZ
         }
         
         timeElapsed += dtSec
@@ -800,15 +944,45 @@ class JointFrequencyShifter(
         var newSettings = settings
         if (xActive && startX != null && targetX != null) {
             val curr = startX!! + (targetX!! - startX!!) * t
-            newSettings = newSettings.copy(freqX = settings.freqX.copy(current = curr))
+            newSettings = newSettings.copy(freqX = newSettings.freqX.copy(current = curr))
         }
         if (yActive && startY != null && targetY != null) {
             val curr = startY!! + (targetY!! - startY!!) * t
-            newSettings = newSettings.copy(freqY = settings.freqY.copy(current = curr))
+            newSettings = newSettings.copy(freqY = newSettings.freqY.copy(current = curr))
         }
         if (zActive && startZ != null && targetZ != null) {
             val curr = startZ!! + (targetZ!! - startZ!!) * t
-            newSettings = newSettings.copy(freqZ = settings.freqZ.copy(current = curr))
+            newSettings = newSettings.copy(freqZ = newSettings.freqZ.copy(current = curr))
+        }
+        
+        if (subXActive && startSubX != null && targetSubX != null) {
+            val curr = startSubX!! + (targetSubX!! - startSubX!!) * t
+            newSettings = newSettings.copy(
+                liveSubXFreqFactor = curr,
+                subXFreqFactor = newSettings.subXFreqFactor.copy(current = kotlin.math.round(curr).toInt())
+            )
+        } else {
+            newSettings = newSettings.copy(liveSubXFreqFactor = null)
+        }
+        
+        if (subYActive && startSubY != null && targetSubY != null) {
+            val curr = startSubY!! + (targetSubY!! - startSubY!!) * t
+            newSettings = newSettings.copy(
+                liveSubYFreqFactor = curr,
+                subYFreqFactor = newSettings.subYFreqFactor.copy(current = kotlin.math.round(curr).toInt())
+            )
+        } else {
+            newSettings = newSettings.copy(liveSubYFreqFactor = null)
+        }
+        
+        if (subZActive && startSubZ != null && targetSubZ != null) {
+            val curr = startSubZ!! + (targetSubZ!! - startSubZ!!) * t
+            newSettings = newSettings.copy(
+                liveSubZFreqFactor = curr,
+                subZFreqFactor = newSettings.subZFreqFactor.copy(current = kotlin.math.round(curr).toInt())
+            )
+        } else {
+            newSettings = newSettings.copy(liveSubZFreqFactor = null)
         }
         
         return newSettings
