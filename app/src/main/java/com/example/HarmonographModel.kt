@@ -304,7 +304,8 @@ data class HarmonographSettings(
     
     // Global Live Shifting
     val globalLiveShifting: BooleanParameter = BooleanParameter(false),
-    val globalLiveShiftSpeedMultiplier: FloatParameter = FloatParameter(4.0f, rangeMin = 4.0f, rangeMax = 20.0f, locked = true)
+    val globalLiveShiftSpeedMultiplier: FloatParameter = FloatParameter(4.0f, rangeMin = 4.0f, rangeMax = 20.0f, locked = true),
+    val autoFreqScaleEnabled: Boolean = false
 ) {
     fun normalize(): HarmonographSettings {
         val withLogFreqs = copy(
@@ -312,10 +313,20 @@ data class HarmonographSettings(
             freqY = freqY.copy(isLogarithmic = true),
             freqZ = freqZ.copy(isLogarithmic = true)
         )
-        return if (penTipSizeLocked) {
+        val finalSettings = if (penTipSizeLocked) {
             withLogFreqs.copy(penTipSize = 6f)
         } else {
             withLogFreqs
+        }
+
+        return if (finalSettings.autoFreqScaleEnabled && finalSettings.xyzFreqMultiplier.locked) {
+            val activeAxesCount = if (finalSettings.ampZ.current > 0f) 3f else 2f
+            val sumFreq = finalSettings.activeFreqX + finalSettings.activeFreqY + (if (finalSettings.ampZ.current > 0f) finalSettings.activeFreqZ else 0f)
+            val avgFreq = (sumFreq / activeAxesCount).coerceAtLeast(0.01f)
+            val targetMult = (3.0f / avgFreq).coerceIn(finalSettings.xyzFreqMultiplier.rangeMin, finalSettings.xyzFreqMultiplier.rangeMax)
+            finalSettings.copy(xyzFreqMultiplier = finalSettings.xyzFreqMultiplier.copy(current = targetMult))
+        } else {
+            finalSettings
         }
     }
 
@@ -716,7 +727,8 @@ data class HarmonographSettings(
             liveAlphaShiftEnabled = liveAlphaShiftEnabled.randomize(random),
             liveAlphaShiftSpeed = liveAlphaShiftSpeed.randomize(random),
             globalLiveShifting = globalLiveShifting.randomize(random),
-            globalLiveShiftSpeedMultiplier = globalLiveShiftSpeedMultiplier.randomize(random)
+            globalLiveShiftSpeedMultiplier = globalLiveShiftSpeedMultiplier.randomize(random),
+            autoFreqScaleEnabled = true
         )
     }
 
