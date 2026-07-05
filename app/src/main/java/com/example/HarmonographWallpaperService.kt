@@ -395,9 +395,7 @@ class HarmonographWallpaperService : WallpaperService() {
             val db = DatabaseProvider.getDatabase(context)
             val dao = db.dao()
             
-            val snapshotSettings = settings.toSnapshotSettings().normalize()
-            settings = snapshotSettings
-            saveSettingsToPrefs(snapshotSettings)
+            val snapshotSettings = settings.toLockedSnapshotSettings().normalize()
             
             val json = adapter.toJson(snapshotSettings) ?: ""
             val displayName = "Wallpaper Snapshot #${System.currentTimeMillis() % 10000}"

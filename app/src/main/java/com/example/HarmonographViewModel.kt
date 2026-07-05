@@ -425,11 +425,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
      */
     fun saveSnapshotPreset(customName: String) {
         viewModelScope.launch(Dispatchers.IO) {
-            val snapshotSettings = _uiState.value.settings.toSnapshotSettings()
-            viewModelScope.launch(Dispatchers.Main) {
-                _uiState.update { it.copy(settings = snapshotSettings) }
-                saveSettingsToPrefs(snapshotSettings)
-            }
+            val snapshotSettings = _uiState.value.settings.toLockedSnapshotSettings()
             val json = adapter.toJson(snapshotSettings) ?: ""
             val displayName = if (customName.isNotBlank()) customName else "Snapshot #${System.currentTimeMillis() % 10000}"
             dao.insertPreset(
