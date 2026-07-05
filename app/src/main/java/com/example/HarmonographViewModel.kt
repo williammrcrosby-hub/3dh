@@ -148,7 +148,7 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         }
                         shiftedSettings = jointFrequencyShifter.update(shiftedSettings, dtShift, random)
                         if (shiftedSettings != settings) {
-                            settings = shiftedSettings
+                            settings = shiftedSettings.normalize()
                         }
                     }
                     

@@ -207,7 +207,7 @@ class HarmonographWallpaperService : WallpaperService() {
                                 shiftedSettings = shifter.update(shiftedSettings, dtShift, randomShift)
                             }
                             shiftedSettings = jointFrequencyShifter.update(shiftedSettings, dtShift, randomShift)
-                            settings = shiftedSettings
+                            settings = shiftedSettings.normalize()
                         }
 
                         if (isPlay) {

@@ -305,7 +305,7 @@ data class HarmonographSettings(
     // Global Live Shifting
     val globalLiveShifting: BooleanParameter = BooleanParameter(false),
     val globalLiveShiftSpeedMultiplier: FloatParameter = FloatParameter(4.0f, rangeMin = 4.0f, rangeMax = 20.0f, locked = true),
-    val autoFreqScaleEnabled: Boolean = false
+    val autoFreqScaleEnabled: Boolean = true
 ) {
     fun normalize(): HarmonographSettings {
         val withLogFreqs = copy(
