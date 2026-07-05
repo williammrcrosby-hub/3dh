@@ -202,10 +202,11 @@ class HarmonographWallpaperService : WallpaperService() {
                     if (!appActive) {
                         if (isPlay && settings.globalLiveShifting.current) {
                             var shiftedSettings = settings
+                            val dtShift = 0.016f * settings.globalLiveShiftSpeedMultiplier.current
                             for (shifter in parameterShifters) {
-                                shiftedSettings = shifter.update(shiftedSettings, 0.016f, randomShift)
+                                shiftedSettings = shifter.update(shiftedSettings, dtShift, randomShift)
                             }
-                            shiftedSettings = jointFrequencyShifter.update(shiftedSettings, 0.016f, randomShift)
+                            shiftedSettings = jointFrequencyShifter.update(shiftedSettings, dtShift, randomShift)
                             settings = shiftedSettings
                         }
 
@@ -213,7 +214,18 @@ class HarmonographWallpaperService : WallpaperService() {
                             val maxSteps = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
                                 settings.instantDrawLengthLimit.current.toFloat()
                             } else {
-                                (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                                val baseMax = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                                if (settings.drawLengthLooping && !settings.globalLiveShifting.current) {
+                                    val paths = HarmonographMath.generatePathPoints(settings, settings.drawLengthSteps)
+                                    val stepsInPath = paths.firstOrNull()?.size?.toFloat() ?: baseMax
+                                    if (stepsInPath < settings.drawLengthSteps) {
+                                        stepsInPath
+                                    } else {
+                                        baseMax
+                                    }
+                                } else {
+                                    baseMax
+                                }
                             }
                             if (settings.drawSpeedInstant) {
                                 if (drawProgress < maxSteps) {
@@ -237,8 +249,8 @@ class HarmonographWallpaperService : WallpaperService() {
                                 }
                             } else {
                                 val dt = 0.016f // step time
-                                val fullMaxSteps = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
-                                val stepsPerSec = fullMaxSteps / (settings.drawSpeedMinutes.current * 60f)
+                                val baseMax = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                                val stepsPerSec = baseMax / (settings.drawSpeedMinutes.current * 60f)
                                 drawProgress += stepsPerSec * dt
                                 if (drawProgress >= maxSteps) {
                                     if (settings.postCompletionAutoReset) {
@@ -710,7 +722,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         previousScale = wallpaperScaleHolder.value,
                         onScaleCalculated = { wallpaperScaleHolder.value = it },
                         drawSpeedInstant = settings.drawSpeedInstant,
-                        decayEnabled = settings.decayEnabled.current
+                        decayEnabled = settings.decayEnabled.current,
+                        resolutionScale = scaleFactorGlobal
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -809,7 +822,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         drawList = drawList,
                         settingsHash = settingsHash,
                         isClosedLoop = isClosedLoop,
-                        previousScale = wallpaperScaleHolder.value
+                        previousScale = wallpaperScaleHolder.value,
+                        resolutionScale = scaleFactorGlobal
                     )
                 }
 
@@ -1172,7 +1186,8 @@ class HarmonographWallpaperService : WallpaperService() {
             drawList: MutableList<WPInstruction>,
             settingsHash: Long,
             isClosedLoop: Boolean = false,
-            previousScale: Float = 1f
+            previousScale: Float = 1f,
+            resolutionScale: Float = 1f
         ) {
             val concentricLevels = shape.concentric
             val baseSize = shape.size
@@ -1220,7 +1235,8 @@ class HarmonographWallpaperService : WallpaperService() {
                     coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                     globalLiveShifting = settings.globalLiveShifting.current,
                     previousScale = previousScale,
-                    decayEnabled = settings.decayEnabled.current
+                    decayEnabled = settings.decayEnabled.current,
+                    resolutionScale = resolutionScale
                 )
                 
                 val centerPtScreen = centerProj.firstOrNull() ?: continue
@@ -1252,7 +1268,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         globalLiveShifting = settings.globalLiveShifting.current,
                         previousScale = previousScale,
-                        decayEnabled = settings.decayEnabled.current
+                        decayEnabled = settings.decayEnabled.current,
+                        resolutionScale = resolutionScale
                     )
 
                     if (projPts.size == 4) {
@@ -1313,7 +1330,8 @@ class HarmonographWallpaperService : WallpaperService() {
                         coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                         globalLiveShifting = settings.globalLiveShifting.current,
                         previousScale = previousScale,
-                        decayEnabled = settings.decayEnabled.current
+                        decayEnabled = settings.decayEnabled.current,
+                        resolutionScale = resolutionScale
                     )
 
                     if (projPts.size >= 2) {

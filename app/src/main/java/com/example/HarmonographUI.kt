@@ -146,7 +146,7 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                     if (dtFrame > 0L) {
                         frameCount++
                         fpsAccumTime += dtFrame
-                        if (fpsAccumTime >= 50L) {
+                        if (fpsAccumTime >= 1000L) {
                             val measuredFps = (frameCount * 1000f) / fpsAccumTime
                             viewModel.updateFps(measuredFps.coerceAtLeast(1f))
                             frameCount = 0
@@ -386,7 +386,8 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                         previousScale = uiScaleHolder.value,
                         onScaleCalculated = { uiScaleHolder.value = it },
                         drawSpeedInstant = settings.drawSpeedInstant,
-                        decayEnabled = settings.decayEnabled.current
+                        decayEnabled = settings.decayEnabled.current,
+                        resolutionScale = scaleFactorGlobal
                     )
                     
                     if (projPoints.isEmpty()) continue
@@ -969,6 +970,28 @@ fun OscillatorConfigTab(
                             checked = settings.globalLiveShifting.current,
                             onCheckedChange = { onUpdate(settings.copy(globalLiveShifting = settings.globalLiveShifting.withValue(it))) },
                             modifier = Modifier.scale(0.75f).testTag("global_live_shifting_switch")
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Box(modifier = Modifier.testTag("live_shift_speed_multiplier")) {
+                        ParameterSliderRow(
+                            label = "Live Shift Speed Multiplier",
+                            value = settings.globalLiveShiftSpeedMultiplier.current,
+                            minVal = settings.globalLiveShiftSpeedMultiplier.rangeMin,
+                            maxVal = settings.globalLiveShiftSpeedMultiplier.rangeMax,
+                            stepValue = 0.5f,
+                            formatString = "%.1fx",
+                            isLocked = settings.globalLiveShiftSpeedMultiplier.locked,
+                            onLockToggle = { onUpdate(settings.copy(globalLiveShiftSpeedMultiplier = settings.globalLiveShiftSpeedMultiplier.copy(locked = it))) },
+                            isRangeLocked = settings.globalLiveShiftSpeedMultiplier.rangeLocked,
+                            onRangeLockToggle = { onUpdate(settings.copy(globalLiveShiftSpeedMultiplier = settings.globalLiveShiftSpeedMultiplier.withRangeLocked(it))) },
+                            selectedMin = settings.globalLiveShiftSpeedMultiplier.actualSelectedMin,
+                            selectedMax = settings.globalLiveShiftSpeedMultiplier.actualSelectedMax,
+                            onRangeChange = { min, max -> onUpdate(settings.copy(globalLiveShiftSpeedMultiplier = settings.globalLiveShiftSpeedMultiplier.withRanges(min, max))) },
+                            onValueChange = { onUpdate(settings.copy(globalLiveShiftSpeedMultiplier = settings.globalLiveShiftSpeedMultiplier.withValue(it))) },
+                            onRandomize = { onUpdate(settings.copy(globalLiveShiftSpeedMultiplier = settings.globalLiveShiftSpeedMultiplier.randomize(java.util.Random()))) }
                         )
                     }
 
@@ -4191,7 +4214,8 @@ private fun addComposeOrthogonalShapeToDrawList(
             coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
             globalLiveShifting = settings.globalLiveShifting.current,
             previousScale = previousScale,
-            decayEnabled = settings.decayEnabled.current
+            decayEnabled = settings.decayEnabled.current,
+            resolutionScale = scaleFactor
         )
         val centerPtScreen = centerProj.firstOrNull() ?: continue
         val shapeColor = computeComposeColor(settings, shape.colorIndex, totalSteps, centerPtScreen, width, height, timeHueOffset, settingsHash, animTime, isClosedLoop)
@@ -4223,7 +4247,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                 globalLiveShifting = settings.globalLiveShifting.current,
                 previousScale = previousScale,
-                decayEnabled = settings.decayEnabled.current
+                decayEnabled = settings.decayEnabled.current,
+                resolutionScale = scaleFactor
             )
 
             if (projPts.size == 4) {
@@ -4300,7 +4325,8 @@ private fun addComposeOrthogonalShapeToDrawList(
                 coasterOrbitSpeed = settings.coasterOrbitSpeed.current,
                 globalLiveShifting = settings.globalLiveShifting.current,
                 previousScale = previousScale,
-                decayEnabled = settings.decayEnabled.current
+                decayEnabled = settings.decayEnabled.current,
+                resolutionScale = scaleFactor
             )
 
             if (projPts.size >= 2) {

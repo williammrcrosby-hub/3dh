@@ -142,10 +142,11 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     
                     if (settings.globalLiveShifting.current && isPlay) {
                         var shiftedSettings = settings
+                        val dtShift = 0.016f * settings.globalLiveShiftSpeedMultiplier.current
                         for (shifter in parameterShifters) {
-                            shiftedSettings = shifter.update(shiftedSettings, 0.016f, random)
+                            shiftedSettings = shifter.update(shiftedSettings, dtShift, random)
                         }
-                        shiftedSettings = jointFrequencyShifter.update(shiftedSettings, 0.016f, random)
+                        shiftedSettings = jointFrequencyShifter.update(shiftedSettings, dtShift, random)
                         if (shiftedSettings != settings) {
                             settings = shiftedSettings
                         }
@@ -155,7 +156,18 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                     val maxSteps = if (settings.drawSpeedInstant && !settings.instantDrawLengthInfinite.current) {
                         settings.instantDrawLengthLimit.current.toFloat()
                     } else {
-                        (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                        val baseMax = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                        if (settings.drawLengthLooping && !settings.globalLiveShifting.current) {
+                            val paths = HarmonographMath.generatePathPoints(settings, settings.drawLengthSteps)
+                            val stepsInPath = paths.firstOrNull()?.size?.toFloat() ?: baseMax
+                            if (stepsInPath < settings.drawLengthSteps) {
+                                stepsInPath
+                            } else {
+                                baseMax
+                            }
+                        } else {
+                            baseMax
+                        }
                     }
                     var nextProgress = progress
                     var triggerReset = false
@@ -179,21 +191,29 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                             }
                         } else {
                             val totalDurationSec = settings.drawSpeedMinutes.current * 60f
-                            val stepsPerSec = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat() / totalDurationSec
+                            val baseMax = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                            val stepsPerSec = baseMax / totalDurationSec
                             val stepsPerFrame = stepsPerSec * 0.016f
                             val sumProgress = progress + stepsPerFrame
-                            val fullMaxSteps = (settings.drawLengthSteps * settings.drawLengthFactor).toFloat()
+                            val fullMaxSteps = maxSteps
                             val newProgress = if (sumProgress > fullMaxSteps) fullMaxSteps else sumProgress
                             nextProgress = newProgress
                             
-                            if (newProgress >= fullMaxSteps && settings.postCompletionAutoReset) {
-                                if (completionTimeMs == 0L) {
-                                    shouldSetCompletionTime = true
-                                }
-                                val currentCompletionTime = if (completionTimeMs == 0L) System.currentTimeMillis() else completionTimeMs
-                                val waitDurationMs = ((totalDurationSec * settings.postCompletionResetTimeFactor) * 1000).toLong().coerceAtLeast(100L)
-                                if (System.currentTimeMillis() - currentCompletionTime >= waitDurationMs) {
-                                    triggerReset = true
+                            if (newProgress >= fullMaxSteps) {
+                                if (settings.postCompletionAutoReset) {
+                                    if (completionTimeMs == 0L) {
+                                        shouldSetCompletionTime = true
+                                    }
+                                    val currentCompletionTime = if (completionTimeMs == 0L) System.currentTimeMillis() else completionTimeMs
+                                    val waitDurationMs = ((totalDurationSec * settings.postCompletionResetTimeFactor) * 1000).toLong().coerceAtLeast(100L)
+                                    if (System.currentTimeMillis() - currentCompletionTime >= waitDurationMs) {
+                                        triggerReset = true
+                                        shouldClearCompletionTime = true
+                                    }
+                                } else if (settings.drawLengthLooping) {
+                                    nextProgress = 0f
+                                    shouldClearCompletionTime = true
+                                } else {
                                     shouldClearCompletionTime = true
                                 }
                             } else {

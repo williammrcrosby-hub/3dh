@@ -271,7 +271,7 @@ data class HarmonographSettings(
     val perfResolution: String = "native", // "native", "760", "480", "auto"
     val perfVelocitySampling: Boolean = true,
     val perfVelocityModifier: FloatParameter = FloatParameter(45.0f, rangeMin = 0.5f, rangeMax = 45.0f, locked = true),
-    val perfAngularModifier: FloatParameter = FloatParameter(14.0f, rangeMin = 0.0f, rangeMax = 25.0f, locked = true),
+    val perfAngularModifier: FloatParameter = FloatParameter(5.0f, rangeMin = 0.0f, rangeMax = 25.0f, locked = true),
     val perfLiveShiftTickRateMs: IntParameter = IntParameter(30, rangeMin = 5, rangeMax = 200),
     val perfRemoveTailEnabled: Boolean = true,
     val perfWallpaperShowFps: Boolean = false,
@@ -294,7 +294,8 @@ data class HarmonographSettings(
     val liveAlphaShiftSpeed: FloatParameter = FloatParameter(0.5f, rangeMin = 0.05f, rangeMax = 1.0f),
     
     // Global Live Shifting
-    val globalLiveShifting: BooleanParameter = BooleanParameter(false)
+    val globalLiveShifting: BooleanParameter = BooleanParameter(false),
+    val globalLiveShiftSpeedMultiplier: FloatParameter = FloatParameter(4.0f, rangeMin = 4.0f, rangeMax = 20.0f, locked = true)
 ) {
     fun normalize(): HarmonographSettings {
         return if (penTipSizeLocked) {
@@ -529,7 +530,8 @@ data class HarmonographSettings(
             monoWaveEffectiveRange = monoWaveEffectiveRange.copy(locked = true),
             monoWaveRandomness = monoWaveRandomness.copy(locked = true),
             liveAlphaShiftSpeed = liveAlphaShiftSpeed.copy(locked = true),
-            globalLiveShifting = globalLiveShifting.copy(locked = true)
+            globalLiveShifting = globalLiveShifting.copy(locked = true),
+            globalLiveShiftSpeedMultiplier = globalLiveShiftSpeedMultiplier.copy(locked = true)
         )
     }
 
@@ -699,7 +701,8 @@ data class HarmonographSettings(
             
             liveAlphaShiftEnabled = liveAlphaShiftEnabled.randomize(random),
             liveAlphaShiftSpeed = liveAlphaShiftSpeed.randomize(random),
-            globalLiveShifting = globalLiveShifting.randomize(random)
+            globalLiveShifting = globalLiveShifting.randomize(random),
+            globalLiveShiftSpeedMultiplier = globalLiveShiftSpeedMultiplier.randomize(random)
         )
     }
 

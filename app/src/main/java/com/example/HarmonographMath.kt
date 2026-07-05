@@ -809,7 +809,8 @@ object HarmonographMath {
         previousScale: Float = 1f,
         onScaleCalculated: ((Float) -> Unit)? = null,
         drawSpeedInstant: Boolean = false,
-        decayEnabled: Boolean = true
+        decayEnabled: Boolean = true,
+        resolutionScale: Float = 1f
     ): List<ProjectedPoint> {
         if (points.isEmpty()) return emptyList()
         
@@ -911,8 +912,8 @@ object HarmonographMath {
                     Triple(rx, ry, depth)
                 }
                 
-                val allowedWidth = (screenWidth * 0.9f) / 2f
-                val allowedHeight = (screenHeight * 0.9f) / 2f
+                val allowedWidth = ((screenWidth / resolutionScale) * 0.9f) / 2f
+                val allowedHeight = ((screenHeight / resolutionScale) * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
                     val maxZoomLimit = if (drawSpeedInstant || currentDrawProgress > 200f) 250f else 15f
                     // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
@@ -930,8 +931,8 @@ object HarmonographMath {
                 }
                 
                 return rawProj.mapIndexed { idx, (rx, ry, depth) ->
-                    val u = screenWidth / 2f + rx * fitMultiplier
-                    val v = screenHeight / 2f + ry * fitMultiplier
+                    val u = screenWidth / 2f + rx * fitMultiplier * resolutionScale
+                    val v = screenHeight / 2f + ry * fitMultiplier * resolutionScale
                     val pt = activePoints[idx]
                     ProjectedPoint(
                         x = u,
@@ -950,8 +951,8 @@ object HarmonographMath {
                         else -> Triple(pt.x, pt.y, pt.z) // "Z"
                     }
                     val scale = (dFocal / (dFocal + depth).coerceAtLeast(100f)) * dFocalScale
-                    val u = screenWidth / 2f + projX * scale
-                    val v = screenHeight / 2f - projY * scale
+                    val u = screenWidth / 2f + projX * scale * resolutionScale
+                    val v = screenHeight / 2f - projY * scale * resolutionScale
                     ProjectedPoint(
                         x = u,
                         y = v,
@@ -1039,8 +1040,8 @@ object HarmonographMath {
                     Triple(rx, ry, zRot2)
                 }
                 
-                val allowedWidth = (screenWidth * 0.9f) / 2f
-                val allowedHeight = (screenHeight * 0.9f) / 2f
+                val allowedWidth = ((screenWidth / resolutionScale) * 0.9f) / 2f
+                val allowedHeight = ((screenHeight / resolutionScale) * 0.9f) / 2f
                 val fitMultiplier = if (isPrimaryPath && points.size > 50) {
                     val maxZoomLimit = if (drawSpeedInstant || currentDrawProgress > 200f) 250f else 15f
                     // Set safe minimum zoom limit of 0.35f to guarantee drawing never drifts too far away
@@ -1058,8 +1059,8 @@ object HarmonographMath {
                 }
                 
                 rawProj.mapIndexed { idx, (rx, ry, depth) ->
-                    val u = screenWidth / 2f + rx * fitMultiplier
-                    val v = screenHeight / 2f + ry * fitMultiplier
+                    val u = screenWidth / 2f + rx * fitMultiplier * resolutionScale
+                    val v = screenHeight / 2f + ry * fitMultiplier * resolutionScale
                     val pt = activePoints[idx]
                     ProjectedPoint(
                         x = u,
@@ -1087,8 +1088,8 @@ object HarmonographMath {
                     val zRot2 = yRot1 * syY + zRot1 * cyY
                     
                     val scale = (dFocal / (dFocal + zRot2).coerceAtLeast(100f)) * dFocalScale
-                    val u = screenWidth / 2f + xRot2 * scale
-                    val v = screenHeight / 2f - yRot2 * scale
+                    val u = screenWidth / 2f + xRot2 * scale * resolutionScale
+                    val v = screenHeight / 2f - yRot2 * scale * resolutionScale
                     ProjectedPoint(
                         x = u,
                         y = v,
@@ -1255,8 +1256,8 @@ object HarmonographMath {
                 val depthForProj = rz.coerceAtLeast(0.1f)
                 val scale = dFocal / depthForProj
                 
-                val u = screenWidth / 2f + rx * scale * 0.82f
-                val v = screenHeight / 2f - ry * scale * 0.82f
+                val u = screenWidth / 2f + rx * scale * 0.82f * resolutionScale
+                val v = screenHeight / 2f - ry * scale * 0.82f * resolutionScale
                 
                 ProjectedPoint(
                     x = u,
