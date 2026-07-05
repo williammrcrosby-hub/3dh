@@ -251,6 +251,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                         }
 
                         val u = baseSettings.randomizeAll(random).normalize()
+                        jointFrequencyShifter.reset()
+                        for (shifter in parameterShifters) {
+                            shifter.reset()
+                        }
                         val nextMaxSteps = if (u.drawSpeedInstant && !u.instantDrawLengthInfinite.current) {
                             u.instantDrawLengthLimit.current.toFloat()
                         } else {
@@ -381,6 +385,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
         }
 
         val u = baseSettings.randomizeAll(random).normalize()
+        jointFrequencyShifter.reset()
+        for (shifter in parameterShifters) {
+            shifter.reset()
+        }
         val nextMaxSteps = if (u.drawSpeedInstant && !u.instantDrawLengthInfinite.current) {
             u.instantDrawLengthLimit.current.toFloat()
         } else {
@@ -474,6 +482,10 @@ class HarmonographViewModel(application: Application) : AndroidViewModel(applica
                 gyroYawOffset.value = 0f
                 gyroPitchOffset.value = 0f
                 val randomizedSettings = settings.randomizeAll(random).normalize()
+                jointFrequencyShifter.reset()
+                for (shifter in parameterShifters) {
+                    shifter.reset()
+                }
                 _uiState.update { 
                     it.copy(
                         settings = randomizedSettings,

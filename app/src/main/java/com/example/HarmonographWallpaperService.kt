@@ -372,6 +372,10 @@ class HarmonographWallpaperService : WallpaperService() {
                         if (needsReset) {
                             drawProgress = 0f // Restart drawing only if physical form parameters changed
                             wallpaperDynamicTailLimit = -1
+                            jointFrequencyShifter.reset()
+                            for (shifter in parameterShifters) {
+                                shifter.reset()
+                            }
                         }
                         if (!settings.gyroEnabled) {
                             gyroYawOffset = 0f
@@ -388,6 +392,10 @@ class HarmonographWallpaperService : WallpaperService() {
         private fun randomizeUnlockedSettings() {
             val r = Random()
             settings = settings.randomizeAll(r).normalize()
+            jointFrequencyShifter.reset()
+            for (shifter in parameterShifters) {
+                shifter.reset()
+            }
             wallpaperDynamicTailLimit = -1
             saveSettingsToPrefs(settings)
         }

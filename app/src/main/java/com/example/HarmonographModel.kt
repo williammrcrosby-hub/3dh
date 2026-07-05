@@ -765,6 +765,11 @@ class ParameterShifter(
     var targetValue: Float? = null
     var currentSpeed: Float = 0f
     
+    fun reset() {
+        targetValue = null
+        currentSpeed = 0f
+    }
+    
     fun update(settings: HarmonographSettings, dtSec: Float, random: java.util.Random): HarmonographSettings {
         val param = getParam(settings)
         if (param.locked || !isOscillatorActive(settings)) {
@@ -823,6 +828,23 @@ class JointFrequencyShifter(
     
     var transitionDuration: Float = 0f
     var timeElapsed: Float = 0f
+    
+    fun reset() {
+        targetX = null
+        targetY = null
+        targetZ = null
+        startX = null
+        startY = null
+        startZ = null
+        targetSubX = null
+        targetSubY = null
+        targetSubZ = null
+        startSubX = null
+        startSubY = null
+        startSubZ = null
+        transitionDuration = 0f
+        timeElapsed = 0f
+    }
     
     fun update(settings: HarmonographSettings, dtSec: Float, random: java.util.Random): HarmonographSettings {
         val xActive = !settings.freqX.locked
