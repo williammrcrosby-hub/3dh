@@ -626,6 +626,16 @@ fun HarmonographAppScreen(viewModel: HarmonographViewModel) {
                             Spacer(modifier = Modifier.height(2.dp))
                             TelemetryRow("XYZ Amps", "${settings.ampX.current.roundToInt()}, ${settings.ampY.current.roundToInt()}, ${settings.ampZ.current.roundToInt()}")
                             TelemetryRow("XYZ Freqs", "${"%.3f".format(settings.activeFreqX)}x, ${"%.3f".format(settings.activeFreqY)}x, ${"%.3f".format(settings.activeFreqZ)}x")
+                            val sliderVal = settings.xyzFreqMultiplier.current
+                            val autoFactor = if (settings.autoFreqScaleEnabled) {
+                                val activeAxesCount = if (settings.ampZ.current > 0f) 3f else 2f
+                                val sumFreq = settings.activeFreqX + settings.activeFreqY + (if (settings.ampZ.current > 0f) settings.activeFreqZ else 0f)
+                                val avgFreq = (sumFreq / activeAxesCount).coerceAtLeast(0.01f)
+                                (3.0f / avgFreq)
+                            } else {
+                                1.0f
+                            }
+                            TelemetryRow("Freq Scale", "${"%.2f".format(sliderVal)}x (Auto: ${"%.2f".format(autoFactor)}x) = ${"%.2f".format(settings.effectiveXyzFreqMultiplier)}x")
                             TelemetryRow("Decays", "${"%.4f".format(settings.decayX.current)}, ${"%.4f".format(settings.decayY.current)}, ${"%.4f".format(settings.decayZ.current)}")
                             TelemetryRow("Phases", "${settings.phaseX.current.roundToInt()}°, ${settings.phaseY.current.roundToInt()}°, ${settings.phaseZ.current.roundToInt()}°")
                             if (settings.ampSubX.current > 0 || settings.ampSubY.current > 0 || settings.ampSubZ.current > 0) {

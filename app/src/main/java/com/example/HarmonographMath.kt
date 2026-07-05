@@ -76,7 +76,7 @@ object HarmonographMath {
      */
     fun calculatePointAtStep(k: Int, settings: HarmonographSettings, dt: Float = 0.015f): Point3D {
         val t = k * dt
-        val mult = settings.xyzFreqMultiplier.current
+        val mult = settings.effectiveXyzFreqMultiplier
         
         // XYZ Base signals with decay and phase
         val px = Math.toRadians(settings.phaseX.current.toDouble()).toFloat()
@@ -134,7 +134,7 @@ object HarmonographMath {
         dtDefault: Float = 0.015f
     ): List<List<Point3D>> {
         // Calculate max active frequency in the system to determine optimal dt
-        val mult = settings.xyzFreqMultiplier.current
+        val mult = settings.effectiveXyzFreqMultiplier
         var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult
         if (settings.ampSubX.enabled && settings.ampSubX.current > 0f) {
             val factor = settings.activeSubXFreqFactor
@@ -410,7 +410,7 @@ object HarmonographMath {
     ): List<CustomShapeData> {
         if (settings.periodicShape == "none") return emptyList()
         
-        val mult = settings.xyzFreqMultiplier.current
+        val mult = settings.effectiveXyzFreqMultiplier
         
         // Calculate max active frequency in the system to determine optimal dt
         var maxActiveFreq = maxOf(settings.activeFreqX, settings.activeFreqY, settings.activeFreqZ) * mult

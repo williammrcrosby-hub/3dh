@@ -319,15 +319,7 @@ data class HarmonographSettings(
             withLogFreqs
         }
 
-        return if (finalSettings.autoFreqScaleEnabled && finalSettings.xyzFreqMultiplier.locked) {
-            val activeAxesCount = if (finalSettings.ampZ.current > 0f) 3f else 2f
-            val sumFreq = finalSettings.activeFreqX + finalSettings.activeFreqY + (if (finalSettings.ampZ.current > 0f) finalSettings.activeFreqZ else 0f)
-            val avgFreq = (sumFreq / activeAxesCount).coerceAtLeast(0.01f)
-            val targetMult = (3.0f / avgFreq).coerceIn(finalSettings.xyzFreqMultiplier.rangeMin, finalSettings.xyzFreqMultiplier.rangeMax)
-            finalSettings.copy(xyzFreqMultiplier = finalSettings.xyzFreqMultiplier.copy(current = targetMult))
-        } else {
-            finalSettings
-        }
+        return finalSettings
     }
 
     fun getStableHash(): Long {
@@ -574,6 +566,20 @@ data class HarmonographSettings(
         get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqY.current) else freqY.current
     val activeFreqZ: Float
         get() = if (rationalFrequenciesEnabled.current && !globalLiveShifting.current) roundToRational(freqZ.current) else freqZ.current
+
+    val effectiveXyzFreqMultiplier: Float
+        get() {
+            val sliderVal = xyzFreqMultiplier.current
+            val autoFactor = if (autoFreqScaleEnabled) {
+                val activeAxesCount = if (ampZ.current > 0f) 3f else 2f
+                val sumFreq = activeFreqX + activeFreqY + (if (ampZ.current > 0f) activeFreqZ else 0f)
+                val avgFreq = (sumFreq / activeAxesCount).coerceAtLeast(0.01f)
+                (3.0f / avgFreq)
+            } else {
+                1.0f
+            }
+            return (autoFactor * sliderVal).coerceIn(0.1f, 100.0f)
+        }
 
     val activeSubXFreqFactor: Float
         get() = liveSubXFreqFactor ?: subXFreqFactor.current.toFloat()
